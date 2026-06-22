@@ -1,0 +1,6 @@
+{
+  "name": "Bánh Canh Cá Lóc Miền Trung",
+  "description": "Hệ thống đặt hàng và quản lý quán Bánh Canh Cá Lóc miền Trung với đầy đủ giỏ hàng, thanh toán trực tuyến, theo dõi đơn hàng và bảng điều khiển quản lý quán ăn, tài xế.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
