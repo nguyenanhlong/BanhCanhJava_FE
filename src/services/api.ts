@@ -4,7 +4,7 @@
 
 import { Product, Driver, Order } from '../types';
 
-const BASE_URL = 'http://localhost:8080/api';
+const BASE_URL = 'banhcanhjavabe-production.up.railway.app/api';
 
 // Map backend Product (imageUrl, etc.) to frontend Product (image, etc.)
 function mapProduct(p: any): Product {
