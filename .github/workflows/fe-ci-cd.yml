@@ -1,0 +1,50 @@
+name: Frontend CI/CD với Test nghiêm ngặt
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  # JOB 1: CHẠY KIỂM TRA (CI)
+  test-and-lint:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout mã nguồn
+      uses: actions/checkout@v4
+
+    - name: Cài đặt Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 24 # Khớp với phiên bản máy bạn đang dùng
+        cache: 'npm'
+
+    - name: Cài đặt Dependencies
+      run: npm ci # Sử dụng 'npm ci' thay vì 'npm install' để đảm bảo cài chính xác theo file package-lock.json
+
+    - name: Kiểm tra lỗi TypeScript (Type-Check)
+      run: npx tsc --noEmit # Bắt buộc phải vượt qua tất cả các lỗi khai báo type
+
+    - name: Chạy Lint kiểm tra định dạng code
+      run: npm run lint --if-present # Chạy cấu hình ESLint nếu dự án có sẵn
+
+    - name: Chạy Unit Test (nếu có)
+      run: npm test -- --watchAll=false --passWithNoTests # Chạy test từ Vitest/Jest (nếu chưa viết test vẫn không bị lỗi job)
+
+    - name: Build thử nghiệm (Production Build)
+      run: npm run build
+
+  # JOB 2: TRIỂN KHAI (CD) - Chỉ chạy nếu JOB 1 (test-and-lint) thành công hoàn toàn
+  deploy:
+    needs: test-and-lint # Ràng buộc: Job trên phải PASS thì mới chạy Job này
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' # Chỉ deploy khi push trực tiếp/merge vào main
+    
+    steps:
+    - name: Checkout mã nguồn
+      uses: actions/checkout@v4
+
+    # Điền các bước deploy của bạn ở đây (Vercel, Render, Netlify...)
+    - name: Thông báo bắt đầu Deploy
+      run: echo "Tất cả bài test đã pass! Bắt đầu deploy..."
