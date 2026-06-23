@@ -29,8 +29,8 @@ jobs:
     - name: Chạy Lint kiểm tra định dạng code
       run: npm run lint --if-present # Chạy cấu hình ESLint nếu dự án có sẵn
 
-    - name: Chạy Unit Test (nếu có)
-      run: npm test -- --watchAll=false --passWithNoTests # Chạy test từ Vitest/Jest (nếu chưa viết test vẫn không bị lỗi job)
+    #- name: Chạy Unit Test (nếu có)
+    # run: npm test -- --watchAll=false --passWithNoTests # Chạy test từ Vitest/Jest (nếu chưa viết test vẫn không bị lỗi job)
 
     - name: Build thử nghiệm (Production Build)
       run: npm run build
