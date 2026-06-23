@@ -98,7 +98,7 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModalProps) {
           };
           
           await ApiService.register(payload);
-          setSuccessMsg(`🎉 Đăng ký tài khoản Khách hàng [${trimmedUsername}] lên MySQL (XAMPP) thành công! Bạn có thể sử dụng chính tài khoản này để Đăng nhập.`);
+          setSuccessMsg(`Đăng ký tài khoản Khách hàng [${trimmedUsername}] lên MySQL (XAMPP) thành công! Bạn có thể sử dụng chính tài khoản này để Đăng nhập.`);
           setIsRegisterStep(false);
           return;
         } else {
@@ -172,7 +172,7 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModalProps) {
         registeredUsers.push(newUser);
         localStorage.setItem('banhcanh_registered_users', JSON.stringify(registeredUsers));
 
-        setSuccessMsg(`📝 Đăng ký thành công tài khoản Khách hàng giả lập [${trimmedUsername}] vào LocalStorage máy!`);
+        setSuccessMsg(`Đăng ký thành công tài khoản Khách hàng giả lập [${trimmedUsername}] vào LocalStorage máy!`);
         
         // Keep credentials populated for quick login
         setIsRegisterStep(false);
@@ -360,7 +360,7 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModalProps) {
             </div>
           ) : (
             <div className="p-3 bg-[#FAF8F5] dark:bg-[#1C1311] border border-[#E5E1D8] dark:border-[#2D2321] text-xs font-medium text-[#8B7E74] dark:text-[#B2A496] rounded-xl">
-              📝 Đăng ký tài khoản tự động lưu trữ làm <strong className="text-[#D97706] dark:text-amber-400">Khách hàng</strong> thành viên.
+              Đăng ký tài khoản tự động lưu trữ làm <strong className="text-[#D97706] dark:text-amber-400">Khách hàng</strong> thành viên.
             </div>
           )}
 
@@ -390,7 +390,7 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModalProps) {
 
           {/* Helper Tips block */}
           <div className="mt-4 p-2.5 bg-[#F3F0E9] dark:bg-[#211715] rounded-xl text-[9px] text-[#8B7E74] dark:text-[#B2A496] leading-normal text-left">
-            💡 <strong>Mẹo trải nghiệm nhanh:</strong><br />
+            <strong>Mẹo trải nghiệm nhanh:</strong><br />
             • Đăng nhập <strong>Chủ quán:</strong> gõ <code className="font-mono text-[#D97706]">admin</code> làm tên đăng nhập và mật khẩu.<br />
             • Đăng nhập <strong>Tài xế:</strong> gõ <code className="font-mono text-[#D97706]">driver</code> làm tên đăng nhập và mật khẩu.
           </div>
