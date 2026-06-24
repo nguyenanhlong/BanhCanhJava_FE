@@ -1,8 +1,18 @@
-import React, { useState } from 'react';
-import { Order, Driver, OrderStatus, Product } from '../types';
+﻿import React, { useState } from 'react';
+import { Order, Driver, OrderStatus, Product, Category, DEFAULT_CATEGORIES } from '../types';
 import { JAVA_BACKEND_FILES, MYSQL_DATABASE_SQL, FRONTEND_INTEGRATION_FILES } from '../data';
 import { FileCode, Check, Copy, AlertTriangle, Plus, Edit3, Trash2, X } from 'lucide-react';
 import { ApiService } from '../services/api';
+
+function toSlug(str: string): string {
+  return str
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
 
 interface AdminDashboardProps {
   orders: Order[];
@@ -20,6 +30,23 @@ interface AdminDashboardProps {
   onDeleteProduct?: (id: string) => void;
 }
 
+interface ToppingItem { id: string; name: string; price: number; category: string; isAvailable: boolean; }
+interface MaterialItem { id: number; name: string; unit: string; stock: number; min: number; price: number; }
+interface TableItem { id: number; number: string; capacity: number; position: string; }
+interface PromoItem { id: number; code: string; name: string; discount_type: string; discount_value: number; min_order_amount: number; }
+interface ReviewItem { id: number; customer: string; product: string; rating: number; comment: string; }
+interface RoleItem { id: number; name: string; display: string; desc: string; }
+
+const PERMISSION_MODULES = [
+  { module: 'product', label: 'Sản phẩm', permissions: [{ code: 'product:create', name: 'Tạo' }, { code: 'product:read', name: 'Xem' }, { code: 'product:update', name: 'Sửa' }, { code: 'product:delete', name: 'Xóa' }] },
+  { module: 'order', label: 'Đơn hàng', permissions: [{ code: 'order:create', name: 'Tạo' }, { code: 'order:read', name: 'Xem' }, { code: 'order:update', name: 'Cập nhật' }, { code: 'order:delete', name: 'Xóa' }] },
+  { module: 'driver', label: 'Tài xế', permissions: [{ code: 'driver:create', name: 'Tạo' }, { code: 'driver:read', name: 'Xem' }, { code: 'driver:update', name: 'Sửa' }, { code: 'driver:delete', name: 'Xóa' }] },
+  { module: 'category', label: 'Danh mục', permissions: [{ code: 'category:create', name: 'Tạo' }, { code: 'category:read', name: 'Xem' }, { code: 'category:update', name: 'Sửa' }, { code: 'category:delete', name: 'Xóa' }] },
+  { module: 'user', label: 'Người dùng', permissions: [{ code: 'user:read', name: 'Xem' }, { code: 'user:update', name: 'Sửa' }, { code: 'user:delete', name: 'Xóa' }] },
+  { module: 'role', label: 'Vai trò', permissions: [{ code: 'role:read', name: 'Xem' }, { code: 'role:assign', name: 'Phân quyền' }] },
+  { module: 'stats', label: 'Thống kê', permissions: [{ code: 'stats:view', name: 'Xem' }] },
+];
+
 export function AdminDashboard({
   orders,
   drivers,
@@ -36,9 +63,9 @@ export function AdminDashboard({
   onDeleteProduct
 }: AdminDashboardProps) {
   const isSuperAdmin = userRole === 'super_admin';
-  const [adminTab, setAdminTab] = useState<'orders' | 'products' | 'drivers' | 'categories' | 'materials' | 'tables' | 'promotions' | 'reviews' | 'stats' | 'users' | 'java' | 'sql' | 'frontend' | 'permissions'>('orders');
+  const [adminTab, setAdminTab] = useState<'stats' | 'orders' | 'products' | 'categories' | 'toppings' | 'materials' | 'tables' | 'promotions' | 'reviews' | 'drivers' | 'users' | 'java' | 'sql' | 'frontend' | 'permissions'>('stats');
   const [selectedFEFile, setSelectedFEFile] = useState(0);
-  
+
   // API Users state (fetched from backend)
   const [apiUsers, setApiUsers] = useState<any[]>([]);
   const [apiStats, setApiStats] = useState<any>(null);
@@ -55,14 +82,12 @@ export function AdminDashboard({
   });
 
   const handleRefreshUsers = async () => {
-    // Refresh local users
     try {
       const saved = localStorage.getItem('banhcanh_registered_users');
       setLocalUsers(saved ? JSON.parse(saved) : []);
     } catch {
       setLocalUsers([]);
     }
-    // Refresh API users if connected
     if (isBackendConnected) {
       setLoadingUsers(true);
       try {
@@ -86,24 +111,98 @@ export function AdminDashboard({
       setLocalUsers([]);
     }
   };
-  
-  const [productForm, setProductForm] = useState<{ name: string; description: string; price: number; categoryName: string; isBestSeller: boolean; imageUrl: string }>({ name: '', description: '', price: 0, categoryName: 'Bánh Canh Cá Lóc', isBestSeller: false, imageUrl: '' });
+
+  const [productForm, setProductForm] = useState<{ name: string; description: string; price: number; categoryName: string; isBestSeller: boolean; isAvailable: boolean; imageUrl: string; preparationTime: number }>({ name: '', description: '', price: 0, categoryName: 'Bánh Canh Cá Lóc', isBestSeller: false, isAvailable: true, imageUrl: '', preparationTime: 10 });
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [productSuccess, setProductSuccess] = useState('');
   const [productError, setProductError] = useState('');
+  const [pendingNewCategory, setPendingNewCategory] = useState(false);
 
   // New Driver Form State
   const [driverName, setDriverName] = useState('');
   const [driverPhone, setDriverPhone] = useState('');
   const [driverVehicle, setDriverVehicle] = useState('');
   const [driverSuccess, setDriverSuccess] = useState('');
-  
+
   // Source code state
   const [selectedJavaFile, setSelectedJavaFile] = useState(0);
   const [copiedText, setCopiedText] = useState(false);
-  
+
   // Order cancellation confirmation state
   const [orderIdToCancel, setOrderIdToCancel] = useState<string | null>(null);
+
+  // Categories CRUD
+  const [categories, setCategories] = useState([
+    { id: 1, name: 'Bánh Canh Cá Lóc', slug: 'banh-canh-ca-loc', count: 5 },
+    { id: 2, name: 'Đồ Ăn Kèm', slug: 'do-an-kem', count: 8 },
+    { id: 3, name: 'Đồ Uống', slug: 'do-uong', count: 6 },
+    { id: 4, name: 'Tráng Miệng', slug: 'trang-mieng', count: 3 },
+    { id: 5, name: 'Combo', slug: 'combo', count: 2 },
+  ]);
+  const [categoryForm, setCategoryForm] = useState<{ name: string; slug: string }>({ name: '', slug: '' });
+  const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null);
+
+  // Toppings CRUD
+  const [toppings, setToppings] = useState<ToppingItem[]>([
+    { id: '1', name: 'Bánh phở', price: 5000, category: 'Đồ Ăn Kèm', isAvailable: true },
+    { id: '2', name: 'Miến', price: 5000, category: 'Đồ Ăn Kèm', isAvailable: true },
+    { id: '3', name: 'Thêm chả', price: 10000, category: 'Đồ Ăn Kèm', isAvailable: true },
+    { id: '4', name: 'Thêm trứng', price: 5000, category: 'Đồ Ăn Kèm', isAvailable: true },
+    { id: '5', name: 'Rau sống', price: 3000, category: 'Đồ Ăn Kèm', isAvailable: true },
+  ]);
+  const [toppingForm, setToppingForm] = useState({ name: '', price: 0, category: 'Đồ Ăn Kèm', isAvailable: true });
+  const [editingToppingId, setEditingToppingId] = useState<string | null>(null);
+
+  // Materials CRUD
+  const [materials, setMaterials] = useState<MaterialItem[]>([
+    { id: 1, name: 'Cá lóc', unit: 'kg', stock: 10, min: 2, price: 80000 },
+    { id: 2, name: 'Bột gạo', unit: 'kg', stock: 15, min: 5, price: 25000 },
+    { id: 3, name: 'Bột năng', unit: 'kg', stock: 10, min: 3, price: 20000 },
+    { id: 4, name: 'Hành lá', unit: 'kg', stock: 2, min: 0.5, price: 30000 },
+    { id: 5, name: 'Rau răm', unit: 'kg', stock: 1, min: 0.3, price: 25000 },
+    { id: 6, name: 'Chả cá', unit: 'kg', stock: 5, min: 1, price: 120000 },
+    { id: 7, name: 'Trứng cút', unit: 'cái', stock: 100, min: 30, price: 2000 },
+  ]);
+  const [materialForm, setMaterialForm] = useState({ name: '', unit: 'kg', stock: 0, min: 0, price: 0 });
+  const [editingMaterialId, setEditingMaterialId] = useState<number | null>(null);
+
+  // Tables CRUD
+  const [tables, setTables] = useState<TableItem[]>([
+    { id: 1, number: 'A1', capacity: 2, position: 'Tầng 1 - Gần cửa' },
+    { id: 2, number: 'A2', capacity: 4, position: 'Tầng 1 - Giữa' },
+    { id: 3, number: 'A3', capacity: 4, position: 'Tầng 1 - Góc' },
+    { id: 4, number: 'B1', capacity: 6, position: 'Tầng 2 - Phòng lạnh' },
+  ]);
+  const [tableForm, setTableForm] = useState({ number: '', capacity: 2, position: '' });
+  const [editingTableId, setEditingTableId] = useState<number | null>(null);
+
+  // Promotions CRUD
+  const [promotions, setPromotions] = useState<PromoItem[]>([
+    { id: 1, code: 'WELCOME10', name: 'Giảm 10% khách mới', discount_type: 'percentage', discount_value: 10, min_order_amount: 100000 },
+    { id: 2, code: 'FREESHIP', name: 'Free ship đơn 150k', discount_type: 'fixed', discount_value: 20000, min_order_amount: 150000 },
+  ]);
+  const [promoForm, setPromoForm] = useState({ code: '', name: '', discount_type: 'percentage', discount_value: 0, min_order_amount: 0 });
+  const [editingPromoId, setEditingPromoId] = useState<number | null>(null);
+
+  // Reviews CRUD
+  const [reviews, setReviews] = useState<ReviewItem[]>([
+    { id: 1, customer: 'Nguyễn Thị A', product: 'Bánh Canh Cá Lóc', rating: 5, comment: 'Nước dùng ngọt thanh, cá tươi ngon!' },
+    { id: 2, customer: 'Trần Văn B', product: 'Bánh Canh Cá Lóc', rating: 4, comment: 'Rất ngon, sẽ ủng hộ quán dài dài.' },
+  ]);
+  const [reviewForm, setReviewForm] = useState({ customer: '', product: '', rating: 5, comment: '' });
+  const [editingReviewId, setEditingReviewId] = useState<number | null>(null);
+
+  // Role Manager
+  const [roleList, setRoleList] = useState<RoleItem[]>([
+    { id: 1, name: 'ROLE_SUPER_ADMIN', display: 'Đại Siêu Quản Trị', desc: 'Toàn quyền hệ thống' },
+    { id: 2, name: 'ROLE_ADMIN', display: 'Quản lý', desc: 'Quản lý đơn hàng, sản phẩm, tài xế' },
+    { id: 3, name: 'ROLE_STAFF', display: 'Nhân viên', desc: 'Xem và cập nhật đơn hàng' },
+    { id: 4, name: 'ROLE_CUSTOMER', display: 'Khách hàng', desc: 'Đặt món và theo dõi' },
+  ]);
+  const [selectedRoleForPerms, setSelectedRoleForPerms] = useState<RoleItem | null>(null);
+  const [checkPermissions, setCheckPermissions] = useState<Record<string, boolean>>({});
+  const [roleForm, setRoleForm] = useState({ name: '', display: '', desc: '' });
+  const [editingRoleId, setEditingRoleId] = useState<number | null>(null);
 
   const handleCopySource = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -112,13 +211,13 @@ export function AdminDashboard({
   };
 
   const resetProductForm = () => {
-    setProductForm({ name: '', description: '', price: 0, categoryName: 'Bánh Canh Cá Lóc', isBestSeller: false, imageUrl: '' });
+    setProductForm({ name: '', description: '', price: 0, categoryName: 'Bánh Canh Cá Lóc', isBestSeller: false, isAvailable: true, imageUrl: '', preparationTime: 10 });
     setEditingProductId(null);
     setProductError('');
   };
 
   const handleEditProduct = (p: Product) => {
-    setProductForm({ name: p.name, description: p.description, price: p.price, categoryName: p.categoryName || '', isBestSeller: p.isBestSeller, imageUrl: p.imageUrl || '' });
+    setProductForm({ name: p.name, description: p.description, price: p.price, categoryName: p.categoryName || '', isBestSeller: p.isBestSeller, isAvailable: p.isAvailable, imageUrl: p.imageUrl || '', preparationTime: p.preparationTime });
     setEditingProductId(p.id);
     setProductError('');
   };
@@ -130,18 +229,17 @@ export function AdminDashboard({
       setProductError('Tên và giá sản phẩm là bắt buộc');
       return;
     }
-
     const payload = {
       name: productForm.name,
       description: productForm.description,
       price: Number(productForm.price),
       categoryName: productForm.categoryName,
       isBestSeller: productForm.isBestSeller,
+      isAvailable: productForm.isAvailable,
+      preparationTime: Number(productForm.preparationTime),
       imageUrl: productForm.imageUrl || undefined
     };
-
-    const productData: Omit<Product, 'id'> = { ...productForm, price: Number(productForm.price), isAvailable: true, preparationTime: 10 };
-
+    const productData: Omit<Product, 'id'> = { ...productForm, price: Number(productForm.price), isAvailable: productForm.isAvailable, preparationTime: Number(productForm.preparationTime) };
     try {
       if (editingProductId) {
         if (isBackendConnected) {
@@ -209,9 +307,252 @@ export function AdminDashboard({
     }
   };
 
+  // Category handlers
+  const handleCategorySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!categoryForm.name || !categoryForm.slug) return;
+    const slugExists = categories.some(c =>
+      c.slug === categoryForm.slug && (editingCategoryId === null || c.id !== editingCategoryId)
+    );
+    if (slugExists) {
+      alert(`Slug "${categoryForm.slug}" đã tồn tại! Vui lòng đặt tên khác.`);
+      return;
+    }
+    if (editingCategoryId !== null) {
+      setCategories(categories.map(c => c.id === editingCategoryId ? { ...c, name: categoryForm.name, slug: categoryForm.slug } : c));
+    } else {
+      const newId = Math.max(...categories.map(c => c.id), 0) + 1;
+      setCategories([...categories, { id: newId, name: categoryForm.name, slug: categoryForm.slug, count: 0 }]);
+    }
+    setCategoryForm({ name: '', slug: '' });
+    setEditingCategoryId(null);
+  };
+
+  const handleEditCategory = (cat: { id: number; name: string; slug: string }) => {
+    setCategoryForm({ name: cat.name, slug: cat.slug });
+    setEditingCategoryId(cat.id);
+  };
+
+  const handleDeleteCategory = (id: number) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa danh mục này?')) return;
+    setCategories(categories.filter(c => c.id !== id));
+    if (editingCategoryId === id) {
+      setEditingCategoryId(null);
+      setCategoryForm({ name: '', slug: '' });
+    }
+  };
+
+  // Topping handlers
+  const handleToppingSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!toppingForm.name || !toppingForm.price) return;
+    if (editingToppingId !== null) {
+      setToppings(toppings.map(t => t.id === editingToppingId ? { ...t, ...toppingForm } : t));
+    } else {
+      const newId = String(Math.max(...toppings.map(t => Number(t.id)), 0) + 1);
+      setToppings([...toppings, { id: newId, ...toppingForm }]);
+    }
+    setToppingForm({ name: '', price: 0, category: 'Đồ Ăn Kèm', isAvailable: true });
+    setEditingToppingId(null);
+  };
+
+  const handleEditTopping = (t: ToppingItem) => {
+    setToppingForm({ name: t.name, price: t.price, category: t.category, isAvailable: t.isAvailable });
+    setEditingToppingId(t.id);
+  };
+
+  const handleDeleteTopping = (id: string) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa topping này?')) return;
+    setToppings(toppings.filter(t => t.id !== id));
+    if (editingToppingId === id) {
+      setEditingToppingId(null);
+      setToppingForm({ name: '', price: 0, category: 'Đồ Ăn Kèm', isAvailable: true });
+    }
+  };
+
+  // Material handlers
+  const handleMaterialSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!materialForm.name) return;
+    if (editingMaterialId !== null) {
+      setMaterials(materials.map(m => m.id === editingMaterialId ? { ...m, ...materialForm } : m));
+    } else {
+      const newId = Math.max(...materials.map(m => m.id), 0) + 1;
+      setMaterials([...materials, { id: newId, ...materialForm }]);
+    }
+    setMaterialForm({ name: '', unit: 'kg', stock: 0, min: 0, price: 0 });
+    setEditingMaterialId(null);
+  };
+
+  const handleEditMaterial = (m: MaterialItem) => {
+    setMaterialForm({ name: m.name, unit: m.unit, stock: m.stock, min: m.min, price: m.price });
+    setEditingMaterialId(m.id);
+  };
+
+  const handleDeleteMaterial = (id: number) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa nguyên liệu này?')) return;
+    setMaterials(materials.filter(m => m.id !== id));
+    if (editingMaterialId === id) {
+      setEditingMaterialId(null);
+      setMaterialForm({ name: '', unit: 'kg', stock: 0, min: 0, price: 0 });
+    }
+  };
+
+  // Table handlers
+  const handleTableSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tableForm.number) return;
+    if (editingTableId !== null) {
+      setTables(tables.map(t => t.id === editingTableId ? { ...t, ...tableForm } : t));
+    } else {
+      const newId = Math.max(...tables.map(t => t.id), 0) + 1;
+      setTables([...tables, { id: newId, ...tableForm }]);
+    }
+    setTableForm({ number: '', capacity: 2, position: '' });
+    setEditingTableId(null);
+  };
+
+  const handleEditTable = (t: TableItem) => {
+    setTableForm({ number: t.number, capacity: t.capacity, position: t.position });
+    setEditingTableId(t.id);
+  };
+
+  const handleDeleteTable = (id: number) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa bàn này?')) return;
+    setTables(tables.filter(t => t.id !== id));
+    if (editingTableId === id) {
+      setEditingTableId(null);
+      setTableForm({ number: '', capacity: 2, position: '' });
+    }
+  };
+
+  // Promo handlers
+  const handlePromoSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!promoForm.code || !promoForm.name) return;
+    if (editingPromoId !== null) {
+      setPromotions(promotions.map(p => p.id === editingPromoId ? { ...p, ...promoForm } : p));
+    } else {
+      const newId = Math.max(...promotions.map(p => p.id), 0) + 1;
+      setPromotions([...promotions, { id: newId, ...promoForm }]);
+    }
+    setPromoForm({ code: '', name: '', discount_type: 'percentage', discount_value: 0, min_order_amount: 0 });
+    setEditingPromoId(null);
+  };
+
+  const handleEditPromo = (p: PromoItem) => {
+    setPromoForm({ code: p.code, name: p.name, discount_type: p.discount_type, discount_value: p.discount_value, min_order_amount: p.min_order_amount });
+    setEditingPromoId(p.id);
+  };
+
+  const handleDeletePromo = (id: number) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa khuyến mãi này?')) return;
+    setPromotions(promotions.filter(p => p.id !== id));
+    if (editingPromoId === id) {
+      setEditingPromoId(null);
+      setPromoForm({ code: '', name: '', discount_type: 'percentage', discount_value: 0, min_order_amount: 0 });
+    }
+  };
+
+  // Review handlers
+  const handleReviewSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reviewForm.customer || !reviewForm.product) return;
+    if (editingReviewId !== null) {
+      setReviews(reviews.map(r => r.id === editingReviewId ? { ...r, ...reviewForm } : r));
+    } else {
+      const newId = Math.max(...reviews.map(r => r.id), 0) + 1;
+      setReviews([...reviews, { id: newId, ...reviewForm }]);
+    }
+    setReviewForm({ customer: '', product: '', rating: 5, comment: '' });
+    setEditingReviewId(null);
+  };
+
+  const handleEditReview = (r: ReviewItem) => {
+    setReviewForm({ customer: r.customer, product: r.product, rating: r.rating, comment: r.comment });
+    setEditingReviewId(r.id);
+  };
+
+  const handleDeleteReview = (id: number) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa đánh giá này?')) return;
+    setReviews(reviews.filter(r => r.id !== id));
+    if (editingReviewId === id) {
+      setEditingReviewId(null);
+      setReviewForm({ customer: '', product: '', rating: 5, comment: '' });
+    }
+  };
+
+  // Role Manager handlers
+  const handleRoleSelect = (role: RoleItem) => {
+    setSelectedRoleForPerms(role);
+    const perms: Record<string, boolean> = {};
+    PERMISSION_MODULES.forEach(mod => {
+      mod.permissions.forEach(p => {
+        perms[p.code] = role.name === 'ROLE_SUPER_ADMIN';
+      });
+    });
+    if (role.name === 'ROLE_ADMIN') {
+      ['product:create', 'product:read', 'product:update', 'product:delete', 'order:create', 'order:read', 'order:update', 'order:delete', 'driver:create', 'driver:read', 'driver:update', 'driver:delete', 'category:create', 'category:read', 'category:update', 'category:delete', 'user:read', 'stats:view'].forEach(c => { if (perms[c] !== undefined) perms[c] = true; });
+    }
+    if (role.name === 'ROLE_STAFF') {
+      ['order:read', 'order:update'].forEach(c => { if (perms[c] !== undefined) perms[c] = true; });
+    }
+    if (role.name === 'ROLE_CUSTOMER') {
+      ['order:create', 'order:read'].forEach(c => { if (perms[c] !== undefined) perms[c] = true; });
+    }
+    setCheckPermissions(perms);
+  };
+
+  const handlePermissionToggle = (code: string) => {
+    setCheckPermissions(prev => ({ ...prev, [code]: !prev[code] }));
+  };
+
+  const handleSavePermissions = () => {
+    alert('Đã lưu phân quyền cho vai trò ' + selectedRoleForPerms?.name);
+  };
+
+  const handleRoleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!roleForm.name || !roleForm.display) return;
+    if (editingRoleId !== null) {
+      setRoleList(roleList.map(r => r.id === editingRoleId ? { ...r, ...roleForm } : r));
+    } else {
+      const newId = Math.max(...roleList.map(r => r.id), 0) + 1;
+      setRoleList([...roleList, { id: newId, ...roleForm }]);
+    }
+    setRoleForm({ name: '', display: '', desc: '' });
+    setEditingRoleId(null);
+  };
+
+  const handleEditRole = (r: RoleItem) => {
+    setRoleForm({ name: r.name, display: r.display, desc: r.desc });
+    setEditingRoleId(r.id);
+  };
+
+  const handleDeleteRole = (id: number) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa vai trò này?')) return;
+    setRoleList(roleList.filter(r => r.id !== id));
+    if (selectedRoleForPerms?.id === id) {
+      setSelectedRoleForPerms(null);
+      setCheckPermissions({});
+    }
+    if (editingRoleId === id) {
+      setEditingRoleId(null);
+      setRoleForm({ name: '', display: '', desc: '' });
+    }
+  };
+
+  const tabClass = (tab: string) =>
+    `px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+      adminTab === tab
+        ? tab === 'stats' || tab === 'users' || tab === 'permissions'
+          ? 'bg-[#D97706] text-white shadow-xs'
+          : 'bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] shadow-xs'
+        : 'text-[#3E2F26] dark:text-[#EAE3D2] hover:bg-[#E5E1D8] dark:hover:bg-[#3E302D]'
+    }`;
   return (
     <div className="bg-white dark:bg-[#1C1311] rounded-3xl border border-[#E5E1D8] dark:border-[#2D2321] shadow-sm select-none text-[#3E2F26] dark:text-[#EAE3D2] overflow-hidden">
-      
+
       {/* HEADER SECTION */}
       <div className="bg-[#FAF8F5] dark:bg-[#211715] p-6 border-b border-[#E5E1D8] dark:border-[#2D2321] flex flex-wrap gap-4 items-center justify-between">
         <div>
@@ -226,129 +567,26 @@ export function AdminDashboard({
 
         {/* Outer Tabs Controls */}
         <div className="flex flex-wrap bg-[#F3F0E9] dark:bg-[#2D2321] p-1 rounded-xl border border-[#E5E1D8] dark:border-[#3E302D] gap-1">
-          <button
-            onClick={() => setAdminTab('orders')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              adminTab === 'orders' ? 'bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] shadow-xs' : 'text-[#3E2F26] dark:text-[#EAE3D2] hover:bg-[#E5E1D8] dark:hover:bg-[#3E302D]'
-            }`}
-          >
-            📋 Live Orders ({orders.length})
-          </button>
-          <button
-            onClick={() => setAdminTab('products')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              adminTab === 'products' ? 'bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] shadow-xs' : 'text-[#3E2F26] dark:text-[#EAE3D2] hover:bg-[#E5E1D8] dark:hover:bg-[#3E302D]'
-            }`}
-          >
-            🍲 Sản Phẩm ({products.length})
-          </button>
-          <button
-            onClick={() => setAdminTab('drivers')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              adminTab === 'drivers' ? 'bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] shadow-xs' : 'text-[#3E2F26] dark:text-[#EAE3D2] hover:bg-[#E5E1D8] dark:hover:bg-[#3E302D]'
-            }`}
-          >
-            🛵 Shippers
-          </button>
-          <button
-            onClick={() => {
-              handleRefreshUsers();
-              setAdminTab('users');
-            }}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              adminTab === 'users' ? 'bg-[#D97706] text-white shadow-xs animate-pulse' : 'text-[#3E2F26] dark:text-[#EAE3D2] hover:bg-[#E5E1D8] dark:hover:bg-[#3E302D]'
-            }`}
-          >
-            👥 Quản Lý Users ({localUsers.length})
-          </button>
-          <button
-            onClick={() => setAdminTab('categories')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              adminTab === 'categories' ? 'bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] shadow-xs' : 'text-[#3E2F26] dark:text-[#EAE3D2] hover:bg-[#E5E1D8] dark:hover:bg-[#3E302D]'
-            }`}
-          >
-            📂 Danh Mục
-          </button>
-          <button
-            onClick={() => setAdminTab('materials')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              adminTab === 'materials' ? 'bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] shadow-xs' : 'text-[#3E2F26] dark:text-[#EAE3D2] hover:bg-[#E5E1D8] dark:hover:bg-[#3E302D]'
-            }`}
-          >
-            📦 Nguyên Liệu
-          </button>
-          <button
-            onClick={() => setAdminTab('tables')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              adminTab === 'tables' ? 'bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] shadow-xs' : 'text-[#3E2F26] dark:text-[#EAE3D2] hover:bg-[#E5E1D8] dark:hover:bg-[#3E302D]'
-            }`}
-          >
-            🪑 Bàn Ăn
-          </button>
-          <button
-            onClick={() => setAdminTab('promotions')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              adminTab === 'promotions' ? 'bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] shadow-xs' : 'text-[#3E2F26] dark:text-[#EAE3D2] hover:bg-[#E5E1D8] dark:hover:bg-[#3E302D]'
-            }`}
-          >
-            🏷️ Khuyến Mãi
-          </button>
-          <button
-            onClick={() => setAdminTab('reviews')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              adminTab === 'reviews' ? 'bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] shadow-xs' : 'text-[#3E2F26] dark:text-[#EAE3D2] hover:bg-[#E5E1D8] dark:hover:bg-[#3E302D]'
-            }`}
-          >
-            ⭐ Đánh Giá
-          </button>
-          <button
-            onClick={() => setAdminTab('stats')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              adminTab === 'stats' ? 'bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] shadow-xs' : 'text-[#3E2F26] dark:text-[#EAE3D2] hover:bg-[#E5E1D8] dark:hover:bg-[#3E302D]'
-            }`}
-          >
-            📊 Thống Kê
-          </button>
-          <button
-            onClick={() => setAdminTab('java')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
-              adminTab === 'java' ? 'bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] shadow-xs' : 'text-[#3E2F26] dark:text-[#EAE3D2] hover:bg-[#E5E1D8] dark:hover:bg-[#3E302D]'
-            }`}
-          >
-            <span>☕ Java</span>
-            <span className="bg-red-200 dark:bg-red-950/40 text-red-900 dark:text-red-400 text-[8px] font-black px-1 rounded-sm">XAMPP</span>
-          </button>
-          <button
-            onClick={() => setAdminTab('sql')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              adminTab === 'sql' ? 'bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] shadow-xs' : 'text-[#3E2F26] dark:text-[#EAE3D2] hover:bg-[#E5E1D8] dark:hover:bg-[#3E302D]'
-            }`}
-          >
-            🗄️ SQL
-          </button>
-          <button
-            onClick={() => setAdminTab('frontend')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              adminTab === 'frontend' ? 'bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] shadow-xs' : 'text-[#3E2F26] dark:text-[#EAE3D2] hover:bg-[#E5E1D8] dark:hover:bg-[#3E302D]'
-            }`}
-          >
-            🔌 FE
-          </button>
-          {isSuperAdmin && (
-            <button
-              onClick={() => setAdminTab('permissions')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                adminTab === 'permissions' ? 'bg-[#D97706] text-white shadow-xs animate-pulse' : 'text-[#3E2F26] dark:text-[#EAE3D2] hover:bg-[#E5E1D8] dark:hover:bg-[#3E302D]'
-              }`}
-            >
-              🔐 Phân Quyền
-            </button>
-          )}
+          <button onClick={() => setAdminTab('stats')} className={tabClass('stats')}>📊 Thống Kê</button>
+          <button onClick={() => setAdminTab('orders')} className={tabClass('orders')}>📋 Đơn Hàng ({orders.length})</button>
+          <button onClick={() => setAdminTab('products')} className={tabClass('products')}>🍲 Sản Phẩm ({products.length})</button>
+          <button onClick={() => setAdminTab('categories')} className={tabClass('categories')}>📂 Danh Mục</button>
+          <button onClick={() => setAdminTab('toppings')} className={tabClass('toppings')}>🧂 Topping</button>
+          <button onClick={() => setAdminTab('materials')} className={tabClass('materials')}>📦 Nguyên Liệu</button>
+          <button onClick={() => setAdminTab('tables')} className={tabClass('tables')}>🪑 Bàn Ăn</button>
+          <button onClick={() => setAdminTab('promotions')} className={tabClass('promotions')}>🏷️ Khuyến Mãi</button>
+          <button onClick={() => setAdminTab('reviews')} className={tabClass('reviews')}>⭐ Đánh Giá</button>
+          <button onClick={() => setAdminTab('drivers')} className={tabClass('drivers')}>🛵 Shipper</button>
+          <button onClick={() => { handleRefreshUsers(); setAdminTab('users'); }} className={tabClass('users')}>👥 Users ({localUsers.length})</button>
+          <button onClick={() => setAdminTab('java')} className={`${tabClass('java')} flex items-center gap-1`}><span>☕ Java</span><span className="bg-red-200 dark:bg-red-950/40 text-red-900 dark:text-red-400 text-[8px] font-black px-1 rounded-sm">XAMPP</span></button>
+          <button onClick={() => setAdminTab('sql')} className={tabClass('sql')}>🗄️ SQL</button>
+          <button onClick={() => setAdminTab('frontend')} className={tabClass('frontend')}>🔌 FE</button>
+          <button onClick={() => setAdminTab('permissions')} className={tabClass('permissions')}>🔐 Phân quyền & Vai trò</button>
         </div>
       </div>
 
       <div className="p-6">
-        
+
         {/* TAB 1: LIVE ORDER PROCESSOR */}
         {adminTab === 'orders' && (
           <div className="space-y-6">
@@ -385,7 +623,7 @@ export function AdminDashboard({
                         <td className="p-3.5 space-y-1">
                           {order.items.map((it, i) => (
                             <p key={i} className="text-[10px] text-[#2D241E] dark:text-[#FAF8F5]">
-                              • <span className="font-bold">{it.quantity}x</span> {it.productName} 
+                              • <span className="font-bold">{it.quantity}x</span> {it.productName}
                               {it.noodleType && <span className="text-amber-700 dark:text-amber-400"> [{it.noodleType}]</span>}
                             </p>
                           ))}
@@ -395,9 +633,9 @@ export function AdminDashboard({
                         </td>
                         <td className="p-3.5">
                           <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded border ${getOrderStatusBadge(order.status)}`}>
-                            {order.status === 'pending' ? 'Chờ xác nhận' : 
-                             order.status === 'preparing' ? 'Đang chế biến' : 
-                             order.status === 'shipping' ? 'Đang giao hàng' : 
+                            {order.status === 'pending' ? 'Chờ xác nhận' :
+                             order.status === 'preparing' ? 'Đang chế biến' :
+                             order.status === 'shipping' ? 'Đang giao hàng' :
                              order.status === 'completed' ? 'Thành công' : 'Đã hủy'}
                           </span>
                         </td>
@@ -558,13 +796,20 @@ export function AdminDashboard({
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Danh Mục</label>
                   <select value={productForm.categoryName}
-                    onChange={(e) => setProductForm(prev => ({ ...prev, categoryName: e.target.value }))}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '__new__') {
+                        setPendingNewCategory(true);
+                        setAdminTab('categories');
+                      } else {
+                        setProductForm(prev => ({ ...prev, categoryName: val }));
+                      }
+                    }}
                     className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]">
-                    <option value="Bánh Canh Cá Lóc">Bánh canh chính</option>
-                    <option value="Đồ Ăn Kèm">Toppings thêm</option>
-                    <option value="Đồ Uống">Nước giải nhiệt</option>
-                    <option value="Tráng Miệng">Tráng Miệng</option>
-                    <option value="Combo">Combo</option>
+                    {categories.map(cat => (
+                      <option key={cat.id} value={cat.name}>{cat.name}</option>
+                    ))}
+                    <option value="__new__">➕ Tạo danh mục mới...</option>
                   </select>
                 </div>
                 <div className="space-y-1 md:col-span-2">
@@ -581,13 +826,26 @@ export function AdminDashboard({
                     onChange={(e) => setProductForm(prev => ({ ...prev, imageUrl: e.target.value }))}
                     className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-4">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" checked={productForm.isBestSeller}
                       onChange={(e) => setProductForm(prev => ({ ...prev, isBestSeller: e.target.checked }))}
                       className="w-4 h-4 accent-[#D97706]" />
                     <span className="text-xs font-bold text-[#3E2F26] dark:text-[#EAE3D2]">🔥 Bán chạy</span>
                   </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={productForm.isAvailable}
+                      onChange={(e) => setProductForm(prev => ({ ...prev, isAvailable: e.target.checked }))}
+                      className="w-4 h-4 accent-[#D97706]" />
+                    <span className="text-xs font-bold text-[#3E2F26] dark:text-[#EAE3D2]">🟢 Còn hàng</span>
+                  </label>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Thời Gian Chuẩn Bị (phút)</label>
+                  <input type="number" min={1} placeholder="10"
+                    value={productForm.preparationTime || ''}
+                    onChange={(e) => setProductForm(prev => ({ ...prev, preparationTime: Number(e.target.value) }))}
+                    className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
                 </div>
                 <div className="flex gap-2 items-end justify-end md:col-span-3">
                   {editingProductId && (
@@ -658,11 +916,11 @@ export function AdminDashboard({
         {/* TAB 3: DRIVER MANAGEMENT */}
         {adminTab === 'drivers' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            
+
             {/* List drivers */}
             <div className="lg:col-span-7 space-y-4">
               <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#FAF8F5]">Danh Sách Tài Xế Nội Bộ</h3>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {drivers.map((d) => (
                   <div key={d.id} className="bg-[#FAF8F5] dark:bg-[#211715] p-4 rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] flex gap-3.5 items-start">
@@ -757,35 +1015,244 @@ export function AdminDashboard({
 
           </div>
         )}
-
-        {/* TAB: CATEGORIES */}
+        {/* TAB: CATEGORIES - Full CRUD */}
         {adminTab === 'categories' && (
           <div className="space-y-6">
             <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#FAF8F5]">📂 Quản Lý Danh Mục</h3>
             <p className="text-xs text-[#8B7E74] dark:text-[#B2A496]">Các danh mục món ăn trong thực đơn</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {[
-                { name: 'Bánh Canh Cá Lóc', slug: 'banh-canh-ca-loc', count: 5 },
-                { name: 'Đồ Ăn Kèm', slug: 'do-an-kem', count: 8 },
-                { name: 'Đồ Uống', slug: 'do-uong', count: 6 },
-                { name: 'Tráng Miệng', slug: 'trang-mieng', count: 3 },
-                { name: 'Combo', slug: 'combo', count: 2 },
-              ].map((cat) => (
-                <div key={cat.slug} className="bg-[#FAF8F5] dark:bg-[#211715] p-4 rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321]">
-                  <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5]">{cat.name}</h4>
-                  <p className="text-[10px] text-[#8B7E74] dark:text-[#B2A496]">Slug: {cat.slug}</p>
-                  <p className="text-[10px] text-[#D97706] font-bold mt-2">{cat.count} sản phẩm</p>
+
+            <div className="bg-[#F3F0E9] dark:bg-[#2D2321] p-5 rounded-3xl border border-[#E5E1D8] dark:border-[#3E302D]">
+              <h4 className="font-serif font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5] mb-3">
+                {editingCategoryId !== null ? <><Edit3 className="w-4 h-4 inline mr-1 text-[#D97706]" /> Sửa Danh Mục</> : <><Plus className="w-4 h-4 inline mr-1 text-emerald-500" /> Thêm Danh Mục Mới</>}
+              </h4>
+              <form onSubmit={handleCategorySubmit} className="flex gap-3 items-end flex-wrap">
+                <div className="space-y-1 flex-1 min-w-[200px]">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Tên Danh Mục</label>
+                  <input type="text" required placeholder="Ví dụ: Món Mới"
+                    value={categoryForm.name}
+                    onChange={(e) => {
+                      const n = e.target.value;
+                      setCategoryForm(prev => ({ ...prev, name: n, slug: editingCategoryId ? prev.slug : toSlug(n) }));
+                    }}
+                    className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
                 </div>
-              ))}
+                <div className="space-y-1 flex-1 min-w-[200px]">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Slug (tự động)</label>
+                  <input type="text" required placeholder="mon-moi"
+                    value={categoryForm.slug}
+                    onChange={(e) => setCategoryForm(prev => ({ ...prev, slug: toSlug(e.target.value) }))}
+                    className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
+                </div>
+                <div className="flex gap-2">
+                  {editingCategoryId !== null && (
+                    <button type="button" onClick={() => { setEditingCategoryId(null); setCategoryForm({ name: '', slug: '' }); }}
+                      className="px-4 py-2.5 rounded-xl border border-[#E5E1D8] dark:border-[#3E302D] text-xs font-bold text-[#3E2F26] dark:text-[#EAE3D2] hover:bg-[#E5E1D8] dark:hover:bg-[#3E302D] cursor-pointer">
+                      <X className="w-3.5 h-3.5 inline mr-1" />Hủy
+                    </button>
+                  )}
+                  <button type="submit"
+                    className="px-6 py-2.5 rounded-xl bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] text-xs font-bold hover:opacity-90 cursor-pointer">
+                    {editingCategoryId !== null ? 'Cập Nhật' : 'Thêm Danh Mục'}
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <div className="overflow-x-auto border border-[#E5E1D8] dark:border-[#2D2321] rounded-2xl bg-[#FAF8F5] dark:bg-[#1E1210]">
+              <table className="w-full text-left text-xs text-[#3E2F26] dark:text-[#EAE3D2]">
+                <thead className="bg-[#F3F0E9] dark:bg-[#2D2321] uppercase font-bold text-[#2D241E] dark:text-[#FAF8F5] border-b border-[#E5E1D8] dark:border-[#2D2321]">
+                  <tr>
+                    <th className="p-3">Tên Danh Mục</th>
+                    <th className="p-3">Slug</th>
+                    <th className="p-3 text-center">Số Sản Phẩm</th>
+                    <th className="p-3 text-center">Thao Tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E5E1D8] dark:divide-[#2D2321] bg-white dark:bg-[#1C1311]">
+                  {categories.map(cat => (
+                    <tr key={cat.id} className="hover:bg-[#FAF8F5]/80 dark:hover:bg-[#2D2321]/50 transition-colors">
+                      <td className="p-3 font-bold text-[#2D241E] dark:text-[#FAF8F5]">{cat.name}</td>
+                      <td className="p-3 font-mono text-[10px] text-[#8B7E74]">{cat.slug}</td>
+                      <td className="p-3 text-center text-[#D97706] font-bold">{cat.count}</td>
+                      <td className="p-3">
+                        <div className="flex gap-1.5 justify-center">
+                          <button onClick={() => handleEditCategory(cat)}
+                            className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-950/50 cursor-pointer">
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => handleDeleteCategory(cat.id)}
+                            className="p-1.5 rounded-lg bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-950/50 cursor-pointer">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
 
-        {/* TAB: MATERIALS */}
+        {/* TAB: TOPPINGS - Full CRUD */}
+        {adminTab === 'toppings' && (
+          <div className="space-y-6">
+            <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#FAF8F5]">🧂 Quản Lý Topping</h3>
+            <p className="text-xs text-[#8B7E74] dark:text-[#B2A496]">Các loại topping thêm vào bánh canh</p>
+
+            <div className="bg-[#F3F0E9] dark:bg-[#2D2321] p-5 rounded-3xl border border-[#E5E1D8] dark:border-[#3E302D]">
+              <h4 className="font-serif font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5] mb-3">
+                {editingToppingId !== null ? <><Edit3 className="w-4 h-4 inline mr-1 text-[#D97706]" /> Sửa Topping</> : <><Plus className="w-4 h-4 inline mr-1 text-emerald-500" /> Thêm Topping Mới</>}
+              </h4>
+              <form onSubmit={handleToppingSubmit} className="flex gap-3 items-end flex-wrap">
+                <div className="space-y-1 flex-1 min-w-[150px]">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Tên Topping</label>
+                  <input type="text" required placeholder="Bánh phở"
+                    value={toppingForm.name}
+                    onChange={(e) => setToppingForm(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
+                </div>
+                <div className="space-y-1 min-w-[120px]">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Giá</label>
+                  <input type="number" required min={0} placeholder="5000"
+                    value={toppingForm.price || ''}
+                    onChange={(e) => setToppingForm(prev => ({ ...prev, price: Number(e.target.value) }))}
+                    className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
+                </div>
+                <div className="space-y-1 min-w-[150px]">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Danh Mục</label>
+                  <select value={toppingForm.category}
+                    onChange={(e) => setToppingForm(prev => ({ ...prev, category: e.target.value }))}
+                    className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]">
+                    <option value="Đồ Ăn Kèm">Đồ Ăn Kèm</option>
+                    <option value="Đồ Uống">Đồ Uống</option>
+                    <option value="Tráng Miệng">Tráng Miệng</option>
+                  </select>
+                </div>
+                <div className="flex items-center gap-2 pb-1">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input type="checkbox" checked={toppingForm.isAvailable}
+                      onChange={(e) => setToppingForm(prev => ({ ...prev, isAvailable: e.target.checked }))}
+                      className="w-4 h-4 accent-[#D97706]" />
+                    <span className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2]">Khả dụng</span>
+                  </label>
+                </div>
+                <div className="flex gap-2">
+                  {editingToppingId !== null && (
+                    <button type="button" onClick={() => { setEditingToppingId(null); setToppingForm({ name: '', price: 0, category: 'Đồ Ăn Kèm', isAvailable: true }); }}
+                      className="px-4 py-2.5 rounded-xl border border-[#E5E1D8] dark:border-[#3E302D] text-xs font-bold text-[#3E2F26] dark:text-[#EAE3D2] hover:bg-[#E5E1D8] dark:hover:bg-[#3E302D] cursor-pointer">
+                      <X className="w-3.5 h-3.5 inline mr-1" />Hủy
+                    </button>
+                  )}
+                  <button type="submit"
+                    className="px-6 py-2.5 rounded-xl bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] text-xs font-bold hover:opacity-90 cursor-pointer">
+                    {editingToppingId !== null ? 'Cập Nhật' : 'Thêm Topping'}
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <div className="overflow-x-auto border border-[#E5E1D8] dark:border-[#2D2321] rounded-2xl bg-[#FAF8F5] dark:bg-[#1E1210]">
+              <table className="w-full text-left text-xs text-[#3E2F26] dark:text-[#EAE3D2]">
+                <thead className="bg-[#F3F0E9] dark:bg-[#2D2321] uppercase font-bold text-[#2D241E] dark:text-[#FAF8F5] border-b border-[#E5E1D8] dark:border-[#2D2321]">
+                  <tr>
+                    <th className="p-3">Tên</th>
+                    <th className="p-3 text-right">Giá</th>
+                    <th className="p-3">Danh Mục</th>
+                    <th className="p-3 text-center">Khả Dụng</th>
+                    <th className="p-3 text-center">Thao Tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E5E1D8] dark:divide-[#2D2321] bg-white dark:bg-[#1C1311]">
+                  {toppings.map(t => (
+                    <tr key={t.id} className="hover:bg-[#FAF8F5]/80 dark:hover:bg-[#2D2321]/50 transition-colors">
+                      <td className="p-3 font-bold text-[#2D241E] dark:text-[#FAF8F5]">{t.name}</td>
+                      <td className="p-3 text-right font-extrabold text-[#D97706]">{t.price.toLocaleString('vi-VN')}đ</td>
+                      <td className="p-3">
+                        <span className="text-[10px] px-2 py-0.5 rounded-full border bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700">{t.category}</span>
+                      </td>
+                      <td className="p-3 text-center">{t.isAvailable ? <span className="text-emerald-500 font-bold text-[11px]">✓</span> : <span className="text-red-400">✗</span>}</td>
+                      <td className="p-3">
+                        <div className="flex gap-1.5 justify-center">
+                          <button onClick={() => handleEditTopping(t)}
+                            className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-950/50 cursor-pointer">
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => handleDeleteTopping(t.id)}
+                            className="p-1.5 rounded-lg bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-950/50 cursor-pointer">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* TAB: MATERIALS - Full CRUD */}
         {adminTab === 'materials' && (
           <div className="space-y-6">
             <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#FAF8F5]">📦 Quản Lý Nguyên Liệu</h3>
             <p className="text-xs text-[#8B7E74] dark:text-[#B2A496]">Theo dõi tồn kho nguyên liệu nấu bánh canh</p>
+
+            <div className="bg-[#F3F0E9] dark:bg-[#2D2321] p-5 rounded-3xl border border-[#E5E1D8] dark:border-[#3E302D]">
+              <h4 className="font-serif font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5] mb-3">
+                {editingMaterialId !== null ? <><Edit3 className="w-4 h-4 inline mr-1 text-[#D97706]" /> Sửa Nguyên Liệu</> : <><Plus className="w-4 h-4 inline mr-1 text-emerald-500" /> Thêm Nguyên Liệu</>}
+              </h4>
+              <form onSubmit={handleMaterialSubmit} className="flex gap-3 items-end flex-wrap">
+                <div className="space-y-1 flex-1 min-w-[140px]">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Nguyên Liệu</label>
+                  <input type="text" required placeholder="Cá lóc"
+                    value={materialForm.name}
+                    onChange={(e) => setMaterialForm(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
+                </div>
+                <div className="space-y-1 min-w-[80px]">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">ĐVT</label>
+                  <input type="text" required placeholder="kg"
+                    value={materialForm.unit}
+                    onChange={(e) => setMaterialForm(prev => ({ ...prev, unit: e.target.value }))}
+                    className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
+                </div>
+                <div className="space-y-1 min-w-[90px]">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Tồn Kho</label>
+                  <input type="number" required min={0} placeholder="10"
+                    value={materialForm.stock || ''}
+                    onChange={(e) => setMaterialForm(prev => ({ ...prev, stock: Number(e.target.value) }))}
+                    className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
+                </div>
+                <div className="space-y-1 min-w-[90px]">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Tối Thiểu</label>
+                  <input type="number" required min={0} placeholder="2"
+                    value={materialForm.min || ''}
+                    onChange={(e) => setMaterialForm(prev => ({ ...prev, min: Number(e.target.value) }))}
+                    className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
+                </div>
+                <div className="space-y-1 min-w-[110px]">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Đơn Giá</label>
+                  <input type="number" required min={0} placeholder="80000"
+                    value={materialForm.price || ''}
+                    onChange={(e) => setMaterialForm(prev => ({ ...prev, price: Number(e.target.value) }))}
+                    className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
+                </div>
+                <div className="flex gap-2">
+                  {editingMaterialId !== null && (
+                    <button type="button" onClick={() => { setEditingMaterialId(null); setMaterialForm({ name: '', unit: 'kg', stock: 0, min: 0, price: 0 }); }}
+                      className="px-4 py-2.5 rounded-xl border border-[#E5E1D8] dark:border-[#3E302D] text-xs font-bold text-[#3E2F26] dark:text-[#EAE3D2] hover:bg-[#E5E1D8] dark:hover:bg-[#3E302D] cursor-pointer">
+                      <X className="w-3.5 h-3.5 inline mr-1" />Hủy
+                    </button>
+                  )}
+                  <button type="submit"
+                    className="px-6 py-2.5 rounded-xl bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] text-xs font-bold hover:opacity-90 cursor-pointer">
+                    {editingMaterialId !== null ? 'Cập Nhật' : 'Thêm'}
+                  </button>
+                </div>
+              </form>
+            </div>
+
             <div className="overflow-x-auto border border-[#E5E1D8] dark:border-[#2D2321] rounded-2xl bg-[#FAF8F5] dark:bg-[#1E1210]">
               <table className="w-full text-left text-xs text-[#3E2F26] dark:text-[#EAE3D2]">
                 <thead className="bg-[#F3F0E9] dark:bg-[#2D2321] uppercase font-bold text-[#2D241E] dark:text-[#FAF8F5] border-b border-[#E5E1D8] dark:border-[#2D2321]">
@@ -795,24 +1262,29 @@ export function AdminDashboard({
                     <th className="p-3 text-right">Tồn Kho</th>
                     <th className="p-3 text-right">Tối Thiểu</th>
                     <th className="p-3 text-right">Đơn Giá</th>
+                    <th className="p-3 text-center">Thao Tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E5E1D8] dark:divide-[#2D2321] bg-white dark:bg-[#1C1311]">
-                  {[
-                    { name: 'Cá lóc', unit: 'kg', stock: 10, min: 2, price: 80000 },
-                    { name: 'Bột gạo', unit: 'kg', stock: 15, min: 5, price: 25000 },
-                    { name: 'Bột năng', unit: 'kg', stock: 10, min: 3, price: 20000 },
-                    { name: 'Hành lá', unit: 'kg', stock: 2, min: 0.5, price: 30000 },
-                    { name: 'Rau răm', unit: 'kg', stock: 1, min: 0.3, price: 25000 },
-                    { name: 'Chả cá', unit: 'kg', stock: 5, min: 1, price: 120000 },
-                    { name: 'Trứng cút', unit: 'cái', stock: 100, min: 30, price: 2000 },
-                  ].map((m, i) => (
-                    <tr key={i} className="hover:bg-[#FAF8F5]/80 dark:hover:bg-[#2D2321]/50 transition-colors">
+                  {materials.map(m => (
+                    <tr key={m.id} className="hover:bg-[#FAF8F5]/80 dark:hover:bg-[#2D2321]/50 transition-colors">
                       <td className="p-3 font-bold text-[#2D241E] dark:text-[#FAF8F5]">{m.name}</td>
                       <td className="p-3">{m.unit}</td>
                       <td className={`p-3 text-right font-bold ${m.stock <= m.min ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'}`}>{m.stock}</td>
                       <td className="p-3 text-right text-[#8B7E74]">{m.min}</td>
                       <td className="p-3 text-right font-extrabold text-[#D97706]">{m.price.toLocaleString('vi-VN')}đ</td>
+                      <td className="p-3">
+                        <div className="flex gap-1.5 justify-center">
+                          <button onClick={() => handleEditMaterial(m)}
+                            className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-950/50 cursor-pointer">
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => handleDeleteMaterial(m.id)}
+                            className="p-1.5 rounded-lg bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-950/50 cursor-pointer">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -820,20 +1292,66 @@ export function AdminDashboard({
             </div>
           </div>
         )}
-
-        {/* TAB: DINING TABLES */}
+        {/* TAB: TABLES - Full CRUD */}
         {adminTab === 'tables' && (
           <div className="space-y-6">
             <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#FAF8F5]">🪑 Quản Lý Bàn Ăn</h3>
             <p className="text-xs text-[#8B7E74] dark:text-[#B2A496]">Sơ đồ bàn cho khách dùng tại quán</p>
+
+            <div className="bg-[#F3F0E9] dark:bg-[#2D2321] p-5 rounded-3xl border border-[#E5E1D8] dark:border-[#3E302D]">
+              <h4 className="font-serif font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5] mb-3">
+                {editingTableId !== null ? <><Edit3 className="w-4 h-4 inline mr-1 text-[#D97706]" /> Sửa Bàn</> : <><Plus className="w-4 h-4 inline mr-1 text-emerald-500" /> Thêm Bàn Mới</>}
+              </h4>
+              <form onSubmit={handleTableSubmit} className="flex gap-3 items-end flex-wrap">
+                <div className="space-y-1 min-w-[100px]">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Số Bàn</label>
+                  <input type="text" required placeholder="A1"
+                    value={tableForm.number}
+                    onChange={(e) => setTableForm(prev => ({ ...prev, number: e.target.value }))}
+                    className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
+                </div>
+                <div className="space-y-1 min-w-[100px]">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Sức Chứa</label>
+                  <input type="number" required min={1} placeholder="4"
+                    value={tableForm.capacity || ''}
+                    onChange={(e) => setTableForm(prev => ({ ...prev, capacity: Number(e.target.value) }))}
+                    className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
+                </div>
+                <div className="space-y-1 flex-1 min-w-[200px]">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Vị Trí</label>
+                  <input type="text" required placeholder="Tầng 1 - Gần cửa"
+                    value={tableForm.position}
+                    onChange={(e) => setTableForm(prev => ({ ...prev, position: e.target.value }))}
+                    className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
+                </div>
+                <div className="flex gap-2">
+                  {editingTableId !== null && (
+                    <button type="button" onClick={() => { setEditingTableId(null); setTableForm({ number: '', capacity: 2, position: '' }); }}
+                      className="px-4 py-2.5 rounded-xl border border-[#E5E1D8] dark:border-[#3E302D] text-xs font-bold text-[#3E2F26] dark:text-[#EAE3D2] hover:bg-[#E5E1D8] dark:hover:bg-[#3E302D] cursor-pointer">
+                      <X className="w-3.5 h-3.5 inline mr-1" />Hủy
+                    </button>
+                  )}
+                  <button type="submit"
+                    className="px-6 py-2.5 rounded-xl bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] text-xs font-bold hover:opacity-90 cursor-pointer">
+                    {editingTableId !== null ? 'Cập Nhật' : 'Thêm Bàn'}
+                  </button>
+                </div>
+              </form>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {[
-                { number: 'A1', capacity: 2, position: 'Tầng 1 - Gần cửa' },
-                { number: 'A2', capacity: 4, position: 'Tầng 1 - Giữa' },
-                { number: 'A3', capacity: 4, position: 'Tầng 1 - Góc' },
-                { number: 'B1', capacity: 6, position: 'Tầng 2 - Phòng lạnh' },
-              ].map((t, i) => (
-                <div key={i} className="bg-[#FAF8F5] dark:bg-[#211715] p-4 rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] text-center">
+              {tables.map(t => (
+                <div key={t.id} className="bg-[#FAF8F5] dark:bg-[#211715] p-4 rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] text-center relative">
+                  <div className="absolute top-2 right-2 flex gap-1">
+                    <button onClick={() => handleEditTable(t)}
+                      className="p-1 rounded-lg bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-950/50 cursor-pointer">
+                      <Edit3 className="w-3 h-3" />
+                    </button>
+                    <button onClick={() => handleDeleteTable(t.id)}
+                      className="p-1 rounded-lg bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-950/50 cursor-pointer">
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
                   <div className="text-3xl mb-2">🪑</div>
                   <h4 className="font-bold text-lg text-[#2D241E] dark:text-[#FAF8F5]">{t.number}</h4>
                   <p className="text-[10px] text-[#8B7E74] dark:text-[#B2A496]">{t.capacity} chỗ • {t.position}</p>
@@ -843,23 +1361,86 @@ export function AdminDashboard({
           </div>
         )}
 
-        {/* TAB: PROMOTIONS */}
+        {/* TAB: PROMOTIONS - Full CRUD */}
         {adminTab === 'promotions' && (
           <div className="space-y-6">
             <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#FAF8F5]">🏷️ Quản Lý Khuyến Mãi</h3>
             <p className="text-xs text-[#8B7E74] dark:text-[#B2A496]">Mã giảm giá và chương trình ưu đãi</p>
+
+            <div className="bg-[#F3F0E9] dark:bg-[#2D2321] p-5 rounded-3xl border border-[#E5E1D8] dark:border-[#3E302D]">
+              <h4 className="font-serif font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5] mb-3">
+                {editingPromoId !== null ? <><Edit3 className="w-4 h-4 inline mr-1 text-[#D97706]" /> Sửa Khuyến Mãi</> : <><Plus className="w-4 h-4 inline mr-1 text-emerald-500" /> Thêm Khuyến Mãi</>}
+              </h4>
+              <form onSubmit={handlePromoSubmit} className="flex gap-3 items-end flex-wrap">
+                <div className="space-y-1 flex-1 min-w-[130px]">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Mã</label>
+                  <input type="text" required placeholder="WELCOME10"
+                    value={promoForm.code}
+                    onChange={(e) => setPromoForm(prev => ({ ...prev, code: e.target.value }))}
+                    className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
+                </div>
+                <div className="space-y-1 flex-1 min-w-[180px]">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Tên</label>
+                  <input type="text" required placeholder="Giảm 10% khách mới"
+                    value={promoForm.name}
+                    onChange={(e) => setPromoForm(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
+                </div>
+                <div className="space-y-1 min-w-[120px]">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Loại</label>
+                  <select value={promoForm.discount_type}
+                    onChange={(e) => setPromoForm(prev => ({ ...prev, discount_type: e.target.value }))}
+                    className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]">
+                    <option value="percentage">%</option>
+                    <option value="fixed">VNĐ</option>
+                  </select>
+                </div>
+                <div className="space-y-1 min-w-[100px]">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Giá Trị</label>
+                  <input type="number" required min={0} placeholder="10"
+                    value={promoForm.discount_value || ''}
+                    onChange={(e) => setPromoForm(prev => ({ ...prev, discount_value: Number(e.target.value) }))}
+                    className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
+                </div>
+                <div className="space-y-1 min-w-[120px]">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Đơn Tối Thiểu</label>
+                  <input type="number" required min={0} placeholder="100000"
+                    value={promoForm.min_order_amount || ''}
+                    onChange={(e) => setPromoForm(prev => ({ ...prev, min_order_amount: Number(e.target.value) }))}
+                    className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
+                </div>
+                <div className="flex gap-2">
+                  {editingPromoId !== null && (
+                    <button type="button" onClick={() => { setEditingPromoId(null); setPromoForm({ code: '', name: '', discount_type: 'percentage', discount_value: 0, min_order_amount: 0 }); }}
+                      className="px-4 py-2.5 rounded-xl border border-[#E5E1D8] dark:border-[#3E302D] text-xs font-bold text-[#3E2F26] dark:text-[#EAE3D2] hover:bg-[#E5E1D8] dark:hover:bg-[#3E302D] cursor-pointer">
+                      <X className="w-3.5 h-3.5 inline mr-1" />Hủy
+                    </button>
+                  )}
+                  <button type="submit"
+                    className="px-6 py-2.5 rounded-xl bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] text-xs font-bold hover:opacity-90 cursor-pointer">
+                    {editingPromoId !== null ? 'Cập Nhật' : 'Thêm'}
+                  </button>
+                </div>
+              </form>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {[
-                { code: 'WELCOME10', name: 'Giảm 10% khách mới', type: 'percentage', value: 10, min: 100000 },
-                { code: 'FREESHIP', name: 'Free ship đơn 150k', type: 'fixed', value: 20000, min: 150000 },
-              ].map((p, i) => (
-                <div key={i} className="bg-[#FAF8F5] dark:bg-[#211715] p-4 rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] flex gap-3">
+              {promotions.map(p => (
+                <div key={p.id} className="bg-[#FAF8F5] dark:bg-[#211715] p-4 rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] flex gap-3 relative">
+                  <button onClick={() => handleEditPromo(p)}
+                    className="absolute top-2 right-8 p-1 rounded-lg bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-950/50 cursor-pointer">
+                    <Edit3 className="w-3 h-3" />
+                  </button>
+                  <button onClick={() => handleDeletePromo(p.id)}
+                    className="absolute top-2 right-2 p-1 rounded-lg bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-950/50 cursor-pointer">
+                    <Trash2 className="w-3 h-3" />
+                  </button>
                   <div className="text-2xl">🏷️</div>
                   <div>
                     <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5]">{p.name}</h4>
                     <p className="text-[10px] font-mono text-[#D97706] font-bold">{p.code}</p>
                     <p className="text-[10px] text-[#8B7E74] dark:text-[#B2A496] mt-1">
-                      {p.type === 'percentage' ? `Giảm ${p.value}%` : `Giảm ${p.value.toLocaleString('vi-VN')}đ`} • Đơn tối thiểu {p.min.toLocaleString('vi-VN')}đ
+                      {p.discount_type === 'percentage' ? `Giảm ${p.discount_value}%` : `Giảm ${p.discount_value.toLocaleString('vi-VN')}đ`} • Đơn tối thiểu {p.min_order_amount.toLocaleString('vi-VN')}đ
                     </p>
                   </div>
                 </div>
@@ -868,11 +1449,61 @@ export function AdminDashboard({
           </div>
         )}
 
-        {/* TAB: REVIEWS */}
+        {/* TAB: REVIEWS - Full CRUD */}
         {adminTab === 'reviews' && (
           <div className="space-y-6">
             <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#FAF8F5]">⭐ Đánh Giá Khách Hàng</h3>
             <p className="text-xs text-[#8B7E74] dark:text-[#B2A496]">Phản hồi từ thực khách</p>
+
+            <div className="bg-[#F3F0E9] dark:bg-[#2D2321] p-5 rounded-3xl border border-[#E5E1D8] dark:border-[#3E302D]">
+              <h4 className="font-serif font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5] mb-3">
+                {editingReviewId !== null ? <><Edit3 className="w-4 h-4 inline mr-1 text-[#D97706]" /> Sửa Đánh Giá</> : <><Plus className="w-4 h-4 inline mr-1 text-emerald-500" /> Thêm Đánh Giá</>}
+              </h4>
+              <form onSubmit={handleReviewSubmit} className="flex gap-3 items-end flex-wrap">
+                <div className="space-y-1 flex-1 min-w-[150px]">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Khách Hàng</label>
+                  <input type="text" required placeholder="Nguyễn Văn A"
+                    value={reviewForm.customer}
+                    onChange={(e) => setReviewForm(prev => ({ ...prev, customer: e.target.value }))}
+                    className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
+                </div>
+                <div className="space-y-1 flex-1 min-w-[150px]">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Sản Phẩm</label>
+                  <input type="text" required placeholder="Bánh Canh Cá Lóc"
+                    value={reviewForm.product}
+                    onChange={(e) => setReviewForm(prev => ({ ...prev, product: e.target.value }))}
+                    className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
+                </div>
+                <div className="space-y-1 min-w-[120px]">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Đánh Giá (1-5)</label>
+                  <select value={reviewForm.rating}
+                    onChange={(e) => setReviewForm(prev => ({ ...prev, rating: Number(e.target.value) }))}
+                    className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]">
+                    {[1,2,3,4,5].map(n => <option key={n} value={n}>{'⭐'.repeat(n)}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1 flex-1 min-w-[200px]">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Nhận Xét</label>
+                  <input type="text" placeholder="Nước dùng ngọt thanh..."
+                    value={reviewForm.comment}
+                    onChange={(e) => setReviewForm(prev => ({ ...prev, comment: e.target.value }))}
+                    className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
+                </div>
+                <div className="flex gap-2">
+                  {editingReviewId !== null && (
+                    <button type="button" onClick={() => { setEditingReviewId(null); setReviewForm({ customer: '', product: '', rating: 5, comment: '' }); }}
+                      className="px-4 py-2.5 rounded-xl border border-[#E5E1D8] dark:border-[#3E302D] text-xs font-bold text-[#3E2F26] dark:text-[#EAE3D2] hover:bg-[#E5E1D8] dark:hover:bg-[#3E302D] cursor-pointer">
+                      <X className="w-3.5 h-3.5 inline mr-1" />Hủy
+                    </button>
+                  )}
+                  <button type="submit"
+                    className="px-6 py-2.5 rounded-xl bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] text-xs font-bold hover:opacity-90 cursor-pointer">
+                    {editingReviewId !== null ? 'Cập Nhật' : 'Thêm'}
+                  </button>
+                </div>
+              </form>
+            </div>
+
             <div className="overflow-x-auto border border-[#E5E1D8] dark:border-[#2D2321] rounded-2xl bg-[#FAF8F5] dark:bg-[#1E1210]">
               <table className="w-full text-left text-xs text-[#3E2F26] dark:text-[#EAE3D2]">
                 <thead className="bg-[#F3F0E9] dark:bg-[#2D2321] uppercase font-bold text-[#2D241E] dark:text-[#FAF8F5] border-b border-[#E5E1D8] dark:border-[#2D2321]">
@@ -881,18 +1512,28 @@ export function AdminDashboard({
                     <th className="p-3">Sản Phẩm</th>
                     <th className="p-3 text-center">Đánh Giá</th>
                     <th className="p-3">Nhận Xét</th>
+                    <th className="p-3 text-center">Thao Tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E5E1D8] dark:divide-[#2D2321] bg-white dark:bg-[#1C1311]">
-                  {[
-                    { customer: 'Nguyễn Thị A', product: 'Bánh Canh Cá Lóc', rating: 5, comment: 'Nước dùng ngọt thanh, cá tươi ngon!' },
-                    { customer: 'Trần Văn B', product: 'Bánh Canh Cá Lóc', rating: 4, comment: 'Rất ngon, sẽ ủng hộ quán dài dài.' },
-                  ].map((r, i) => (
-                    <tr key={i} className="hover:bg-[#FAF8F5]/80 dark:hover:bg-[#2D2321]/50 transition-colors">
+                  {reviews.map(r => (
+                    <tr key={r.id} className="hover:bg-[#FAF8F5]/80 dark:hover:bg-[#2D2321]/50 transition-colors">
                       <td className="p-3 font-bold text-[#2D241E] dark:text-[#FAF8F5]">{r.customer}</td>
                       <td className="p-3">{r.product}</td>
                       <td className="p-3 text-center text-amber-500">{'⭐'.repeat(r.rating)}</td>
                       <td className="p-3 text-[#8B7E74] max-w-[200px] truncate">{r.comment}</td>
+                      <td className="p-3">
+                        <div className="flex gap-1.5 justify-center">
+                          <button onClick={() => handleEditReview(r)}
+                            className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-950/50 cursor-pointer">
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => handleDeleteReview(r.id)}
+                            className="p-1.5 rounded-lg bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-950/50 cursor-pointer">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -900,7 +1541,6 @@ export function AdminDashboard({
             </div>
           </div>
         )}
-
         {/* TAB: STATISTICS */}
         {adminTab === 'stats' && (
           <div className="space-y-6">
@@ -922,7 +1562,6 @@ export function AdminDashboard({
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Doanh thu */}
               <div className="bg-[#FAF8F5] dark:bg-[#211715] p-5 rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321]">
                 <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5] mb-3">💰 Doanh Thu</h4>
                 <p className="text-2xl font-black text-[#D97706]">
@@ -931,7 +1570,6 @@ export function AdminDashboard({
                 <p className="text-[10px] text-[#8B7E74] mt-1">Tổng doanh thu từ các đơn hoàn thành</p>
               </div>
 
-              {/* Tài xế */}
               <div className="bg-[#FAF8F5] dark:bg-[#211715] p-5 rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321]">
                 <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5] mb-3">🛵 Tài Xế</h4>
                 <div className="flex gap-4">
@@ -951,7 +1589,6 @@ export function AdminDashboard({
               </div>
             </div>
 
-            {/* Top sản phẩm */}
             <div className="bg-[#FAF8F5] dark:bg-[#211715] p-5 rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321]">
               <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5] mb-3">🔥 Sản Phẩm Bán Chạy</h4>
               <div className="space-y-2">
@@ -972,87 +1609,119 @@ export function AdminDashboard({
           </div>
         )}
 
-        {/* TAB: PERMISSIONS (Super Admin only) */}
-        {adminTab === 'permissions' && isSuperAdmin && (
+        {/* TAB: PERMISSIONS & ROLE MANAGER (Super Admin only) */}
+        {adminTab === 'permissions' && (
           <div className="space-y-6">
-            <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#FAF8F5]">🔐 Phân Quyền Hệ Thống</h3>
-            <p className="text-xs text-[#8B7E74] dark:text-[#B2A496]">Quản lý vai trò và quyền hạn của từng tài khoản</p>
+            <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#FAF8F5]">🔐 Phân quyền & Vai trò</h3>
+            <p className="text-xs text-[#8B7E74] dark:text-[#B2A496]">Quản lý vai trò và phân quyền chi tiết theo module</p>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Roles */}
-              <div className="bg-[#FAF8F5] dark:bg-[#211715] p-4 rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321]">
-                <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5] mb-3">Vai Trò (Roles)</h4>
-                <div className="space-y-2">
-                  {[
-                    { name: 'ROLE_SUPER_ADMIN', display: 'Đại Siêu Quản Trị', desc: 'Toàn quyền hệ thống' },
-                    { name: 'ROLE_ADMIN', display: 'Quản lý', desc: 'Quản lý đơn hàng, sản phẩm, tài xế' },
-                    { name: 'ROLE_STAFF', display: 'Nhân viên', desc: 'Xem và cập nhật đơn hàng' },
-                    { name: 'ROLE_CUSTOMER', display: 'Khách hàng', desc: 'Đặt món và theo dõi' },
-                  ].map((r, i) => (
-                    <div key={i} className="bg-white dark:bg-[#1C1311] p-3 rounded-xl border border-[#E5E1D8] dark:border-[#2D2321]">
-                      <p className="font-bold text-xs text-[#D97706] font-mono">{r.name}</p>
-                      <p className="text-xs text-[#2D241E] dark:text-[#FAF8F5]">{r.display}</p>
-                      <p className="text-[9px] text-[#8B7E74]">{r.desc}</p>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Left Panel: Role List + CRUD */}
+              <div className="lg:col-span-4 space-y-4">
+                <div className="bg-[#F3F0E9] dark:bg-[#2D2321] p-4 rounded-2xl border border-[#E5E1D8] dark:border-[#3E302D]">
+                  <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5] mb-3">
+                    {editingRoleId !== null ? <><Edit3 className="w-4 h-4 inline mr-1 text-[#D97706]" /> Sửa Vai Trò</> : <><Plus className="w-4 h-4 inline mr-1 text-emerald-500" /> Thêm Vai Trò</>}
+                  </h4>
+                  <form onSubmit={handleRoleFormSubmit} className="space-y-2">
+                    <input type="text" required placeholder="ROLE_NAME"
+                      value={roleForm.name}
+                      onChange={(e) => setRoleForm(prev => ({ ...prev, name: e.target.value }))}
+                      className="w-full text-xs p-2 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
+                    <input type="text" required placeholder="Tên hiển thị"
+                      value={roleForm.display}
+                      onChange={(e) => setRoleForm(prev => ({ ...prev, display: e.target.value }))}
+                      className="w-full text-xs p-2 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
+                    <input type="text" placeholder="Mô tả"
+                      value={roleForm.desc}
+                      onChange={(e) => setRoleForm(prev => ({ ...prev, desc: e.target.value }))}
+                      className="w-full text-xs p-2 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
+                    <div className="flex gap-2">
+                      {editingRoleId !== null && (
+                        <button type="button" onClick={() => { setEditingRoleId(null); setRoleForm({ name: '', display: '', desc: '' }); }}
+                          className="px-3 py-1.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] text-xs font-bold text-[#3E2F26] dark:text-[#EAE3D2] hover:bg-[#E5E1D8] dark:hover:bg-[#3E302D] cursor-pointer">
+                          <X className="w-3 h-3 inline mr-1" />Hủy
+                        </button>
+                      )}
+                      <button type="submit"
+                        className="px-4 py-1.5 rounded-lg bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] text-xs font-bold hover:opacity-90 cursor-pointer">
+                        {editingRoleId !== null ? 'Cập Nhật' : 'Thêm'}
+                      </button>
                     </div>
-                  ))}
+                  </form>
                 </div>
-              </div>
 
-              {/* Permissions */}
-              <div className="bg-[#FAF8F5] dark:bg-[#211715] p-4 rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321]">
-                <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5] mb-3">Quyền Hạn (Permissions)</h4>
-                <div className="space-y-1 max-h-[400px] overflow-y-auto pr-1">
-                  {[
-                    { code: 'product:*', name: 'Quản lý sản phẩm', module: 'product' },
-                    { code: 'order:*', name: 'Quản lý đơn hàng', module: 'order' },
-                    { code: 'driver:*', name: 'Quản lý tài xế', module: 'driver' },
-                    { code: 'category:*', name: 'Quản lý danh mục', module: 'category' },
-                    { code: 'user:read', name: 'Xem người dùng', module: 'user' },
-                    { code: 'role:assign', name: 'Phân quyền', module: 'role' },
-                    { code: 'stats:view', name: 'Xem thống kê', module: 'stats' },
-                  ].map((p, i) => (
-                    <div key={i} className="bg-white dark:bg-[#1C1311] p-2 rounded-lg border border-[#E5E1D8] dark:border-[#2D2321] flex items-center justify-between">
-                      <div>
-                        <span className="text-[10px] font-mono text-blue-600 dark:text-blue-400 font-bold">{p.code}</span>
-                        <span className="text-[10px] text-[#8B7E74] ml-2">{p.name}</span>
+                <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
+                  {roleList.map(r => (
+                    <div
+                      key={r.id}
+                      onClick={() => handleRoleSelect(r)}
+                      className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                        selectedRoleForPerms?.id === r.id
+                          ? 'bg-amber-50 dark:bg-amber-950/20 border-[#D97706] dark:border-amber-700'
+                          : 'bg-[#FAF8F5] dark:bg-[#211715] border-[#E5E1D8] dark:border-[#2D2321] hover:border-amber-300'
+                      }`}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-bold text-xs text-[#D97706] font-mono">{r.name}</p>
+                          <p className="text-xs text-[#2D241E] dark:text-[#FAF8F5]">{r.display}</p>
+                          <p className="text-[9px] text-[#8B7E74]">{r.desc}</p>
+                        </div>
+                        <div className="flex gap-1">
+                          <button onClick={(e) => { e.stopPropagation(); handleEditRole(r); }}
+                            className="p-1 rounded bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-950/50 cursor-pointer">
+                            <Edit3 className="w-3 h-3" />
+                          </button>
+                          <button onClick={(e) => { e.stopPropagation(); handleDeleteRole(r.id); }}
+                            className="p-1 rounded bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-950/50 cursor-pointer">
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
                       </div>
-                      <span className="text-[8px] px-1.5 py-0.5 rounded bg-[#F3F0E9] dark:bg-[#2D2321] text-[#8B7E74] font-mono">{p.module}</span>
                     </div>
                   ))}
                 </div>
               </div>
-            </div>
 
-            {/* User-Role Assignment */}
-            <div className="bg-[#FAF8F5] dark:bg-[#211715] p-4 rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321]">
-              <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5] mb-3">Phân Vai Trò Cho Người Dùng</h4>
-              <div className="overflow-x-auto border border-[#E5E1D8] dark:border-[#2D2321] rounded-xl">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-[#F3F0E9] dark:bg-[#2D2321] text-[#2D241E] dark:text-[#FAF8F5] uppercase font-bold border-b border-[#E5E1D8] dark:border-[#2D2321]">
-                    <tr>
-                      <th className="p-3">Người Dùng</th>
-                      <th className="p-3">Vai Trò Hiện Tại</th>
-                      <th className="p-3">Ghi Chú</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#E5E1D8] dark:divide-[#2D2321] bg-white dark:bg-[#1C1311]">
-                    {[
-                      { user: 'superadmin', role: 'ROLE_SUPER_ADMIN', note: 'Toàn quyền' },
-                      { user: 'admin', role: 'ROLE_ADMIN', note: 'Quản lý' },
-                      { user: 'customer', role: 'ROLE_CUSTOMER', note: 'Khách hàng' },
-                    ].map((u, i) => (
-                      <tr key={i} className="hover:bg-[#FAF8F5]/80 dark:hover:bg-[#2D2321]/50">
-                        <td className="p-3 font-bold text-[#2D241E] dark:text-[#FAF8F5]">{u.user}</td>
-                        <td className="p-3">
-                          <span className="text-[9px] font-bold px-2 py-0.5 rounded border bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-900/50">
-                            {u.role}
-                          </span>
-                        </td>
-                        <td className="p-3 text-[#8B7E74]">{u.note}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              {/* Right Panel: Permission checkboxes */}
+              <div className="lg:col-span-8">
+                {selectedRoleForPerms ? (
+                  <div className="bg-[#FAF8F5] dark:bg-[#211715] p-5 rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321]">
+                    <div className="flex justify-between items-center mb-4">
+                      <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5]">
+                        Quyền hạn cho <span className="text-[#D97706] font-mono">{selectedRoleForPerms.name}</span>
+                      </h4>
+                      <button
+                        onClick={handleSavePermissions}
+                        className="px-4 py-1.5 rounded-lg bg-[#D97706] hover:bg-[#D97706]/90 text-white text-xs font-bold cursor-pointer"
+                      >
+                        Lưu Phân Quyền
+                      </button>
+                    </div>
+
+                    <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
+                      {PERMISSION_MODULES.map(mod => (
+                        <div key={mod.module} className="bg-white dark:bg-[#1C1311] p-3 rounded-xl border border-[#E5E1D8] dark:border-[#2D2321]">
+                          <h5 className="font-bold text-xs text-[#D97706] uppercase mb-2">{mod.label}</h5>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                            {mod.permissions.map(perm => (
+                              <label key={perm.code} className="flex items-center gap-2 p-1.5 rounded hover:bg-[#F3F0E9] dark:hover:bg-[#2D2321] cursor-pointer">
+                                <input type="checkbox" checked={!!checkPermissions[perm.code]}
+                                  onChange={() => handlePermissionToggle(perm.code)}
+                                  className="w-4 h-4 accent-[#D97706] cursor-pointer" />
+                                <span className="text-[10px] text-[#3E2F26] dark:text-[#EAE3D2]">{perm.name}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-[#FAF8F5] dark:bg-[#211715] p-8 rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] flex items-center justify-center">
+                    <p className="text-xs text-[#8B7E74] italic">Chọn một vai trò ở bên trái để xem và chỉnh sửa quyền hạn</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1061,8 +1730,7 @@ export function AdminDashboard({
         {/* TAB: JAVA BACKEND SOURCE CODE */}
         {adminTab === 'java' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            
-            {/* Left selector */}
+
             <div className="lg:col-span-3 space-y-1">
               <span className="text-[10px] text-[#8B7E74] dark:text-[#B2A496] font-black uppercase mb-1.5 block">File cấu trúc Java</span>
               {JAVA_BACKEND_FILES.map((file, i) => (
@@ -1082,13 +1750,12 @@ export function AdminDashboard({
                   </div>
                 </button>
               ))}
-              
+
               <div className="p-3 bg-amber-50 dark:bg-amber-950/20 rounded-xl border border-amber-200 dark:border-amber-900/50 text-[10px] text-amber-900 dark:text-amber-300 leading-normal mt-4">
                 <strong>📝 Chú ý:</strong> Bạn có thể copy source Spring Boot này dán trực tiếp vào dự án Java IDE của bạn (IntelliJ, Eclipse...). Nó chứa cấu hình kết nối chuẩn để chạy với MySQL XAMPP.
               </div>
             </div>
 
-            {/* Code presentation */}
             <div className="lg:col-span-9 space-y-3">
               <div className="bg-[#2D241E] rounded-2xl overflow-hidden shadow-md text-white">
                 <div className="bg-[#3E2F26] px-4 py-2.5 flex justify-between items-center border-b border-[#2D241E]">
@@ -1112,7 +1779,7 @@ export function AdminDashboard({
           </div>
         )}
 
-        {/* TAB 4: SQL DATABASE SCHEMA FOR XAMPP */}
+        {/* TAB: SQL DATABASE SCHEMA FOR XAMPP */}
         {adminTab === 'sql' && (
           <div className="space-y-4">
             <div className="p-4 bg-amber-50 dark:bg-amber-950/20 rounded-xl border border-amber-200 dark:border-amber-900/50 flex items-start gap-3">
@@ -1147,11 +1814,10 @@ export function AdminDashboard({
           </div>
         )}
 
-        {/* TAB 5: FRONTEND INTEGRATION */}
+        {/* TAB: FRONTEND INTEGRATION */}
         {adminTab === 'frontend' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            
-            {/* Left selector */}
+
             <div className="lg:col-span-3 space-y-1">
               <span className="text-[10px] text-[#8B7E74] dark:text-[#B2A496] font-black uppercase mb-1.5 block">File cấu trúc & Hướng dẫn FE</span>
               {FRONTEND_INTEGRATION_FILES.map((file, i) => (
@@ -1171,7 +1837,7 @@ export function AdminDashboard({
                   </div>
                 </button>
               ))}
-              
+
               <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 rounded-xl border border-emerald-200 dark:border-emerald-900/50 text-[10px] text-emerald-900 dark:text-emerald-300 leading-normal mt-4">
                 <strong>💡 Mẹo liên kết:</strong> Tạo một file <code className="bg-white/80 dark:bg-black/20 px-1 rounded font-mono text-red-600 dark:text-red-400">src/services/api.ts</code> và chép nội dung bên phải để thiết lập gọi API chuẩn xác kết nối trực tiếp đến Spring Boot.
               </div>
@@ -1199,14 +1865,12 @@ export function AdminDashboard({
 
           </div>
         )}
-
-        {/* TAB 6: USER MANAGEMENT & DATABASE SETUP GUIDES */}
+        {/* TAB: USER MANAGEMENT */}
         {adminTab === 'users' && (
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 pb-2">
-            
-            {/* LEFT COLUMN: GUIDES AND STEP BY STEP SETUP */}
+
             <div className="xl:col-span-7 space-y-6">
-              
+
               <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 flex gap-3">
                 <span className="text-xl shrink-0">🤝</span>
                 <div className="text-xs text-[#FAF8F5]/80 space-y-1">
@@ -1217,7 +1881,6 @@ export function AdminDashboard({
                 </div>
               </div>
 
-              {/* SQL Schema Code Card */}
               <div className="bg-[#1C1311] border border-[#2D2321] rounded-2xl overflow-hidden shadow-sm">
                 <div className="bg-[#241A18] px-4 py-3 flex justify-between items-center border-b border-[#2D2321]">
                   <div className="flex items-center gap-2">
@@ -1264,7 +1927,6 @@ VALUES ('admin', 'admin', 'admin@banhcanhcaloc.com', 'admin');`}
                 </div>
               </div>
 
-              {/* Spring Boot Java Entity card */}
               <div className="bg-[#1C1311] border border-[#2D2321] rounded-2xl overflow-hidden shadow-sm">
                 <div className="bg-[#241A18] px-4 py-3 flex justify-between items-center border-b border-[#2D2321]">
                   <div className="flex items-center gap-2">
@@ -1295,7 +1957,7 @@ public class User {
     private String email;
 
     @Column(nullable = false)
-    private String role = "customer"; // customer hoặc admin
+    private String role = "customer";
 }`)}
                     className="bg-white/10 hover:bg-white/15 text-white text-[9px] font-mono px-2 py-1 rounded cursor-pointer transition-all"
                   >
@@ -1338,10 +2000,8 @@ public class User {
 
             </div>
 
-            {/* RIGHT COLUMN: USERS FROM API + LOCAL */}
             <div className="xl:col-span-5 space-y-4">
 
-              {/* API Users (when connected) */}
               {isBackendConnected && (
                 <div className="p-4.5 bg-[#1C1311] border border-[#2D2321] rounded-2xl shadow-xs space-y-3">
                   <div className="flex justify-between items-center">
@@ -1395,7 +2055,6 @@ public class User {
                 </div>
               )}
 
-              {/* Stats Summary Card */}
               {isBackendConnected && apiStats && (
                 <div className="p-4 bg-[#1C1311] border border-[#2D2321] rounded-2xl shadow-xs">
                   <h5 className="font-serif font-bold text-xs text-[#FAF8F5] mb-3">📊 Thống Kê Hệ Thống</h5>
@@ -1420,7 +2079,6 @@ public class User {
                 </div>
               )}
 
-              {/* Local Storage Users */}
               <div className="p-4.5 bg-[#1C1311] border border-[#2D2321] rounded-2xl shadow-xs space-y-4">
                 <div className="flex justify-between items-center">
                   <div>
@@ -1454,7 +2112,6 @@ public class User {
                 )}
               </div>
 
-              {/* Quick Credentials Sandbox summary */}
               <div className="p-4 bg-[#1C1311] border border-[#2D2321] rounded-2xl text-xs space-y-3 shadow-xs">
                 <h5 className="font-serif font-bold text-amber-500">🔑 Tài Khoản Quản Trị</h5>
                 <div className="bg-[#140D0C] p-3 rounded-xl font-mono text-[11px] text-amber-200/90 border border-[#2D2321] space-y-1">
@@ -1468,6 +2125,8 @@ public class User {
 
           </div>
         )}
+
+
 
       </div>
 

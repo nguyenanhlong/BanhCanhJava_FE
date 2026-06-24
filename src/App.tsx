@@ -358,6 +358,11 @@ export default function App() {
     paymentMethod: 'cod' | 'momo' | 'vnpay' | 'card';
     finalTotalAmount?: number;
   }) => {
+    // Yêu cầu đăng nhập trước khi đặt hàng
+    if (!user) {
+      setAuthOpen(true);
+      return;
+    }
     const totalAmount = cartItems.reduce(
       (sum, item) => sum + (item.product.price + (item.toppings || []).reduce((s, t) => s + t.price, 0)) * item.quantity,
       0
@@ -914,15 +919,29 @@ export default function App() {
 
         {/* VIEW 4: REAL-TIME SECURE SHIPPER TRACKING */}
         {activeTab === 'tracking' && (
-          <TrackingSection 
-            activeOrders={orders}
-            onSendMessage={handleSendMessage}
-            chatHistory={chatHistory}
-            reviews={reviews}
-            onAddReview={handleAddReview}
-            currentUser={user}
-            onCancelOrder={(orderId) => handleUpdateOrderStatus(orderId, 'cancelled')}
-          />
+          user ? (
+            <TrackingSection 
+              activeOrders={orders}
+              onSendMessage={handleSendMessage}
+              chatHistory={chatHistory}
+              reviews={reviews}
+              onAddReview={handleAddReview}
+              currentUser={user}
+              onCancelOrder={(orderId) => handleUpdateOrderStatus(orderId, 'cancelled')}
+            />
+          ) : (
+            <div className="max-w-7xl mx-auto px-4 py-20 text-center">
+              <div className="bg-[#FAF8F5] dark:bg-[#211715] p-10 rounded-3xl border border-[#E5E1D8] dark:border-[#2D2321] max-w-md mx-auto">
+                <span className="text-5xl mb-4 block">🔒</span>
+                <h3 className="font-serif text-xl font-bold text-[#2D241E] dark:text-[#FAF8F5] mb-2">Vui lòng đăng nhập</h3>
+                <p className="text-xs text-[#8B7E74] dark:text-[#B2A496] mb-6">Bạn cần đăng nhập để theo dõi đơn hàng của mình.</p>
+                <button onClick={() => setAuthOpen(true)}
+                  className="bg-[#D97706] hover:bg-[#D97706]/90 text-white font-bold px-6 py-2.5 rounded-xl text-xs cursor-pointer">
+                  Đăng nhập ngay
+                </button>
+              </div>
+            </div>
+          )
         )}
 
         {/* VIEW 5: ADMIN / CHỦ QUÁN AND JAVA SOURCE CONSOLE */}
