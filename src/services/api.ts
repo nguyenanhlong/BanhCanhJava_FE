@@ -185,7 +185,20 @@ export const ApiService = {
     return mapDriver(data);
   },
 
-  // 5. AUTH API
+  // 5. USERS & STATS API
+  async getUsers(): Promise<any[]> {
+    const res = await fetch(`${BASE_URL}/users`);
+    if (!res.ok) throw new Error('Không thể tải danh sách người dùng');
+    return res.json();
+  },
+
+  async getStats(): Promise<any> {
+    const res = await fetch(`${BASE_URL}/orders/stats`);
+    if (!res.ok) return { totalOrders: 0, totalRevenue: 0 };
+    return res.json();
+  },
+
+  // 6. AUTH API
   async register(user: any): Promise<any> {
     const res = await fetch(`${BASE_URL}/auth/register`, {
       method: 'POST',
