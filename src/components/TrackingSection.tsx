@@ -231,9 +231,9 @@ export function TrackingSection({
                   <div className="text-right">
                     <span className="text-xs text-[#8B7E74] dark:text-[#B2A496] font-medium">Hình thức thanh toán:</span>
                     <p className="text-xs text-[#D97706] font-bold mt-0.5 capitalize font-sans">
-                      {selectedOrder.paymentMethod === 'cod' ? '💵 Tiền mặt khi nhận' : 
+                      {selectedOrder.paymentMethod === 'cash' ? '💵 Tiền mặt khi nhận' : 
                        selectedOrder.paymentMethod === 'momo' ? '🎀 Ví MoMo' : 
-                       selectedOrder.paymentMethod === 'vnpay' ? '🏛️ Cổng VNPay' : '💳 Thẻ Quốc Tế'}
+                       selectedOrder.paymentMethod === 'transfer' ? '🏛️ Chuyển khoản' : selectedOrder.paymentMethod}
                     </p>
                   </div>
                 </div>
@@ -410,12 +410,12 @@ export function TrackingSection({
                 </div>
 
                 {/* Driver information */}
-                {selectedOrder.driverName && selectedOrder.status !== 'cancelled' ? (
+                {selectedOrder.driverId && selectedOrder.status !== 'cancelled' ? (
                   <div className="mt-4 p-4 bg-[#FAF8F5] dark:bg-[#1C1311] rounded-xl border border-[#E5E1D8] dark:border-[#2D2321] flex justify-between items-center text-xs">
                     <div className="flex items-center gap-3 font-sans">
-                      <div className="text-2xl">👨🏻‍✈️</div>
+                      <div className="text-2xl">🛵</div>
                       <div>
-                        <p className="font-bold text-[#2D241E] dark:text-[#FAF8F5]">{selectedOrder.driverName}</p>
+                        <p className="font-bold text-[#2D241E] dark:text-[#FAF8F5]">Tài xế (ID: {selectedOrder.driverId})</p>
                         <p className="text-[10px] text-[#8B7E74] dark:text-[#B2A496]">
                           {selectedOrder.deliveryStage || 'Tài xế đang nhận thố dọn bánh canh chuẩn bị xuất phát.'}
                         </p>

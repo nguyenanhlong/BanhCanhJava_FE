@@ -45,99 +45,132 @@ export const INITIAL_PRODUCTS: Product[] = [
     name: 'Bánh Canh Cá Lóc Đặc Biệt',
     description: 'Tô bánh canh đầy đặn đầy đủ cá lóc hấp, cá chiên giòn, đầu lòng cá lóc béo ngậy, kèm trứng cút và chả cua Huế.',
     price: 65000,
-    category: 'main',
+    categoryId: 1,
+    categoryName: 'Bánh Canh Cá Lóc',
     isBestSeller: true,
-    image: 'https://images.unsplash.com/photo-1591814468924-caf7f582d246?w=600&auto=format&fit=crop&q=80'
+    isAvailable: true,
+    imageUrl: 'https://images.unsplash.com/photo-1591814468924-caf7f582d246?w=600&auto=format&fit=crop&q=80',
+    preparationTime: 15
   },
   {
     id: 'bc-02',
     name: 'Bánh Canh Cá Lóc Hấp Truyền Thống',
     description: 'Thịt cá lóc phi lê hấp chín ngọt, nước dùng ninh từ xương cá ngọt mát đậm đà chuẩn vị Quảng Trị.',
     price: 45000,
-    category: 'main',
+    categoryId: 1,
+    categoryName: 'Bánh Canh Cá Lóc',
     isBestSeller: true,
-    image: 'https://images.unsplash.com/photo-1625398407796-82650a8c135f?w=600&auto=format&fit=crop&q=80'
+    isAvailable: true,
+    imageUrl: 'https://images.unsplash.com/photo-1625398407796-82650a8c135f?w=600&auto=format&fit=crop&q=80',
+    preparationTime: 10
   },
   {
     id: 'bc-03',
     name: 'Bánh Canh Cá Lóc Chiên Giòn',
     description: 'Sử dụng phi lê cá lóc tẩm bột chiên vàng giòn rụm bên ngoài, bên trong thịt vẫn mềm ngọt mọng nước.',
     price: 45000,
-    category: 'main',
+    categoryId: 1,
+    categoryName: 'Bánh Canh Cá Lóc',
     isBestSeller: false,
-    image: 'https://images.unsplash.com/photo-1552611052-33e04de081de?w=600&auto=format&fit=crop&q=80'
+    isAvailable: true,
+    imageUrl: 'https://images.unsplash.com/photo-1552611052-33e04de081de?w=600&auto=format&fit=crop&q=80',
+    preparationTime: 10
   },
   {
     id: 'bc-04',
     name: 'Bánh Canh Đầu Lòng Cá Lóc',
     description: 'Món ăn xa xỉ dành cho tín đồ ẩm thực: Đầu cá lóc béo ngậy cùng bộ lòng cá (bao tử, gan) giòn sần sật.',
     price: 55000,
-    category: 'main',
+    categoryId: 1,
+    categoryName: 'Bánh Canh Cá Lóc',
     isBestSeller: true,
-    image: 'https://images.unsplash.com/photo-1534422298391-e4f8c172dddb?w=600&auto=format&fit=crop&q=80'
+    isAvailable: true,
+    imageUrl: 'https://images.unsplash.com/photo-1534422298391-e4f8c172dddb?w=600&auto=format&fit=crop&q=80',
+    preparationTime: 15
   },
   {
     id: 'bc-05',
     name: 'Bánh Canh Cá Lóc Bột Lọc',
     description: 'Sợi bánh làm từ bột lọc trong suốt, dai ngon sần sật quyện nước dùng sền sệt đậm đà ngập tràn củ nén và hành hoa.',
     price: 45000,
-    category: 'main',
+    categoryId: 1,
+    categoryName: 'Bánh Canh Cá Lóc',
     isBestSeller: false,
-    image: 'https://images.unsplash.com/photo-1608897013039-887f21d8c804?w=600&auto=format&fit=crop&q=80'
+    isAvailable: true,
+    imageUrl: 'https://images.unsplash.com/photo-1608897013039-887f21d8c804?w=600&auto=format&fit=crop&q=80',
+    preparationTime: 10
   },
   {
     id: 'top-01',
     name: 'Chả Cua Huế Thêm',
     description: 'Chả cua quết tay thơm nức, dai ngon đậm đà gia vị miền Trung.',
     price: 15000,
-    category: 'extra',
+    categoryId: 2,
+    categoryName: 'Đồ Ăn Kèm',
     isBestSeller: false,
-    image: 'https://images.unsplash.com/photo-1582450871972-ab5ca641643d?w=600&auto=format&fit=crop&q=80'
+    isAvailable: true,
+    imageUrl: 'https://images.unsplash.com/photo-1582450871972-ab5ca641643d?w=600&auto=format&fit=crop&q=80',
+    preparationTime: 5
   },
   {
     id: 'top-02',
     name: 'Bộ Lòng Cá Lóc Thêm',
     description: 'Bao tử cá béo ngậy và gan cá lóc chiên sả ớt, đậm đà giòn rụm.',
     price: 25000,
-    category: 'extra',
+    categoryId: 2,
+    categoryName: 'Đồ Ăn Kèm',
     isBestSeller: false,
-    image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80'
+    isAvailable: true,
+    imageUrl: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80',
+    preparationTime: 5
   },
   {
     id: 'top-03',
     name: 'Bánh Quẩy Giòn',
     description: 'Quẩy giòn rụm, nhúng nước bánh canh ăn siêu ngon cuốn hút.',
     price: 5000,
-    category: 'extra',
+    categoryId: 2,
+    categoryName: 'Đồ Ăn Kèm',
     isBestSeller: false,
-    image: 'https://images.unsplash.com/photo-1549931319-a545dcf3bc73?w=600&auto=format&fit=crop&q=80'
+    isAvailable: true,
+    imageUrl: 'https://images.unsplash.com/photo-1549931319-a545dcf3bc73?w=600&auto=format&fit=crop&q=80',
+    preparationTime: 3
   },
   {
     id: 'top-04',
     name: 'Trứng Cút (5 Quả)',
     description: 'Trứng cút luộc chín tới bùi bùi béo béo.',
     price: 8000,
-    category: 'extra',
+    categoryId: 2,
+    categoryName: 'Đồ Ăn Kèm',
     isBestSeller: false,
-    image: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=600&auto=format&fit=crop&q=80'
+    isAvailable: true,
+    imageUrl: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=600&auto=format&fit=crop&q=80',
+    preparationTime: 5
   },
   {
     id: 'dr-01',
     name: 'Nước Chè Xanh Huế',
     description: 'Lá chè tươi om chuẩn vị miền Trung mát rượi thanh lọc cơ thể.',
     price: 10000,
-    category: 'drink',
+    categoryId: 3,
+    categoryName: 'Đồ Uống',
     isBestSeller: false,
-    image: 'https://images.unsplash.com/photo-1576092768241-dec231879fc3?w=600&auto=format&fit=crop&q=80'
+    isAvailable: true,
+    imageUrl: 'https://images.unsplash.com/photo-1576092768241-dec231879fc3?w=600&auto=format&fit=crop&q=80',
+    preparationTime: 3
   },
   {
     id: 'dr-02',
     name: 'Nước Sâm Cỏ Ngọt',
     description: 'Sâm cỏ ngọt nhà nấu thanh nhiệt, ngọt nhẹ tự nhiên tốt cho sức khỏe.',
     price: 15000,
-    category: 'drink',
+    categoryId: 3,
+    categoryName: 'Đồ Uống',
     isBestSeller: false,
-    image: 'https://images.unsplash.com/photo-1497534446932-c925b458314e?w=600&auto=format&fit=crop&q=80'
+    isAvailable: true,
+    imageUrl: 'https://images.unsplash.com/photo-1497534446932-c925b458314e?w=600&auto=format&fit=crop&q=80',
+    preparationTime: 3
   }
 ];
 
@@ -148,8 +181,7 @@ export const INITIAL_DRIVERS: Driver[] = [
     phone: '0905123456',
     vehicle: 'Wave Alpha (Đỏ) - 43C1-123.45',
     status: 'available',
-    rating: 4.9,
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150'
+    isActive: true
   },
   {
     id: 'driver-2',
@@ -157,8 +189,7 @@ export const INITIAL_DRIVERS: Driver[] = [
     phone: '0978987654',
     vehicle: 'Exciter (Xanh GP) - 75H1-678.90',
     status: 'available',
-    rating: 4.8,
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=150'
+    isActive: true
   },
   {
     id: 'driver-3',
@@ -166,8 +197,7 @@ export const INITIAL_DRIVERS: Driver[] = [
     phone: '0914666888',
     vehicle: 'Sirius (Đen) - 43D2-888.88',
     status: 'busy',
-    rating: 4.7,
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=150'
+    isActive: true
   },
   {
     id: 'driver-user',
@@ -175,8 +205,7 @@ export const INITIAL_DRIVERS: Driver[] = [
     phone: '0945888999',
     vehicle: 'Dream lùn (Nâu) - 75F1-999.99',
     status: 'available',
-    rating: 5.0,
-    avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=150'
+    isActive: true
   }
 ];
 
@@ -607,88 +636,294 @@ spring.http.encoding.force=true`
   }
 ];
 
-export const MYSQL_DATABASE_SQL = `-- --------------------------------------------------------
--- Tên Database: banhcanh_db
--- Thiết kế kết nối với MySQL qua XAMPP Control Panel
--- --------------------------------------------------------
+export const MYSQL_DATABASE_SQL = `-- =====================================================
+-- HỆ THỐNG QUẢN LÝ BÁN BÁNH CANH CÁ LÓC
+-- COMPLETE DATABASE SCHEMA - MySQL via XAMPP
+-- =====================================================
+
+SET FOREIGN_KEY_CHECKS = 0;
+SET NAMES utf8mb4;
 
 CREATE DATABASE IF NOT EXISTS \`banhcanh_db\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE \`banhcanh_db\`;
 
--- 1. BẢNG PRODUCTS (Sản phẩm)
-CREATE TABLE IF NOT EXISTS \`products\` (
+-- 1. BẢNG USERS
+CREATE TABLE IF NOT EXISTS \`users\` (
   \`id\` int(11) NOT NULL AUTO_INCREMENT,
-  \`name\` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  \`description\` text COLLATE utf8mb4_unicode_ci,
-  \`price\` double NOT NULL,
-  \`category\` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
-  \`is_best_seller\` tinyint(1) DEFAULT '0',
-  \`image_url\` varchar(500) COLLATE utf8mb4_unicode_ci,
+  \`username\` varchar(255) NOT NULL UNIQUE,
+  \`password\` varchar(255) NOT NULL,
+  \`email\` varchar(255) NOT NULL UNIQUE,
+  \`role\` enum('super_admin','admin','customer') NOT NULL DEFAULT 'customer',
+  \`full_name\` varchar(255) DEFAULT NULL,
+  \`phone\` varchar(20) DEFAULT NULL,
+  \`address\` text,
+  \`avatar_url\` varchar(500) DEFAULT NULL,
+  \`is_active\` tinyint(1) DEFAULT '1',
+  \`last_login\` datetime DEFAULT NULL,
+  \`created_at\` datetime DEFAULT CURRENT_TIMESTAMP,
+  \`updated_at\` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (\`id\`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 2. BẢNG DRIVERS (Tài xế)
+-- 2. BẢNG CATEGORIES
+CREATE TABLE IF NOT EXISTS \`categories\` (
+  \`id\` int(11) NOT NULL AUTO_INCREMENT,
+  \`name\` varchar(100) NOT NULL,
+  \`slug\` varchar(100) NOT NULL UNIQUE,
+  \`description\` text,
+  \`image_url\` varchar(500) DEFAULT NULL,
+  \`display_order\` int(11) DEFAULT '0',
+  \`is_active\` tinyint(1) DEFAULT '1',
+  \`created_at\` datetime DEFAULT CURRENT_TIMESTAMP,
+  \`updated_at\` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (\`id\`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 3. BẢNG DRIVERS
 CREATE TABLE IF NOT EXISTS \`drivers\` (
   \`id\` int(11) NOT NULL AUTO_INCREMENT,
-  \`name\` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  \`phone\` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL UNIQUE,
-  \`vehicle\` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  \`status\` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'available',
-  \`rating\` double DEFAULT '5.0',
+  \`name\` varchar(255) NOT NULL,
+  \`phone\` varchar(20) NOT NULL UNIQUE,
+  \`vehicle\` varchar(100) DEFAULT NULL,
+  \`status\` varchar(50) NOT NULL DEFAULT 'available',
+  \`is_active\` tinyint(1) DEFAULT '1',
+  \`created_at\` datetime DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (\`id\`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 3. BẢNG ORDERS (Đơn hàng)
-CREATE TABLE IF NOT EXISTS \`orders\` (
+-- 4. BẢNG DINING_TABLES
+CREATE TABLE IF NOT EXISTS \`dining_tables\` (
   \`id\` int(11) NOT NULL AUTO_INCREMENT,
-  \`customer_name\` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  \`phone\` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
-  \`address\` text COLLATE utf8mb4_unicode_ci NOT NULL,
-  \`total_amount\` double NOT NULL,
-  \`payment_method\` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
-  \`payment_status\` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
-  \`status\` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
+  \`table_number\` varchar(20) NOT NULL UNIQUE,
+  \`capacity\` int(11) DEFAULT '4',
+  \`position\` varchar(100) DEFAULT NULL,
+  \`status\` varchar(20) DEFAULT 'available',
+  \`is_active\` tinyint(1) DEFAULT '1',
   \`created_at\` datetime DEFAULT CURRENT_TIMESTAMP,
-  \`driver_id\` int(11) DEFAULT NULL,
-  \`driver_name\` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  PRIMARY KEY (\`id\`),
-  KEY \`fk_order_driver\` (\`driver_id\`),
-  CONSTRAINT \`fk_order_driver\` FOREIGN KEY (\`driver_id\`) REFERENCES \`drivers\` (\`id\`) ON DELETE SET NULL
+  PRIMARY KEY (\`id\`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 4. BẢNG ORDER_ITEMS (Chi tiết đơn hàng)
+-- 5. BẢNG MATERIALS
+CREATE TABLE IF NOT EXISTS \`materials\` (
+  \`id\` int(11) NOT NULL AUTO_INCREMENT,
+  \`name\` varchar(100) NOT NULL,
+  \`unit\` varchar(50) NOT NULL,
+  \`current_quantity\` double DEFAULT '0',
+  \`min_quantity\` double DEFAULT '0',
+  \`unit_price\` double DEFAULT '0',
+  \`supplier\` varchar(255) DEFAULT NULL,
+  \`is_active\` tinyint(1) DEFAULT '1',
+  \`created_at\` datetime DEFAULT CURRENT_TIMESTAMP,
+  \`updated_at\` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (\`id\`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 6. BẢNG PROMOTIONS
+CREATE TABLE IF NOT EXISTS \`promotions\` (
+  \`id\` int(11) NOT NULL AUTO_INCREMENT,
+  \`code\` varchar(50) NOT NULL UNIQUE,
+  \`name\` varchar(255) NOT NULL,
+  \`description\` text,
+  \`discount_type\` varchar(20) NOT NULL DEFAULT 'percentage',
+  \`discount_value\` double NOT NULL,
+  \`min_order_amount\` double DEFAULT '0',
+  \`max_discount\` double DEFAULT '0',
+  \`usage_limit\` int(11) DEFAULT '0',
+  \`used_count\` int(11) DEFAULT '0',
+  \`start_date\` datetime NOT NULL,
+  \`end_date\` datetime NOT NULL,
+  \`is_active\` tinyint(1) DEFAULT '1',
+  \`created_at\` datetime DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (\`id\`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 7. BẢNG PRODUCTS
+CREATE TABLE IF NOT EXISTS \`products\` (
+  \`id\` int(11) NOT NULL AUTO_INCREMENT,
+  \`name\` varchar(255) NOT NULL,
+  \`description\` text,
+  \`price\` double NOT NULL,
+  \`category_id\` int(11) DEFAULT NULL,
+  \`category_name\` varchar(50) DEFAULT NULL,
+  \`is_best_seller\` tinyint(1) DEFAULT '0',
+  \`is_available\` tinyint(1) DEFAULT '1',
+  \`image_url\` varchar(500) DEFAULT NULL,
+  \`preparation_time\` int(11) DEFAULT '10',
+  \`created_at\` datetime DEFAULT CURRENT_TIMESTAMP,
+  \`updated_at\` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (\`id\`),
+  KEY \`fk_product_category\` (\`category_id\`),
+  CONSTRAINT \`fk_product_category\` FOREIGN KEY (\`category_id\`) REFERENCES \`categories\` (\`id\`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 8. BẢNG PRODUCT_OPTIONS
+CREATE TABLE IF NOT EXISTS \`product_options\` (
+  \`id\` int(11) NOT NULL AUTO_INCREMENT,
+  \`product_id\` int(11) NOT NULL,
+  \`name\` varchar(100) NOT NULL,
+  \`option_group\` varchar(50) DEFAULT 'topping',
+  \`price\` double DEFAULT '0',
+  \`is_required\` tinyint(1) DEFAULT '0',
+  \`is_active\` tinyint(1) DEFAULT '1',
+  \`display_order\` int(11) DEFAULT '0',
+  PRIMARY KEY (\`id\`),
+  KEY \`fk_option_product\` (\`product_id\`),
+  CONSTRAINT \`fk_option_product\` FOREIGN KEY (\`product_id\`) REFERENCES \`products\` (\`id\`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 9. BẢNG PRODUCT_MATERIALS
+CREATE TABLE IF NOT EXISTS \`product_materials\` (
+  \`id\` int(11) NOT NULL AUTO_INCREMENT,
+  \`product_id\` int(11) NOT NULL,
+  \`material_id\` int(11) NOT NULL,
+  \`quantity\` double NOT NULL,
+  PRIMARY KEY (\`id\`),
+  UNIQUE KEY \`uk_product_material\` (\`product_id\`, \`material_id\`),
+  KEY \`fk_pm_material\` (\`material_id\`),
+  CONSTRAINT \`fk_pm_product\` FOREIGN KEY (\`product_id\`) REFERENCES \`products\` (\`id\`) ON DELETE CASCADE,
+  CONSTRAINT \`fk_pm_material\` FOREIGN KEY (\`material_id\`) REFERENCES \`materials\` (\`id\`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 10. BẢNG ORDERS
+CREATE TABLE IF NOT EXISTS \`orders\` (
+  \`id\` int(11) NOT NULL AUTO_INCREMENT,
+  \`user_id\` int(11) DEFAULT NULL,
+  \`customer_name\` varchar(255) NOT NULL,
+  \`phone\` varchar(20) NOT NULL,
+  \`address\` text,
+  \`table_id\` int(11) DEFAULT NULL,
+  \`order_type\` varchar(20) DEFAULT 'delivery',
+  \`subtotal\` double NOT NULL DEFAULT '0',
+  \`discount_id\` int(11) DEFAULT NULL,
+  \`discount_amount\` double DEFAULT '0',
+  \`shipping_fee\` double DEFAULT '0',
+  \`total_amount\` double NOT NULL,
+  \`payment_method\` varchar(50) NOT NULL DEFAULT 'cash',
+  \`payment_status\` varchar(50) NOT NULL DEFAULT 'pending',
+  \`status\` varchar(50) NOT NULL DEFAULT 'pending',
+  \`driver_id\` int(11) DEFAULT NULL,
+  \`notes\` text,
+  \`created_at\` datetime DEFAULT CURRENT_TIMESTAMP,
+  \`updated_at\` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (\`id\`),
+  KEY \`fk_order_user\` (\`user_id\`),
+  KEY \`fk_order_table\` (\`table_id\`),
+  KEY \`fk_order_driver\` (\`driver_id\`),
+  KEY \`fk_order_promo\` (\`discount_id\`),
+  CONSTRAINT \`fk_order_user\` FOREIGN KEY (\`user_id\`) REFERENCES \`users\` (\`id\`) ON DELETE SET NULL,
+  CONSTRAINT \`fk_order_table\` FOREIGN KEY (\`table_id\`) REFERENCES \`dining_tables\` (\`id\`) ON DELETE SET NULL,
+  CONSTRAINT \`fk_order_driver\` FOREIGN KEY (\`driver_id\`) REFERENCES \`drivers\` (\`id\`) ON DELETE SET NULL,
+  CONSTRAINT \`fk_order_promo\` FOREIGN KEY (\`discount_id\`) REFERENCES \`promotions\` (\`id\`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 11. BẢNG ORDER_ITEMS
 CREATE TABLE IF NOT EXISTS \`order_items\` (
   \`id\` int(11) NOT NULL AUTO_INCREMENT,
   \`order_id\` int(11) NOT NULL,
-  \`product_name\` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  \`product_id\` int(11) DEFAULT NULL,
+  \`product_name\` varchar(255) NOT NULL,
   \`quantity\` int(11) NOT NULL,
   \`price\` double NOT NULL,
-  \`noodle_type\` varchar(50) COLLATE utf8mb4_unicode_ci,
-  \`notes\` varchar(255) COLLATE utf8mb4_unicode_ci,
+  \`options_text\` varchar(500) DEFAULT NULL,
+  \`noodle_type\` varchar(50) DEFAULT NULL,
+  \`notes\` varchar(255) DEFAULT NULL,
+  \`subtotal\` double NOT NULL DEFAULT '0',
   PRIMARY KEY (\`id\`),
-  KEY \`fk_items_order\` (\`order_id\`),
-  CONSTRAINT \`fk_items_order\` FOREIGN KEY (\`order_id\`) REFERENCES \`orders\` (\`id\`) ON DELETE CASCADE
+  KEY \`fk_item_order\` (\`order_id\`),
+  KEY \`fk_item_product\` (\`product_id\`),
+  CONSTRAINT \`fk_item_order\` FOREIGN KEY (\`order_id\`) REFERENCES \`orders\` (\`id\`) ON DELETE CASCADE,
+  CONSTRAINT \`fk_item_product\` FOREIGN KEY (\`product_id\`) REFERENCES \`products\` (\`id\`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 5. SEED MẪU DỮ LIỆU SẢN PHẨM KHỞI TẠO
-INSERT INTO \`products\` (\`name\`, \`description\`, \`price\`, \`category\`, \`is_best_seller\`, \`image_url\`) VALUES
-('Bánh Canh Cá Lóc Đặc Biệt', 'Tô bánh canh đầy đặn đầy đủ cá lóc hấp, cá chiên giòn, đầu lòng cá lóc béo ngậy, kèm trứng cút và chả cua Huế.', 65000, 'main', 1, 'https://images.unsplash.com/photo-1591814468924-caf7f582d246?w=600&auto=format&fit=crop&q=80'),
-('Bánh Canh Cá Lóc Hấp Truyền Thống', 'Thịt cá lóc phi lê hấp chín ngọt, nước dùng ninh từ xương cá ngọt mát đậm đà chuẩn vị Quảng Trị.', 45000, 'main', 1, 'https://images.unsplash.com/photo-1625398407796-82650a8c135f?w=600&auto=format&fit=crop&q=80'),
-('Bánh Canh Cá Lóc Chiên Giòn', 'Sử dụng phi lê cá lóc tẩm bột chiên vàng giòn rụm bên ngoài, bên trong thịt vẫn mềm ngọt mọng nước.', 45000, 'main', 0, 'https://images.unsplash.com/photo-1552611052-33e04de081de?w=600&auto=format&fit=crop&q=80'),
-('Bánh Canh Đầu Lòng Cá Lóc', 'Món ăn xa xỉ dành cho tín đồ ẩm thực: Đầu cá lóc béo ngậy cùng bộ lòng cá (bao tử, gan) giòn sần sật.', 55000, 'main', 1, 'https://images.unsplash.com/photo-1534422298391-e4f8c172dddb?w=600&auto=format&fit=crop&q=80'),
-('Bánh Canh Cá Lóc Bột Lọc', 'Sợi bánh làm từ bột lọc trong suốt, dai ngon sần sật quyện nước dùng sền sệt đậm đà ngập tràn củ nén và hành hoa.', 45000, 'main', 0, 'https://images.unsplash.com/photo-1608897013039-887f21d8c804?w=600&auto=format&fit=crop&q=80'),
-('Chả Cua Huế Thêm', 'Chả cua quết tay thơm nức, dai ngon đậm đà gia vị miền Trung.', 15000, 'extra', 0, 'https://images.unsplash.com/photo-1582450871972-ab5ca641643d?w=200&auto=format&fit=crop&q=80'),
-('Bộ Lòng Cá Lóc Thêm', 'Bao tử cá béo ngậy và gan cá lóc chiên sả ớt, đậm đà giòn rụm.', 25000, 'extra', 0, 'https://images.unsplash.com/photo-1544025162-d76694265947?w=200&auto=format&fit=crop&q=80'),
-('Bánh Quẩy Giòn', 'Quẩy giòn rụm, nhúng nước bánh canh ăn cực đã.', 5000, 'extra', 0, 'https://images.unsplash.com/photo-1549931319-a545dcf3bc73?w=200&auto=format&fit=crop&q=80'),
-('Trứng Cút (5 Quả)', 'Trứng cút luộc chín tới, bùi béo ngọt.', 8000, 'extra', 0, 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=200&auto=format&fit=crop&q=80'),
-('Nước Chè Xanh Huế', 'Lá chè tươi om chuẩn vị miền Trung mát rượi thanh lọc cơ thể.', 10000, 'drink', 0, 'https://images.unsplash.com/photo-1576092768241-dec231879fc3?w=600&auto=format&fit=crop&q=80'),
-('Sữa Đậu Nành Lá Dứa', 'Sữa đậu nành tự nấu thơm phức hương lá dứa cốt dừa béo ngậy.', 15000, 'drink', 0, 'https://images.unsplash.com/photo-1497534446932-c925b458314e?w=600&auto=format&fit=crop&q=80');
+-- 12. BẢNG ORDER_STATUS_HISTORY
+CREATE TABLE IF NOT EXISTS \`order_status_history\` (
+  \`id\` int(11) NOT NULL AUTO_INCREMENT,
+  \`order_id\` int(11) NOT NULL,
+  \`old_status\` varchar(50) DEFAULT NULL,
+  \`new_status\` varchar(50) NOT NULL,
+  \`changed_by\` int(11) DEFAULT NULL,
+  \`notes\` text,
+  \`created_at\` datetime DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (\`id\`),
+  KEY \`fk_history_order\` (\`order_id\`),
+  CONSTRAINT \`fk_history_order\` FOREIGN KEY (\`order_id\`) REFERENCES \`orders\` (\`id\`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 6. SEED TÀI XẾ MẪU
-INSERT INTO \`drivers\` (\`name\`, \`phone\`, \`vehicle\`, \`status\`, \`rating\`) VALUES
-('Nguyễn Văn Hùng', '0905123456', 'Wave Alpha (Đỏ) - 43C1-123.45', 'available', 4.9),
-('Trần Minh Hải', '0978987654', 'Exciter (Xanh GP) - 75H1-678.90', 'available', 4.8),
-('Phan Thanh Bình', '0914666888', 'Sirius (Đen) - 43D2-888.88', 'busy', 4.7);
+-- 13. BẢNG PAYMENT_TRANSACTIONS
+CREATE TABLE IF NOT EXISTS \`payment_transactions\` (
+  \`id\` int(11) NOT NULL AUTO_INCREMENT,
+  \`order_id\` int(11) NOT NULL,
+  \`transaction_code\` varchar(100) DEFAULT NULL,
+  \`payment_method\` varchar(50) NOT NULL,
+  \`amount\` double NOT NULL,
+  \`status\` varchar(50) NOT NULL DEFAULT 'pending',
+  \`gateway\` varchar(50) DEFAULT NULL,
+  \`gateway_response\` text,
+  \`paid_at\` datetime DEFAULT NULL,
+  \`created_at\` datetime DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (\`id\`),
+  KEY \`fk_payment_order\` (\`order_id\`),
+  CONSTRAINT \`fk_payment_order\` FOREIGN KEY (\`order_id\`) REFERENCES \`orders\` (\`id\`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 14. BẢNG REVIEWS
+CREATE TABLE IF NOT EXISTS \`reviews\` (
+  \`id\` int(11) NOT NULL AUTO_INCREMENT,
+  \`user_id\` int(11) NOT NULL,
+  \`product_id\` int(11) NOT NULL,
+  \`order_id\` int(11) DEFAULT NULL,
+  \`rating\` tinyint NOT NULL,
+  \`comment\` text,
+  \`image_url\` varchar(500) DEFAULT NULL,
+  \`is_approved\` tinyint(1) DEFAULT '0',
+  \`admin_reply\` text,
+  \`created_at\` datetime DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (\`id\`),
+  KEY \`fk_review_user\` (\`user_id\`),
+  KEY \`fk_review_product\` (\`product_id\`),
+  KEY \`fk_review_order\` (\`order_id\`),
+  CONSTRAINT \`fk_review_user\` FOREIGN KEY (\`user_id\`) REFERENCES \`users\` (\`id\`) ON DELETE CASCADE,
+  CONSTRAINT \`fk_review_product\` FOREIGN KEY (\`product_id\`) REFERENCES \`products\` (\`id\`) ON DELETE CASCADE,
+  CONSTRAINT \`fk_review_order\` FOREIGN KEY (\`order_id\`) REFERENCES \`orders\` (\`id\`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+SET FOREIGN_KEY_CHECKS = 1;
+
+-- SEED DATA
+INSERT IGNORE INTO \`users\` (\`username\`, \`password\`, \`email\`, \`role\`, \`full_name\`) VALUES
+('superadmin', '$2b$10$example_hash_super_admin', 'superadmin@banhcanh.com', 'super_admin', 'Super Admin'),
+('admin', '$2b$10$example_hash_admin', 'admin@banhcanh.com', 'admin', 'Quản lý'),
+('customer', '$2b$10$example_hash_customer', 'customer@gmail.com', 'customer', 'Khách hàng');
+
+INSERT INTO \`categories\` (\`name\`, \`slug\`, \`display_order\`) VALUES
+('Bánh Canh Cá Lóc', 'banh-canh-ca-loc', 1),
+('Đồ Ăn Kèm', 'do-an-kem', 2),
+('Đồ Uống', 'do-uong', 3),
+('Tráng Miệng', 'trang-mieng', 4),
+('Combo', 'combo', 5);
+
+INSERT INTO \`drivers\` (\`name\`, \`phone\`, \`vehicle\`, \`status\`) VALUES
+('Nguyễn Văn A', '0901234567', '59-X1 123.45', 'available'),
+('Trần Văn B', '0912345678', '59-X2 678.90', 'available');
+
+INSERT INTO \`dining_tables\` (\`table_number\`, \`capacity\`, \`position\`) VALUES
+('A1', 2, 'Tầng 1 - Gần cửa'),
+('A2', 4, 'Tầng 1 - Giữa'),
+('A3', 4, 'Tầng 1 - Góc'),
+('B1', 6, 'Tầng 2 - Phòng lạnh');
+
+INSERT INTO \`materials\` (\`name\`, \`unit\`, \`current_quantity\`, \`min_quantity\`, \`unit_price\`) VALUES
+('Cá lóc', 'kg', 10, 2, 80000),
+('Bột gạo', 'kg', 15, 5, 25000),
+('Bột năng', 'kg', 10, 3, 20000),
+('Hành lá', 'kg', 2, 0.5, 30000),
+('Rau răm', 'kg', 1, 0.3, 25000),
+('Chả cá', 'kg', 5, 1, 120000),
+('Trứng cút', 'cái', 100, 30, 2000);
+
+INSERT INTO \`promotions\` (\`code\`, \`name\`, \`discount_type\`, \`discount_value\`, \`min_order_amount\`, \`start_date\`, \`end_date\`) VALUES
+('WELCOME10', 'Giảm 10% khách mới', 'percentage', 10, 100000, '2026-01-01', '2026-12-31'),
+('FREESHIP', 'Free ship đơn 150k', 'fixed_amount', 20000, 150000, '2026-01-01', '2026-12-31');
 `;
 
 export const FRONTEND_INTEGRATION_FILES = [

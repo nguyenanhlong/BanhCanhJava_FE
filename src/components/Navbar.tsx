@@ -66,7 +66,7 @@ export function Navbar({
             ))}
 
             {/* Admin Dashboard view if logged in as Admin */}
-            {user && user.role === 'admin' && (
+            {user && (user.role === 'admin' || user.role === 'super_admin') && (
               <button
                 onClick={() => handleLinkClick('admin')}
                 className={`flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-full border transition-all duration-200 shrink-0 ${
@@ -120,7 +120,7 @@ export function Navbar({
                   </div>
                   <span className="max-w-[80px] truncate font-sans font-bold leading-none">{user.username}</span>
                   <span className="text-[8px] bg-[#E1DBD1] dark:bg-[#3D302D] text-[#2D241E] dark:text-amber-400 font-black px-1.5 py-0.5 rounded uppercase font-mono tracking-tight shrink-0">
-                    {user.role === 'admin' ? 'Chủ' : user.role === 'driver' ? 'Shipper' : 'Khách'}
+                    {user.role === 'admin' || user.role === 'super_admin' ? 'Chủ' : 'Khách'}
                   </span>
                 </div>
                 
@@ -171,7 +171,7 @@ export function Navbar({
               </button>
             ))}
 
-            {user && user.role === 'admin' && (
+            {user && (user.role === 'admin' || user.role === 'super_admin') && (
               <button
                 onClick={() => handleLinkClick('admin')}
                 className={`flex items-center gap-2 py-2 px-3 text-left text-sm font-semibold rounded-xl transition-all ${

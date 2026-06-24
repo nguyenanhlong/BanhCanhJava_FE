@@ -5,7 +5,7 @@ import { ApiService } from '../services/api';
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onLoginSuccess: (user: { id: string; username: string; email: string; role: 'customer' | 'admin' | 'driver' }) => void;
+  onLoginSuccess: (user: { id: string; username: string; email: string; role: 'customer' | 'admin' | 'super_admin' | 'driver'; fullName?: string; phone?: string; address?: string; isActive?: boolean }) => void;
 }
 
 export function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModalProps) {
@@ -111,7 +111,7 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModalProps) {
               id: String(response.id),
               username: response.username,
               email: response.email,
-              role: response.role as 'customer' | 'admin' | 'driver'
+              role: response.role as 'customer' | 'admin' | 'super_admin' | 'driver'
             };
             onLoginSuccess(u);
             onClose();
@@ -179,6 +179,12 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModalProps) {
       } else {
         // Mock Login
         // 1. Check direct hardcoded admin/driver first
+        if (trimmedUsername === 'superadmin' && trimmedPassword === 'superadmin') {
+          const u = { id: 'superadmin-user', username: 'Super Admin', email: 'superadmin@banhcanh.com', role: 'super_admin' as const };
+          onLoginSuccess(u);
+          onClose();
+          return;
+        }
         if (trimmedUsername === 'admin' && trimmedPassword === 'admin') {
           const u = { id: 'admin-user', username: 'Chủ Quán (admin)', email: 'admin@banhcanhcaloc.com', role: 'admin' as const };
           onLoginSuccess(u);
@@ -391,8 +397,9 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModalProps) {
           {/* Helper Tips block */}
           <div className="mt-4 p-2.5 bg-[#F3F0E9] dark:bg-[#211715] rounded-xl text-[9px] text-[#8B7E74] dark:text-[#B2A496] leading-normal text-left">
             <strong>Mẹo trải nghiệm nhanh:</strong><br />
-            • Đăng nhập <strong>Chủ quán:</strong> gõ <code className="font-mono text-[#D97706]">admin</code> làm tên đăng nhập và mật khẩu.<br />
-            • Đăng nhập <strong>Tài xế:</strong> gõ <code className="font-mono text-[#D97706]">driver</code> làm tên đăng nhập và mật khẩu.
+                    • Đăng nhập <strong>Super Admin:</strong> gõ <code className="font-mono text-[#D97706]">superadmin</code> - mật khẩu <code className="font-mono text-[#D97706]">superadmin</code>.<br />
+                    • Đăng nhập <strong>Chủ quán:</strong> gõ <code className="font-mono text-[#D97706]">admin</code> - mật khẩu <code className="font-mono text-[#D97706]">admin</code>.<br />
+                    • Đăng nhập <strong>Tài xế:</strong> gõ <code className="font-mono text-[#D97706]">driver</code> - mật khẩu <code className="font-mono text-[#D97706]">driver</code>.
           </div>
         </div>
 
