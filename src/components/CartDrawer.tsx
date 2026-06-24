@@ -174,21 +174,21 @@ export function CartDrawer({
                   {cartItems.map((item, idx) => (
                     <div key={idx} className="bg-white dark:bg-[#1C1311] p-4 rounded-xl border border-[#E5E1D8] dark:border-[#2D2321] flex gap-3.5 relative shadow-xs">
                       <div className="w-12 h-12 rounded-xl bg-[#F3F0E9] dark:bg-[#251A18] flex items-center justify-center text-2xl border border-[#E5E1D8] dark:border-[#2D2321] overflow-hidden shrink-0">
-                        {(item.product.image || (item.product as any).imageUrl || '').startsWith('http') ? (
+                        {item.product.imageUrl?.startsWith('http') ? (
                           <img 
-                            src={item.product.image || (item.product as any).imageUrl} 
+                            src={item.product.imageUrl} 
                             alt={item.product.name} 
                             className="w-full h-full object-cover" 
                             referrerPolicy="no-referrer"
                           />
                         ) : (
-                          item.product.image || (item.product as any).imageUrl || '🍲'
+                          item.product.imageUrl || '🍲'
                         )}
                       </div>
 
                       <div className="flex-1">
                         <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5] pr-6">{item.product.name}</h4>
-                        {item.noodleType && item.product.category === 'main' && (
+                        {item.noodleType && (item.product.categoryName === 'Bánh Canh Cá Lóc' || item.product.categoryId === 1) && (
                           <span className="inline-block text-[10px] bg-[#FAF8F5] dark:bg-[#231816] text-[#D97706] font-bold px-1.5 py-0.5 rounded border border-[#E5E1D8] dark:border-[#2D2321] mt-1 mr-1">
                             Sợi: {item.noodleType}
                           </span>

@@ -9,6 +9,7 @@ interface AdminDashboardProps {
   drivers: Driver[];
   products: Product[];
   isBackendConnected: boolean;
+  userRole?: string;
   onUpdateOrderStatus: (orderId: string, status: OrderStatus) => void;
   onAssignDriver: (orderId: string, driverId: string) => void;
   onCreateDriver: (name: string, phone: string, vehicle: string) => void;
@@ -24,6 +25,7 @@ export function AdminDashboard({
   drivers,
   products,
   isBackendConnected,
+  userRole,
   onUpdateOrderStatus,
   onAssignDriver,
   onCreateDriver,
@@ -33,7 +35,8 @@ export function AdminDashboard({
   onUpdateProduct,
   onDeleteProduct
 }: AdminDashboardProps) {
-  const [adminTab, setAdminTab] = useState<'orders' | 'products' | 'drivers' | 'users' | 'java' | 'sql' | 'frontend'>('orders');
+  const isSuperAdmin = userRole === 'super_admin';
+  const [adminTab, setAdminTab] = useState<'orders' | 'products' | 'drivers' | 'categories' | 'materials' | 'tables' | 'promotions' | 'reviews' | 'stats' | 'users' | 'java' | 'sql' | 'frontend' | 'permissions'>('orders');
   const [selectedFEFile, setSelectedFEFile] = useState(0);
   
   // API Users state (fetched from backend)
@@ -84,8 +87,7 @@ export function AdminDashboard({
     }
   };
   
-  // Product Form State
-  const [productForm, setProductForm] = useState<{ name: string; description: string; price: number; category: 'main' | 'extra' | 'drink'; isBestSeller: boolean; image: string }>({ name: '', description: '', price: 0, category: 'main', isBestSeller: false, image: '' });
+  const [productForm, setProductForm] = useState<{ name: string; description: string; price: number; categoryName: string; isBestSeller: boolean; imageUrl: string }>({ name: '', description: '', price: 0, categoryName: 'Bánh Canh Cá Lóc', isBestSeller: false, imageUrl: '' });
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [productSuccess, setProductSuccess] = useState('');
   const [productError, setProductError] = useState('');
@@ -110,13 +112,13 @@ export function AdminDashboard({
   };
 
   const resetProductForm = () => {
-    setProductForm({ name: '', description: '', price: 0, category: 'main', isBestSeller: false, image: '' });
+    setProductForm({ name: '', description: '', price: 0, categoryName: 'Bánh Canh Cá Lóc', isBestSeller: false, imageUrl: '' });
     setEditingProductId(null);
     setProductError('');
   };
 
   const handleEditProduct = (p: Product) => {
-    setProductForm({ name: p.name, description: p.description, price: p.price, category: p.category, isBestSeller: p.isBestSeller, image: p.image });
+    setProductForm({ name: p.name, description: p.description, price: p.price, categoryName: p.categoryName || '', isBestSeller: p.isBestSeller, imageUrl: p.imageUrl || '' });
     setEditingProductId(p.id);
     setProductError('');
   };
@@ -129,17 +131,16 @@ export function AdminDashboard({
       return;
     }
 
-    const category = productForm.category as 'main' | 'extra' | 'drink';
     const payload = {
       name: productForm.name,
       description: productForm.description,
       price: Number(productForm.price),
-      category,
+      categoryName: productForm.categoryName,
       isBestSeller: productForm.isBestSeller,
-      imageUrl: productForm.image || undefined
+      imageUrl: productForm.imageUrl || undefined
     };
 
-    const productData: Omit<Product, 'id'> = { ...productForm, price: Number(productForm.price), category };
+    const productData: Omit<Product, 'id'> = { ...productForm, price: Number(productForm.price), isAvailable: true, preparationTime: 10 };
 
     try {
       if (editingProductId) {
@@ -261,12 +262,60 @@ export function AdminDashboard({
             👥 Quản Lý Users ({localUsers.length})
           </button>
           <button
+            onClick={() => setAdminTab('categories')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              adminTab === 'categories' ? 'bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] shadow-xs' : 'text-[#3E2F26] dark:text-[#EAE3D2] hover:bg-[#E5E1D8] dark:hover:bg-[#3E302D]'
+            }`}
+          >
+            📂 Danh Mục
+          </button>
+          <button
+            onClick={() => setAdminTab('materials')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              adminTab === 'materials' ? 'bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] shadow-xs' : 'text-[#3E2F26] dark:text-[#EAE3D2] hover:bg-[#E5E1D8] dark:hover:bg-[#3E302D]'
+            }`}
+          >
+            📦 Nguyên Liệu
+          </button>
+          <button
+            onClick={() => setAdminTab('tables')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              adminTab === 'tables' ? 'bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] shadow-xs' : 'text-[#3E2F26] dark:text-[#EAE3D2] hover:bg-[#E5E1D8] dark:hover:bg-[#3E302D]'
+            }`}
+          >
+            🪑 Bàn Ăn
+          </button>
+          <button
+            onClick={() => setAdminTab('promotions')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              adminTab === 'promotions' ? 'bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] shadow-xs' : 'text-[#3E2F26] dark:text-[#EAE3D2] hover:bg-[#E5E1D8] dark:hover:bg-[#3E302D]'
+            }`}
+          >
+            🏷️ Khuyến Mãi
+          </button>
+          <button
+            onClick={() => setAdminTab('reviews')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              adminTab === 'reviews' ? 'bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] shadow-xs' : 'text-[#3E2F26] dark:text-[#EAE3D2] hover:bg-[#E5E1D8] dark:hover:bg-[#3E302D]'
+            }`}
+          >
+            ⭐ Đánh Giá
+          </button>
+          <button
+            onClick={() => setAdminTab('stats')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              adminTab === 'stats' ? 'bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] shadow-xs' : 'text-[#3E2F26] dark:text-[#EAE3D2] hover:bg-[#E5E1D8] dark:hover:bg-[#3E302D]'
+            }`}
+          >
+            📊 Thống Kê
+          </button>
+          <button
             onClick={() => setAdminTab('java')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
               adminTab === 'java' ? 'bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] shadow-xs' : 'text-[#3E2F26] dark:text-[#EAE3D2] hover:bg-[#E5E1D8] dark:hover:bg-[#3E302D]'
             }`}
           >
-            <span>☕ Java Backend</span>
+            <span>☕ Java</span>
             <span className="bg-red-200 dark:bg-red-950/40 text-red-900 dark:text-red-400 text-[8px] font-black px-1 rounded-sm">XAMPP</span>
           </button>
           <button
@@ -275,7 +324,7 @@ export function AdminDashboard({
               adminTab === 'sql' ? 'bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] shadow-xs' : 'text-[#3E2F26] dark:text-[#EAE3D2] hover:bg-[#E5E1D8] dark:hover:bg-[#3E302D]'
             }`}
           >
-            🗄️ SQL Database
+            🗄️ SQL
           </button>
           <button
             onClick={() => setAdminTab('frontend')}
@@ -283,8 +332,18 @@ export function AdminDashboard({
               adminTab === 'frontend' ? 'bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] shadow-xs' : 'text-[#3E2F26] dark:text-[#EAE3D2] hover:bg-[#E5E1D8] dark:hover:bg-[#3E302D]'
             }`}
           >
-            🔌 Tích hợp FE
+            🔌 FE
           </button>
+          {isSuperAdmin && (
+            <button
+              onClick={() => setAdminTab('permissions')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                adminTab === 'permissions' ? 'bg-[#D97706] text-white shadow-xs animate-pulse' : 'text-[#3E2F26] dark:text-[#EAE3D2] hover:bg-[#E5E1D8] dark:hover:bg-[#3E302D]'
+              }`}
+            >
+              🔐 Phân Quyền
+            </button>
+          )}
         </div>
       </div>
 
@@ -365,8 +424,8 @@ export function AdminDashboard({
                                 ))}
                             </select>
                           )}
-                          {order.driverName && (
-                            <p className="text-[9px] text-[#D97706] dark:text-amber-500 font-bold mt-1">🏍️ Đã chỉ định: {order.driverName}</p>
+                          {order.driverId && (
+                            <p className="text-[9px] text-[#D97706] dark:text-amber-500 font-bold mt-1">🏍️ Đã chỉ định tài xế (ID: {order.driverId})</p>
                           )}
                         </td>
                         <td className="p-3.5">
@@ -498,12 +557,14 @@ export function AdminDashboard({
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Danh Mục</label>
-                  <select value={productForm.category}
-                    onChange={(e) => setProductForm(prev => ({ ...prev, category: e.target.value as 'main' | 'extra' | 'drink' }))}
+                  <select value={productForm.categoryName}
+                    onChange={(e) => setProductForm(prev => ({ ...prev, categoryName: e.target.value }))}
                     className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]">
-                    <option value="main">Bánh canh chính</option>
-                    <option value="extra">Toppings thêm</option>
-                    <option value="drink">Nước giải nhiệt</option>
+                    <option value="Bánh Canh Cá Lóc">Bánh canh chính</option>
+                    <option value="Đồ Ăn Kèm">Toppings thêm</option>
+                    <option value="Đồ Uống">Nước giải nhiệt</option>
+                    <option value="Tráng Miệng">Tráng Miệng</option>
+                    <option value="Combo">Combo</option>
                   </select>
                 </div>
                 <div className="space-y-1 md:col-span-2">
@@ -516,8 +577,8 @@ export function AdminDashboard({
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Hình Ảnh (URL)</label>
                   <input type="text" placeholder="https://..."
-                    value={productForm.image}
-                    onChange={(e) => setProductForm(prev => ({ ...prev, image: e.target.value }))}
+                    value={productForm.imageUrl}
+                    onChange={(e) => setProductForm(prev => ({ ...prev, imageUrl: e.target.value }))}
                     className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
                 </div>
                 <div className="flex items-center gap-3">
@@ -562,12 +623,12 @@ export function AdminDashboard({
                   ) : (products.map((p) => (
                     <tr key={p.id} className="hover:bg-[#FAF8F5]/80 dark:hover:bg-[#2D2321]/50 transition-colors">
                       <td className="p-3">
-                        <span className="text-2xl">{p.image?.startsWith('http') ? <img src={p.image} alt={p.name} className="w-10 h-10 rounded-lg object-cover" /> : (p.image || '🍲')}</span>
+                        <span className="text-2xl">{(p.imageUrl || '').startsWith('http') ? <img src={p.imageUrl} alt={p.name} className="w-10 h-10 rounded-lg object-cover" /> : (p.imageUrl || '🍲')}</span>
                       </td>
                       <td className="p-3 font-bold text-[#2D241E] dark:text-[#FAF8F5]">{p.name}</td>
                       <td className="p-3">
                         <span className="text-[10px] px-2 py-0.5 rounded-full border bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700">
-                          {p.category === 'main' ? 'Bánh canh' : p.category === 'extra' ? 'Topping' : 'Đồ uống'}
+                          {p.categoryName || 'Khác'}
                         </span>
                       </td>
                       <td className="p-3 text-right font-extrabold text-[#D97706]">{p.price.toLocaleString('vi-VN')} đ</td>
@@ -605,18 +666,13 @@ export function AdminDashboard({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {drivers.map((d) => (
                   <div key={d.id} className="bg-[#FAF8F5] dark:bg-[#211715] p-4 rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] flex gap-3.5 items-start">
-                    <img 
-                      src={d.avatar} 
-                      alt={d.name} 
-                      className="w-11 h-11 rounded-xl object-cover border border-[#E5E1D8] dark:border-[#2D2321]"
-                    />
+                    <div className="w-11 h-11 rounded-xl bg-[#D97706]/10 border border-[#E5E1D8] dark:border-[#2D2321] flex items-center justify-center text-xl shrink-0">
+                      🛵
+                    </div>
                     <div className="flex-1">
                       <p className="font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5]">{d.name}</p>
                       <p className="text-[10px] text-[#8B7E74] dark:text-[#B2A496]">📞 {d.phone}</p>
                       <p className="text-[10px] text-[#8B7E74] dark:text-[#B2A496] font-mono mt-0.5">{d.vehicle}</p>
-                      <p className="text-[10px] mt-1.5 font-bold text-[#3E2F26] dark:text-[#EAE3D2]">
-                        Sao đánh giá: <span className="text-[#D97706] dark:text-amber-500">⭐ {d.rating}</span>
-                      </p>
 
                       <div className="mt-3 flex gap-1.5 items-center">
                         <span className="text-[9px] text-[#8B7E74] dark:text-[#B2A496]">Trạng thái:</span>
@@ -702,7 +758,307 @@ export function AdminDashboard({
           </div>
         )}
 
-        {/* TAB 3: JAVA BACKEND SOURCE CODE */}
+        {/* TAB: CATEGORIES */}
+        {adminTab === 'categories' && (
+          <div className="space-y-6">
+            <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#FAF8F5]">📂 Quản Lý Danh Mục</h3>
+            <p className="text-xs text-[#8B7E74] dark:text-[#B2A496]">Các danh mục món ăn trong thực đơn</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[
+                { name: 'Bánh Canh Cá Lóc', slug: 'banh-canh-ca-loc', count: 5 },
+                { name: 'Đồ Ăn Kèm', slug: 'do-an-kem', count: 8 },
+                { name: 'Đồ Uống', slug: 'do-uong', count: 6 },
+                { name: 'Tráng Miệng', slug: 'trang-mieng', count: 3 },
+                { name: 'Combo', slug: 'combo', count: 2 },
+              ].map((cat) => (
+                <div key={cat.slug} className="bg-[#FAF8F5] dark:bg-[#211715] p-4 rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321]">
+                  <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5]">{cat.name}</h4>
+                  <p className="text-[10px] text-[#8B7E74] dark:text-[#B2A496]">Slug: {cat.slug}</p>
+                  <p className="text-[10px] text-[#D97706] font-bold mt-2">{cat.count} sản phẩm</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* TAB: MATERIALS */}
+        {adminTab === 'materials' && (
+          <div className="space-y-6">
+            <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#FAF8F5]">📦 Quản Lý Nguyên Liệu</h3>
+            <p className="text-xs text-[#8B7E74] dark:text-[#B2A496]">Theo dõi tồn kho nguyên liệu nấu bánh canh</p>
+            <div className="overflow-x-auto border border-[#E5E1D8] dark:border-[#2D2321] rounded-2xl bg-[#FAF8F5] dark:bg-[#1E1210]">
+              <table className="w-full text-left text-xs text-[#3E2F26] dark:text-[#EAE3D2]">
+                <thead className="bg-[#F3F0E9] dark:bg-[#2D2321] uppercase font-bold text-[#2D241E] dark:text-[#FAF8F5] border-b border-[#E5E1D8] dark:border-[#2D2321]">
+                  <tr>
+                    <th className="p-3">Nguyên Liệu</th>
+                    <th className="p-3">ĐVT</th>
+                    <th className="p-3 text-right">Tồn Kho</th>
+                    <th className="p-3 text-right">Tối Thiểu</th>
+                    <th className="p-3 text-right">Đơn Giá</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E5E1D8] dark:divide-[#2D2321] bg-white dark:bg-[#1C1311]">
+                  {[
+                    { name: 'Cá lóc', unit: 'kg', stock: 10, min: 2, price: 80000 },
+                    { name: 'Bột gạo', unit: 'kg', stock: 15, min: 5, price: 25000 },
+                    { name: 'Bột năng', unit: 'kg', stock: 10, min: 3, price: 20000 },
+                    { name: 'Hành lá', unit: 'kg', stock: 2, min: 0.5, price: 30000 },
+                    { name: 'Rau răm', unit: 'kg', stock: 1, min: 0.3, price: 25000 },
+                    { name: 'Chả cá', unit: 'kg', stock: 5, min: 1, price: 120000 },
+                    { name: 'Trứng cút', unit: 'cái', stock: 100, min: 30, price: 2000 },
+                  ].map((m, i) => (
+                    <tr key={i} className="hover:bg-[#FAF8F5]/80 dark:hover:bg-[#2D2321]/50 transition-colors">
+                      <td className="p-3 font-bold text-[#2D241E] dark:text-[#FAF8F5]">{m.name}</td>
+                      <td className="p-3">{m.unit}</td>
+                      <td className={`p-3 text-right font-bold ${m.stock <= m.min ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'}`}>{m.stock}</td>
+                      <td className="p-3 text-right text-[#8B7E74]">{m.min}</td>
+                      <td className="p-3 text-right font-extrabold text-[#D97706]">{m.price.toLocaleString('vi-VN')}đ</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* TAB: DINING TABLES */}
+        {adminTab === 'tables' && (
+          <div className="space-y-6">
+            <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#FAF8F5]">🪑 Quản Lý Bàn Ăn</h3>
+            <p className="text-xs text-[#8B7E74] dark:text-[#B2A496]">Sơ đồ bàn cho khách dùng tại quán</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {[
+                { number: 'A1', capacity: 2, position: 'Tầng 1 - Gần cửa' },
+                { number: 'A2', capacity: 4, position: 'Tầng 1 - Giữa' },
+                { number: 'A3', capacity: 4, position: 'Tầng 1 - Góc' },
+                { number: 'B1', capacity: 6, position: 'Tầng 2 - Phòng lạnh' },
+              ].map((t, i) => (
+                <div key={i} className="bg-[#FAF8F5] dark:bg-[#211715] p-4 rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] text-center">
+                  <div className="text-3xl mb-2">🪑</div>
+                  <h4 className="font-bold text-lg text-[#2D241E] dark:text-[#FAF8F5]">{t.number}</h4>
+                  <p className="text-[10px] text-[#8B7E74] dark:text-[#B2A496]">{t.capacity} chỗ • {t.position}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* TAB: PROMOTIONS */}
+        {adminTab === 'promotions' && (
+          <div className="space-y-6">
+            <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#FAF8F5]">🏷️ Quản Lý Khuyến Mãi</h3>
+            <p className="text-xs text-[#8B7E74] dark:text-[#B2A496]">Mã giảm giá và chương trình ưu đãi</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[
+                { code: 'WELCOME10', name: 'Giảm 10% khách mới', type: 'percentage', value: 10, min: 100000 },
+                { code: 'FREESHIP', name: 'Free ship đơn 150k', type: 'fixed', value: 20000, min: 150000 },
+              ].map((p, i) => (
+                <div key={i} className="bg-[#FAF8F5] dark:bg-[#211715] p-4 rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] flex gap-3">
+                  <div className="text-2xl">🏷️</div>
+                  <div>
+                    <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5]">{p.name}</h4>
+                    <p className="text-[10px] font-mono text-[#D97706] font-bold">{p.code}</p>
+                    <p className="text-[10px] text-[#8B7E74] dark:text-[#B2A496] mt-1">
+                      {p.type === 'percentage' ? `Giảm ${p.value}%` : `Giảm ${p.value.toLocaleString('vi-VN')}đ`} • Đơn tối thiểu {p.min.toLocaleString('vi-VN')}đ
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* TAB: REVIEWS */}
+        {adminTab === 'reviews' && (
+          <div className="space-y-6">
+            <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#FAF8F5]">⭐ Đánh Giá Khách Hàng</h3>
+            <p className="text-xs text-[#8B7E74] dark:text-[#B2A496]">Phản hồi từ thực khách</p>
+            <div className="overflow-x-auto border border-[#E5E1D8] dark:border-[#2D2321] rounded-2xl bg-[#FAF8F5] dark:bg-[#1E1210]">
+              <table className="w-full text-left text-xs text-[#3E2F26] dark:text-[#EAE3D2]">
+                <thead className="bg-[#F3F0E9] dark:bg-[#2D2321] uppercase font-bold text-[#2D241E] dark:text-[#FAF8F5] border-b border-[#E5E1D8] dark:border-[#2D2321]">
+                  <tr>
+                    <th className="p-3">Khách Hàng</th>
+                    <th className="p-3">Sản Phẩm</th>
+                    <th className="p-3 text-center">Đánh Giá</th>
+                    <th className="p-3">Nhận Xét</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E5E1D8] dark:divide-[#2D2321] bg-white dark:bg-[#1C1311]">
+                  {[
+                    { customer: 'Nguyễn Thị A', product: 'Bánh Canh Cá Lóc', rating: 5, comment: 'Nước dùng ngọt thanh, cá tươi ngon!' },
+                    { customer: 'Trần Văn B', product: 'Bánh Canh Cá Lóc', rating: 4, comment: 'Rất ngon, sẽ ủng hộ quán dài dài.' },
+                  ].map((r, i) => (
+                    <tr key={i} className="hover:bg-[#FAF8F5]/80 dark:hover:bg-[#2D2321]/50 transition-colors">
+                      <td className="p-3 font-bold text-[#2D241E] dark:text-[#FAF8F5]">{r.customer}</td>
+                      <td className="p-3">{r.product}</td>
+                      <td className="p-3 text-center text-amber-500">{'⭐'.repeat(r.rating)}</td>
+                      <td className="p-3 text-[#8B7E74] max-w-[200px] truncate">{r.comment}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* TAB: STATISTICS */}
+        {adminTab === 'stats' && (
+          <div className="space-y-6">
+            <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#FAF8F5]">📊 Thống Kê Kinh Doanh</h3>
+            <p className="text-xs text-[#8B7E74] dark:text-[#B2A496]">Tổng quan tình hình bán hàng</p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {[
+                { label: 'Tổng Đơn Hàng', value: orders.length, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900/40' },
+                { label: 'Đã Hoàn Thành', value: orders.filter(o => o.status === 'completed').length, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/40' },
+                { label: 'Đang Xử Lý', value: orders.filter(o => o.status === 'pending' || o.status === 'preparing').length, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/40' },
+                { label: 'Đã Hủy', value: orders.filter(o => o.status === 'cancelled').length, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900/40' },
+              ].map((s, i) => (
+                <div key={i} className={`p-5 rounded-2xl border ${s.bg}`}>
+                  <p className="text-[10px] font-bold text-[#8B7E74] dark:text-[#B2A496] uppercase">{s.label}</p>
+                  <p className={`text-3xl font-black mt-1 ${s.color}`}>{s.value}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Doanh thu */}
+              <div className="bg-[#FAF8F5] dark:bg-[#211715] p-5 rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321]">
+                <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5] mb-3">💰 Doanh Thu</h4>
+                <p className="text-2xl font-black text-[#D97706]">
+                  {orders.filter(o => o.status === 'completed').reduce((sum, o) => sum + o.totalAmount, 0).toLocaleString('vi-VN')}đ
+                </p>
+                <p className="text-[10px] text-[#8B7E74] mt-1">Tổng doanh thu từ các đơn hoàn thành</p>
+              </div>
+
+              {/* Tài xế */}
+              <div className="bg-[#FAF8F5] dark:bg-[#211715] p-5 rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321]">
+                <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5] mb-3">🛵 Tài Xế</h4>
+                <div className="flex gap-4">
+                  <div>
+                    <p className="text-2xl font-black text-emerald-500">{drivers.filter(d => d.status === 'available').length}</p>
+                    <p className="text-[10px] text-[#8B7E74]">Rảnh</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-black text-red-500">{drivers.filter(d => d.status === 'busy').length}</p>
+                    <p className="text-[10px] text-[#8B7E74]">Bận</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-black text-[#8B7E74]">{drivers.filter(d => d.status === 'offline').length}</p>
+                    <p className="text-[10px] text-[#8B7E74]">Offline</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Top sản phẩm */}
+            <div className="bg-[#FAF8F5] dark:bg-[#211715] p-5 rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321]">
+              <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5] mb-3">🔥 Sản Phẩm Bán Chạy</h4>
+              <div className="space-y-2">
+                {products.filter(p => p.isBestSeller).map((p, i) => (
+                  <div key={p.id} className="flex items-center justify-between bg-white dark:bg-[#1C1311] p-3 rounded-xl border border-[#E5E1D8] dark:border-[#2D2321]">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-black text-[#D97706]">#{i + 1}</span>
+                      <span className="text-xs font-bold text-[#2D241E] dark:text-[#FAF8F5]">{p.name}</span>
+                    </div>
+                    <span className="text-xs font-bold text-[#D97706]">{p.price.toLocaleString('vi-VN')}đ</span>
+                  </div>
+                ))}
+                {products.filter(p => p.isBestSeller).length === 0 && (
+                  <p className="text-xs text-[#8B7E74] italic text-center py-4">Chưa có sản phẩm bán chạy nào</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB: PERMISSIONS (Super Admin only) */}
+        {adminTab === 'permissions' && isSuperAdmin && (
+          <div className="space-y-6">
+            <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#FAF8F5]">🔐 Phân Quyền Hệ Thống</h3>
+            <p className="text-xs text-[#8B7E74] dark:text-[#B2A496]">Quản lý vai trò và quyền hạn của từng tài khoản</p>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Roles */}
+              <div className="bg-[#FAF8F5] dark:bg-[#211715] p-4 rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321]">
+                <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5] mb-3">Vai Trò (Roles)</h4>
+                <div className="space-y-2">
+                  {[
+                    { name: 'ROLE_SUPER_ADMIN', display: 'Đại Siêu Quản Trị', desc: 'Toàn quyền hệ thống' },
+                    { name: 'ROLE_ADMIN', display: 'Quản lý', desc: 'Quản lý đơn hàng, sản phẩm, tài xế' },
+                    { name: 'ROLE_STAFF', display: 'Nhân viên', desc: 'Xem và cập nhật đơn hàng' },
+                    { name: 'ROLE_CUSTOMER', display: 'Khách hàng', desc: 'Đặt món và theo dõi' },
+                  ].map((r, i) => (
+                    <div key={i} className="bg-white dark:bg-[#1C1311] p-3 rounded-xl border border-[#E5E1D8] dark:border-[#2D2321]">
+                      <p className="font-bold text-xs text-[#D97706] font-mono">{r.name}</p>
+                      <p className="text-xs text-[#2D241E] dark:text-[#FAF8F5]">{r.display}</p>
+                      <p className="text-[9px] text-[#8B7E74]">{r.desc}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Permissions */}
+              <div className="bg-[#FAF8F5] dark:bg-[#211715] p-4 rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321]">
+                <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5] mb-3">Quyền Hạn (Permissions)</h4>
+                <div className="space-y-1 max-h-[400px] overflow-y-auto pr-1">
+                  {[
+                    { code: 'product:*', name: 'Quản lý sản phẩm', module: 'product' },
+                    { code: 'order:*', name: 'Quản lý đơn hàng', module: 'order' },
+                    { code: 'driver:*', name: 'Quản lý tài xế', module: 'driver' },
+                    { code: 'category:*', name: 'Quản lý danh mục', module: 'category' },
+                    { code: 'user:read', name: 'Xem người dùng', module: 'user' },
+                    { code: 'role:assign', name: 'Phân quyền', module: 'role' },
+                    { code: 'stats:view', name: 'Xem thống kê', module: 'stats' },
+                  ].map((p, i) => (
+                    <div key={i} className="bg-white dark:bg-[#1C1311] p-2 rounded-lg border border-[#E5E1D8] dark:border-[#2D2321] flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] font-mono text-blue-600 dark:text-blue-400 font-bold">{p.code}</span>
+                        <span className="text-[10px] text-[#8B7E74] ml-2">{p.name}</span>
+                      </div>
+                      <span className="text-[8px] px-1.5 py-0.5 rounded bg-[#F3F0E9] dark:bg-[#2D2321] text-[#8B7E74] font-mono">{p.module}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* User-Role Assignment */}
+            <div className="bg-[#FAF8F5] dark:bg-[#211715] p-4 rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321]">
+              <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5] mb-3">Phân Vai Trò Cho Người Dùng</h4>
+              <div className="overflow-x-auto border border-[#E5E1D8] dark:border-[#2D2321] rounded-xl">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#F3F0E9] dark:bg-[#2D2321] text-[#2D241E] dark:text-[#FAF8F5] uppercase font-bold border-b border-[#E5E1D8] dark:border-[#2D2321]">
+                    <tr>
+                      <th className="p-3">Người Dùng</th>
+                      <th className="p-3">Vai Trò Hiện Tại</th>
+                      <th className="p-3">Ghi Chú</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#E5E1D8] dark:divide-[#2D2321] bg-white dark:bg-[#1C1311]">
+                    {[
+                      { user: 'superadmin', role: 'ROLE_SUPER_ADMIN', note: 'Toàn quyền' },
+                      { user: 'admin', role: 'ROLE_ADMIN', note: 'Quản lý' },
+                      { user: 'customer', role: 'ROLE_CUSTOMER', note: 'Khách hàng' },
+                    ].map((u, i) => (
+                      <tr key={i} className="hover:bg-[#FAF8F5]/80 dark:hover:bg-[#2D2321]/50">
+                        <td className="p-3 font-bold text-[#2D241E] dark:text-[#FAF8F5]">{u.user}</td>
+                        <td className="p-3">
+                          <span className="text-[9px] font-bold px-2 py-0.5 rounded border bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-900/50">
+                            {u.role}
+                          </span>
+                        </td>
+                        <td className="p-3 text-[#8B7E74]">{u.note}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB: JAVA BACKEND SOURCE CODE */}
         {adminTab === 'java' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             

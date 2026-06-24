@@ -1,25 +1,22 @@
-// ===================================================================
-// FRONTEND API SERVICE FOR SPRING BOOT BACKEND (React -> Spring Boot)
-// ===================================================================
-
-import { Product, Driver, Order } from '../types';
+import { Product, Driver, Order, Category, Review, User } from '../types';
 
 const BASE_URL = 'https://banhcanhjavabe-production.up.railway.app/api';
 
-// Map backend Product (imageUrl, etc.) to frontend Product (image, etc.)
 function mapProduct(p: any): Product {
   return {
     id: String(p.id),
     name: p.name || '',
     description: p.description || '',
     price: Number(p.price) || 0,
-    category: p.category || 'main',
-    isBestSeller: !!p.isBestSeller,
-    image: p.image || p.imageUrl || '🍲'
+    categoryId: p.categoryId || p.category_id || undefined,
+    categoryName: p.categoryName || p.category_name || undefined,
+    isBestSeller: !!p.isBestSeller || !!p.is_best_seller,
+    isAvailable: p.isAvailable !== undefined ? !!p.isAvailable : (p.is_available !== undefined ? !!p.is_available : true),
+    imageUrl: p.imageUrl || p.image_url || p.image || '',
+    preparationTime: Number(p.preparationTime || p.preparation_time || 10),
   };
 }
 
-// Map backend Driver (vehicle, rating, etc.) to frontend Driver
 function mapDriver(d: any): Driver {
   return {
     id: String(d.id),
@@ -27,44 +24,76 @@ function mapDriver(d: any): Driver {
     phone: d.phone || '',
     vehicle: d.vehicle || '',
     status: d.status || 'available',
-    currentOrder: d.currentOrder || undefined,
-    rating: Number(d.rating) || 5.0,
-    avatar: d.avatar || 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=150'
+    isActive: d.isActive !== undefined ? !!d.isActive : (d.is_active !== undefined ? !!d.is_active : true),
   };
 }
 
-// Map backend Order to frontend Order structure
 function mapOrder(o: any): Order {
   return {
     id: String(o.id || o.orderId || ''),
-    customerName: o.customerName || '',
+    customerName: o.customerName || o.customer_name || '',
     phone: o.phone || '',
     address: o.address || '',
-    totalAmount: Number(o.totalAmount) || 0,
-    paymentMethod: o.paymentMethod || 'cod',
-    paymentStatus: o.paymentStatus || 'pending',
+    orderType: o.orderType || o.order_type || 'delivery',
+    subtotal: Number(o.subtotal) || 0,
+    discountAmount: Number(o.discountAmount || o.discount_amount || 0),
+    shippingFee: Number(o.shippingFee || o.shipping_fee || 0),
+    totalAmount: Number(o.totalAmount || o.total_amount) || 0,
+    paymentMethod: o.paymentMethod || o.payment_method || 'cash',
+    paymentStatus: o.paymentStatus || o.payment_status || 'pending',
     status: o.status || 'pending',
-    createdAt: o.createdAt || new Date().toISOString(),
-    driverId: o.driverId ? String(o.driverId) : undefined,
-    driverName: o.driverName || undefined,
+    driverId: o.driverId || o.driver_id ? String(o.driverId || o.driver_id) : undefined,
+    notes: o.notes || undefined,
+    createdAt: o.createdAt || o.created_at || new Date().toISOString(),
     deliveryProgress: Number(o.deliveryProgress) || 0,
     deliveryStage: o.deliveryStage || undefined,
     items: Array.isArray(o.items) ? o.items.map((it: any) => ({
-      productName: it.productName || it.name || '',
+      productId: it.productId || it.product_id ? Number(it.productId || it.product_id) : undefined,
+      productName: it.productName || it.product_name || it.name || '',
       quantity: Number(it.quantity) || 1,
       price: Number(it.price) || 0,
-      noodleType: it.noodleType || undefined,
-      notes: it.notes || undefined
-    })) : []
+      optionsText: it.optionsText || it.options_text || undefined,
+      noodleType: it.noodleType || it.noodle_type || undefined,
+      notes: it.notes || undefined,
+      subtotal: Number(it.subtotal) || 0,
+    })) : [],
+  };
+}
+
+function mapCategory(c: any): Category {
+  return {
+    id: Number(c.id),
+    name: c.name || '',
+    slug: c.slug || '',
+    description: c.description || undefined,
+    imageUrl: c.imageUrl || c.image_url || undefined,
+    displayOrder: Number(c.displayOrder || c.display_order || 0),
+    isActive: c.isActive !== undefined ? !!c.isActive : (c.is_active !== undefined ? !!c.is_active : true),
+  };
+}
+
+function mapReview(r: any): Review {
+  return {
+    id: String(r.id),
+    userId: r.userId || r.user_id ? Number(r.userId || r.user_id) : undefined,
+    productId: r.productId || r.product_id ? Number(r.productId || r.product_id) : undefined,
+    orderId: r.orderId ? String(r.orderId) : undefined,
+    customerName: r.customerName || r.customer_name || '',
+    productName: r.productName || r.product_name || '',
+    rating: Number(r.rating) || 5,
+    comment: r.comment || '',
+    imageUrl: r.imageUrl || r.image_url || undefined,
+    isApproved: !!r.isApproved || !!r.is_approved,
+    adminReply: r.adminReply || r.admin_reply || undefined,
+    createdAt: r.createdAt || r.created_at || new Date().toISOString(),
   };
 }
 
 export const ApiService = {
-  // Test connection to Spring Boot
   async checkConnection(): Promise<boolean> {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1500); // Quick ping check
+      const timeoutId = setTimeout(() => controller.abort(), 1500);
       const res = await fetch(`${BASE_URL}/products`, { signal: controller.signal });
       clearTimeout(timeoutId);
       return res.ok;
@@ -108,7 +137,6 @@ export const ApiService = {
   },
 
   async updateOrderStatus(orderId: string | number, status: string): Promise<Order> {
-    // Standard URL query param pattern: /orders/{id}/status?status=preparing
     const res = await fetch(`${BASE_URL}/orders/${orderId}/status?status=${status}`, {
       method: 'PUT'
     });
@@ -118,7 +146,6 @@ export const ApiService = {
   },
 
   async assignDriverToOrder(orderId: string | number, driverId: string | number): Promise<Order> {
-    // Standard URL pattern: /orders/{id}/assign-driver/{driverId}
     const res = await fetch(`${BASE_URL}/orders/${orderId}/assign-driver/${driverId}`, {
       method: 'PUT'
     });
@@ -160,7 +187,7 @@ export const ApiService = {
   // 4. DRIVERS API
   async getDrivers(): Promise<Driver[]> {
     const res = await fetch(`${BASE_URL}/drivers`);
-    if (!res.ok) throw new Error('Không thể tải bưu tá lội bộ');
+    if (!res.ok) throw new Error('Không thể tải danh sách tài xế');
     const data = await res.json();
     return Array.isArray(data) ? data.map(mapDriver) : [];
   },
@@ -186,7 +213,7 @@ export const ApiService = {
   },
 
   // 5. USERS & STATS API
-  async getUsers(): Promise<any[]> {
+  async getUsers(): Promise<User[]> {
     const res = await fetch(`${BASE_URL}/users`);
     if (!res.ok) throw new Error('Không thể tải danh sách người dùng');
     return res.json();
@@ -223,5 +250,92 @@ export const ApiService = {
       throw new Error(errText || 'Tên đăng nhập hoặc mật khẩu sai');
     }
     return res.json();
-  }
+  },
+
+  // 7. CATEGORIES API
+  async getCategories(): Promise<Category[]> {
+    const res = await fetch(`${BASE_URL}/categories`);
+    if (!res.ok) throw new Error('Không thể tải danh mục');
+    const data = await res.json();
+    return Array.isArray(data) ? data.map(mapCategory) : [];
+  },
+
+  // 8. REVIEWS API
+  async getReviews(): Promise<Review[]> {
+    const res = await fetch(`${BASE_URL}/reviews`);
+    if (!res.ok) throw new Error('Không thể tải đánh giá');
+    const data = await res.json();
+    return Array.isArray(data) ? data.map(mapReview) : [];
+  },
+
+  // 9. IMAGE UPLOAD (Railway Bucket)
+  async uploadImage(file: File, folder: string): Promise<string> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('folder', folder);
+    const res = await fetch(`${BASE_URL}/upload/image`, {
+      method: 'POST',
+      body: formData
+    });
+    if (!res.ok) throw new Error('Không thể tải ảnh lên');
+    const data = await res.json();
+    return data.url;
+  },
+
+  // 10. RBAC API
+  async getRoles(): Promise<any[]> {
+    const res = await fetch(`${BASE_URL}/roles`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  },
+
+  async getPermissions(): Promise<any[]> {
+    const res = await fetch(`${BASE_URL}/permissions`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  },
+
+  async assignPermissionToRole(roleId: number, permissionId: number): Promise<void> {
+    await fetch(`${BASE_URL}/role-permissions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roleId, permissionId })
+    });
+  },
+
+  async removePermissionFromRole(roleId: number, permissionId: number): Promise<void> {
+    await fetch(`${BASE_URL}/role-permissions`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roleId, permissionId })
+    });
+  },
+
+  async assignRoleToUser(userId: number, roleId: number): Promise<void> {
+    await fetch(`${BASE_URL}/users/${userId}/roles`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roleId })
+    });
+  },
+
+  async removeRoleFromUser(userId: number, roleId: number): Promise<void> {
+    await fetch(`${BASE_URL}/users/${userId}/roles/${roleId}`, {
+      method: 'DELETE'
+    });
+  },
+
+  async getUserRoles(userId: number): Promise<any[]> {
+    const res = await fetch(`${BASE_URL}/users/${userId}/roles`);
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async getRolePermissions(roleId: number): Promise<any[]> {
+    const res = await fetch(`${BASE_URL}/roles/${roleId}/permissions`);
+    if (!res.ok) return [];
+    return res.json();
+  },
 };

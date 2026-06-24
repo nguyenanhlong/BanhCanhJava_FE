@@ -9,7 +9,7 @@ import { TrackingSection } from './components/TrackingSection';
 import { AdminDashboard } from './components/AdminDashboard';
 import { AuthModal } from './components/AuthModal';
 
-import { Product, CartItem, User, Order, Driver, OrderStatus, ProductReview } from './types';
+import { Product, CartItem, User, Order, Driver, OrderStatus, ProductReview, OrderItem } from './types';
 import { INITIAL_PRODUCTS, INITIAL_DRIVERS, INITIAL_REVIEWS } from './data';
 import { ApiService } from './services/api';
 import { Sparkles, Utensils, MessageCircle, Heart, Info, Clock, CheckCircle2, ShoppingCart } from 'lucide-react';
@@ -47,7 +47,6 @@ export default function App() {
         status: 'completed',
         createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
         driverId: 'driver-2',
-        driverName: 'Trần Minh Hải',
         etaMinutes: 0
       },
       {
@@ -144,8 +143,14 @@ export default function App() {
     ]
   });
 
-  // Food Filter Categorization
-  const [selectedCategory, setSelectedCategory] = useState<'all' | 'bestsellers' | 'main' | 'extra' | 'drink'>('all');
+  const CATEGORY_FILTER_MAP: Record<string, string> = {
+    all: 'all',
+    bestsellers: 'bestsellers',
+    main: 'Bánh Canh Cá Lóc',
+    extra: 'Đồ Ăn Kèm',
+    drink: 'Đồ Uống'
+  };
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
   // Reviews State
   const [reviews, setReviews] = useState<ProductReview[]>(INITIAL_REVIEWS);
@@ -269,9 +274,10 @@ export default function App() {
     localStorage.setItem('banhcanh_cart', JSON.stringify(items));
   };
 
-  const handleLoginSuccess = (loggedInUser: User) => {
-    setUser(loggedInUser);
-    localStorage.setItem('banhcanh_user', JSON.stringify(loggedInUser));
+  const handleLoginSuccess = (loggedInUser: { id: string; username: string; email: string; role: string; isActive?: boolean }) => {
+    const userData: User = { ...loggedInUser, role: (loggedInUser.role as User['role']), isActive: loggedInUser.isActive ?? true };
+    setUser(userData);
+    localStorage.setItem('banhcanh_user', JSON.stringify(userData));
   };
 
   const handleLogout = () => {
@@ -282,7 +288,7 @@ export default function App() {
 
   // Cart actions
   const handleAddToCart = (product: Product, noodleType?: 'Bột gạo' | 'Bột lọc', notes?: string, toppings?: Product[]) => {
-    const isMain = product.category === 'main';
+    const isMain = product.categoryName === 'Bánh Canh Cá Lóc' || product.categoryId === 1;
     const trimmedNotes = notes?.trim() || undefined;
     const itemToppings = toppings || [];
     
@@ -384,11 +390,12 @@ export default function App() {
   ) => {
     if (!details) return;
 
-    const mappedItems = details.items.flatMap(it => {
-      const list = [{
+    const mappedItems: OrderItem[] = details.items.flatMap(it => {
+      const list: OrderItem[] = [{
         productName: it.product.name,
         quantity: it.quantity,
         price: it.product.price,
+        subtotal: it.product.price * it.quantity,
         noodleType: it.noodleType,
         notes: it.notes
       }];
@@ -399,6 +406,7 @@ export default function App() {
             productName: `${topping.name} (Ăn kèm ${it.product.name})`,
             quantity: it.quantity,
             price: topping.price,
+            subtotal: topping.price * it.quantity,
             noodleType: undefined,
             notes: undefined
           });
@@ -407,13 +415,23 @@ export default function App() {
       return list;
     });
 
+    const paymentMethodMap: Record<string, 'cash' | 'momo' | 'transfer'> = {
+      cod: 'cash',
+      momo: 'momo',
+      vnpay: 'transfer',
+      card: 'transfer'
+    };
     const orderPayload = {
       customerName: details.customerName,
       phone: details.phone,
       address: details.address,
       items: mappedItems,
       totalAmount: details.totalAmount,
-      paymentMethod: method,
+      orderType: 'delivery' as const,
+      subtotal: details.totalAmount,
+      discountAmount: 0,
+      shippingFee: 0,
+      paymentMethod: paymentMethodMap[method] || 'cash',
       paymentStatus: (method === 'cod' ? 'pending' : 'paid') as 'pending' | 'paid',
       status: 'pending' as const,
       createdAt: new Date().toISOString()
@@ -524,16 +542,13 @@ export default function App() {
     // Change driver status
     setDrivers(prev => prev.map(d => d.id === driverId ? { ...d, status: 'busy' as const } : d));
 
-    // Update order
     setOrders(prev => prev.map(o => {
       if (o.id === orderId) {
         if (updatedOrder) return updatedOrder;
         return {
           ...o,
-          driverId,
-          driverName: driver.name,
+          driverId: driver.id,
           status: 'shipping' as const,
-          etaMinutes: 15
         };
       }
       return o;
@@ -549,8 +564,7 @@ export default function App() {
       phone,
       vehicle,
       status: 'available',
-      rating: 5.0,
-      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=150'
+      isActive: true
     };
     setDrivers([...drivers, newDriver]);
   };
@@ -631,14 +645,14 @@ export default function App() {
     }));
   };
 
-  // Filter products by selected categories
   const filteredProducts = products.filter(p => {
     if (selectedCategory === 'all') return true;
     if (selectedCategory === 'bestsellers') return p.isBestSeller;
-    return p.category === selectedCategory;
+    const categoryName = CATEGORY_FILTER_MAP[selectedCategory];
+    return p.categoryName === categoryName;
   });
 
-  if (user && user.role === 'admin') {
+  if (user && (user.role === 'admin' || user.role === 'super_admin')) {
     return (
       <div className="min-h-screen bg-[#110D0C] text-[#EAE3D2] transition-colors duration-300 font-sans flex flex-col antialiased">
         
@@ -918,6 +932,7 @@ export default function App() {
             drivers={drivers}
             products={products}
             isBackendConnected={isBackendConnected}
+            userRole={user?.role}
             onUpdateOrderStatus={handleUpdateOrderStatus}
             onAssignDriver={handleAssignDriver}
             onCreateDriver={handleCreateDriver}
@@ -947,7 +962,7 @@ export default function App() {
             <button onClick={() => setActiveTab('tracking')} className="hover:text-[#D97706]">Theo Dõi Đơn Hàng</button>
             <button onClick={() => {
               // Quick login simulation as admin to show backend instantly
-              const u = { id: 'admin-user', username: 'Chủ Quán (admin)', email: 'admin@banhcanhcaloc.com', role: 'admin' as const };
+              const u: User = { id: 'admin-user', username: 'Chủ Quán (admin)', email: 'admin@banhcanhcaloc.com', role: 'admin', isActive: true };
               setUser(u);
               setActiveTab('admin');
             }} className="text-[#D97706] hover:underline">

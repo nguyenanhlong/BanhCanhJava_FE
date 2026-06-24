@@ -3,10 +3,10 @@ import { Product, ProductReview } from '../types';
 import { Plus, ShoppingCart, Star, MessageSquare, Check } from 'lucide-react';
 
 const TOPPING_OPTIONS: Product[] = [
-  { id: 'top-01', name: 'Chả Cua Huế thêm', price: 15000, category: 'extra', isBestSeller: false, image: 'https://images.unsplash.com/photo-1582450871972-ab5ca641643d?w=200&auto=format&fit=crop&q=80', description: 'Chả cua quết tay thơm nức, dai ngon đậm đà gia vị miền Trung.' },
-  { id: 'top-02', name: 'Bộ Lòng Cá Lóc thêm', price: 25000, category: 'extra', isBestSeller: false, image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=200&auto=format&fit=crop&q=80', description: 'Bao tử cá béo ngậy và gan cá lóc chiên sả ớt, đậm đà giòn rụm.' },
-  { id: 'top-03', name: 'Bánh Quẩy Giòn', price: 5000, category: 'extra', isBestSeller: false, image: 'https://images.unsplash.com/photo-1549931319-a545dcf3bc73?w=200&auto=format&fit=crop&q=80', description: 'Quẩy giòn rụm, nhúng nước bánh canh ăn siêu ngon cuốn hút.' },
-  { id: 'top-04', name: 'Trứng Cút (5 Quả)', price: 8000, category: 'extra', isBestSeller: false, image: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=200&auto=format&fit=crop&q=80', description: 'Trứng cút luộc chín tới bùi bùi béo béo.' }
+  { id: 'top-01', name: 'Chả Cua Huế thêm', price: 15000, categoryId: 2, categoryName: 'Đồ Ăn Kèm', isBestSeller: false, isAvailable: true, imageUrl: 'https://images.unsplash.com/photo-1582450871972-ab5ca641643d?w=200&auto=format&fit=crop&q=80', description: 'Chả cua quết tay thơm nức, dai ngon đậm đà gia vị miền Trung.', preparationTime: 5 },
+  { id: 'top-02', name: 'Bộ Lòng Cá Lóc thêm', price: 25000, categoryId: 2, categoryName: 'Đồ Ăn Kèm', isBestSeller: false, isAvailable: true, imageUrl: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=200&auto=format&fit=crop&q=80', description: 'Bao tử cá béo ngậy và gan cá lóc chiên sả ớt, đậm đà giòn rụm.', preparationTime: 5 },
+  { id: 'top-03', name: 'Bánh Quẩy Giòn', price: 5000, categoryId: 2, categoryName: 'Đồ Ăn Kèm', isBestSeller: false, isAvailable: true, imageUrl: 'https://images.unsplash.com/photo-1549931319-a545dcf3bc73?w=200&auto=format&fit=crop&q=80', description: 'Quẩy giòn rụm, nhúng nước bánh canh ăn siêu ngon cuốn hút.', preparationTime: 3 },
+  { id: 'top-04', name: 'Trứng Cút (5 Quả)', price: 8000, categoryId: 2, categoryName: 'Đồ Ăn Kèm', isBestSeller: false, isAvailable: true, imageUrl: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=200&auto=format&fit=crop&q=80', description: 'Trứng cút luộc chín tới bùi bùi béo béo.', preparationTime: 5 }
 ];
 
 interface ProductCardProps {
@@ -32,12 +32,12 @@ export function ProductCard({ product, onAddToCart, reviews = [] }: ProductCardP
     return price.toLocaleString('vi-VN') + ' đ';
   };
 
+  const isMain = product.categoryName === 'Bánh Canh Cá Lóc' || product.categoryId === 1;
+
   const handleQuickAdd = () => {
-    if (product.category === 'main') {
-      // Main products warrant choosing noodle type
+    if (isMain) {
       setShowOptions(true);
     } else {
-      // Direct add for drinks and extra toppings
       onAddToCart(product, 'Bột gạo', '');
     }
   };
@@ -46,19 +46,23 @@ export function ProductCard({ product, onAddToCart, reviews = [] }: ProductCardP
     onAddToCart(product, selectedNoodle, notes, selectedToppings);
     setShowOptions(false);
     setSelectedToppings([]);
-    setNotes(''); // reset
+    setNotes('');
   };
 
-  const categoryLabels = {
-    main: 'Món Chính',
-    extra: 'Topping Thêm',
-    drink: 'Giải Nhiệt'
+  const getCategoryLabel = (p: Product): string => {
+    if (p.categoryName === 'Bánh Canh Cá Lóc') return 'Món Chính';
+    if (p.categoryName === 'Đồ Ăn Kèm') return 'Topping Thêm';
+    if (p.categoryName === 'Đồ Uống') return 'Giải Nhiệt';
+    if (p.categoryName === 'Tráng Miệng') return 'Tráng Miệng';
+    if (p.categoryName === 'Combo') return 'Combo';
+    return p.categoryName || 'Khác';
   };
+
+  const productImage = product.imageUrl || '🍲';
 
   return (
     <div className="bg-white dark:bg-[#1C1311] rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] shadow-xs hover:shadow-xl hover:-translate-y-1 hover:scale-[1.02] transition-colors duration-300 ease-out flex flex-col overflow-hidden relative group">
       
-      {/* Best seller or category floating badges */}
       <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10">
         {product.isBestSeller && (
           <span className="bg-[#D97706] text-white text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-lg tracking-wider shadow-sm animate-pulse">
@@ -66,38 +70,34 @@ export function ProductCard({ product, onAddToCart, reviews = [] }: ProductCardP
           </span>
         )}
         <span className="bg-[#FAF8F5]/90 dark:bg-[#1C1311]/90 backdrop-blur text-[#2D241E] dark:text-[#EAE3D2] text-[10px] font-bold px-2.5 py-1 rounded-lg border border-[#E5E1D8] dark:border-[#2D2321]">
-          {categoryLabels[product.category]}
+          {getCategoryLabel(product)}
         </span>
       </div>
 
-      {/* Product Image representation using customized design typography and SVG frame */}
       <div className="aspect-video bg-[#FAF8F5] dark:bg-[#1E1715] flex items-center justify-center relative select-none border-b border-[#E5E1D8] dark:border-[#2D2321] group-hover:scale-105 transition-transform duration-300 overflow-hidden">
-        {(product.image || (product as any).imageUrl || '').startsWith('http') ? (
+        {productImage.startsWith('http') ? (
           <img 
-            src={product.image || (product as any).imageUrl} 
+            src={productImage}
             alt={product.name} 
             className="w-full h-full object-cover" 
             referrerPolicy="no-referrer"
           />
         ) : (
-          <span className="text-6xl drop-shadow-sm">{product.image || (product as any).imageUrl || '🍲'}</span>
+          <span className="text-6xl drop-shadow-sm">{productImage || '🍲'}</span>
         )}
         
-        {/* Decorative elements representing ingredients */}
-        {product.category === 'main' && (
+        {isMain && (
           <span className="absolute bottom-2 right-2 text-xs font-mono bg-white/70 dark:bg-[#1C1311]/70 px-2 py-0.5 rounded-md border border-[#E5E1D8] dark:border-[#2D2321] text-[#8B7E74] dark:text-[#B2A496] backdrop-blur-xs">
             Chuẩn củ nén
           </span>
         )}
       </div>
 
-      {/* Description Content */}
       <div className="p-4 flex-1 flex flex-col">
         <h4 className="font-bold text-[#2D241E] dark:text-[#FAF8F5] text-lg mb-1 group-hover:text-[#D97706] transition-colors duration-200">
           {product.name}
         </h4>
 
-        {/* Dynamic Star Rating Summary */}
         <div className="flex items-center gap-2 mb-2">
           {avgRating ? (
             <div className="flex items-center text-amber-500 gap-0.5 text-xs font-bold">
@@ -124,7 +124,6 @@ export function ProductCard({ product, onAddToCart, reviews = [] }: ProductCardP
           {product.description}
         </p>
 
-        {/* Action interface */}
         <div className="flex justify-between items-center mt-auto pt-2 border-t border-[#F3F0E9] dark:border-[#2D2321]">
           <span className="text-lg font-extrabold text-[#D97706]">
             {formatPrice(product.price)}
@@ -141,7 +140,6 @@ export function ProductCard({ product, onAddToCart, reviews = [] }: ProductCardP
         </div>
       </div>
 
-      {/* Interactive Quick-Add Options Modal Overlay for Main Items */}
       {showOptions && (
         <div className="absolute inset-0 bg-white/95 dark:bg-[#1C1311]/95 backdrop-blur-md p-4 flex flex-col justify-between z-20 transition-all duration-300 overflow-y-auto">
           <div>
@@ -159,7 +157,6 @@ export function ProductCard({ product, onAddToCart, reviews = [] }: ProductCardP
             </div>
             <p className="text-[10px] text-[#8B7E74] dark:text-[#B2A496] mb-3">{product.name}</p>
 
-            {/* Selection of noodle type */}
             <div className="mb-3">
               <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase block mb-1">Chọn Sợi Bánh Canh:</label>
               <div className="grid grid-cols-2 gap-2">
@@ -186,12 +183,12 @@ export function ProductCard({ product, onAddToCart, reviews = [] }: ProductCardP
               </div>
             </div>
 
-            {/* Gợi ý Topping kèm theo */}
             <div className="mb-3">
               <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase block mb-1.5">Gợi ý Topping ăn kèm:</label>
               <div className="grid grid-cols-2 gap-1.5">
                 {TOPPING_OPTIONS.map((topping) => {
                   const isSelected = selectedToppings.some(t => t.id === topping.id);
+                  const toppingImage = topping.imageUrl || '';
                   return (
                     <button
                       key={topping.id}
@@ -208,15 +205,15 @@ export function ProductCard({ product, onAddToCart, reviews = [] }: ProductCardP
                           : 'bg-[#FAF8F5] dark:bg-[#231A18] text-[#3E2F26] dark:text-[#EAE3D2] border-[#E5E1D8] dark:border-[#2D2321] hover:bg-amber-50/40 dark:hover:bg-amber-950/10'
                       }`}
                     >
-                      {(topping.image || (topping as any).imageUrl || '').startsWith('http') ? (
+                      {toppingImage.startsWith('http') ? (
                         <img 
-                          src={topping.image || (topping as any).imageUrl} 
+                          src={toppingImage}
                           alt={topping.name} 
                           className="w-5 h-5 rounded-md object-cover shrink-0" 
                           referrerPolicy="no-referrer"
                         />
                       ) : (
-                        <span className="text-xs shrink-0">{topping.image || (topping as any).imageUrl || '🍲'}</span>
+                        <span className="text-xs shrink-0">{toppingImage || '🍲'}</span>
                       )}
                       <div className="truncate flex-1 min-w-0">
                         <p className="font-bold leading-normal truncate">{topping.name.replace(' thêm', '').replace(' Thêm', '')}</p>
@@ -235,7 +232,6 @@ export function ProductCard({ product, onAddToCart, reviews = [] }: ProductCardP
               </div>
             </div>
 
-            {/* Notes Input */}
             <div>
               <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase block mb-1">Ghi chú (bỏ ớt, hành...):</label>
               <input
@@ -258,7 +254,6 @@ export function ProductCard({ product, onAddToCart, reviews = [] }: ProductCardP
         </div>
       )}
 
-      {/* Interactive Reviews Overlay with smooth aesthetic and list */}
       {showReviewsPanel && (
         <div className="absolute inset-0 bg-white/98 backdrop-blur-md p-4 flex flex-col justify-between z-20 transition-all duration-350">
           <div className="flex-1 flex flex-col h-full overflow-hidden">
@@ -275,7 +270,6 @@ export function ProductCard({ product, onAddToCart, reviews = [] }: ProductCardP
               </button>
             </div>
 
-            {/* Scrollable review list */}
             <div className="flex-1 overflow-y-auto space-y-2 my-1 pr-1 scrollbar-thin">
               {productReviews.map((rev) => (
                 <div key={rev.id} className="bg-[#FAF8F5] p-2.5 rounded-xl border border-[#E5E1D8] text-[11px] text-[#3E2F26]">
