@@ -127,7 +127,37 @@ export const ApiService = {
     return mapOrder(data);
   },
 
-  // 3. DRIVERS API
+  // 3. PRODUCT CRUD (Admin)
+  async createProduct(product: any): Promise<Product> {
+    const res = await fetch(`${BASE_URL}/products`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(product)
+    });
+    if (!res.ok) throw new Error('Không thể tạo sản phẩm');
+    const data = await res.json();
+    return mapProduct(data);
+  },
+
+  async updateProduct(id: string | number, product: any): Promise<Product> {
+    const res = await fetch(`${BASE_URL}/products/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(product)
+    });
+    if (!res.ok) throw new Error('Không thể cập nhật sản phẩm');
+    const data = await res.json();
+    return mapProduct(data);
+  },
+
+  async deleteProduct(id: string | number): Promise<void> {
+    const res = await fetch(`${BASE_URL}/products/${id}`, {
+      method: 'DELETE'
+    });
+    if (!res.ok) throw new Error('Không thể xóa sản phẩm');
+  },
+
+  // 4. DRIVERS API
   async getDrivers(): Promise<Driver[]> {
     const res = await fetch(`${BASE_URL}/drivers`);
     if (!res.ok) throw new Error('Không thể tải bưu tá lội bộ');
@@ -135,7 +165,27 @@ export const ApiService = {
     return Array.isArray(data) ? data.map(mapDriver) : [];
   },
 
-  // 4. AUTH API
+  async createDriver(driver: any): Promise<Driver> {
+    const res = await fetch(`${BASE_URL}/drivers`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(driver)
+    });
+    if (!res.ok) throw new Error('Không thể tạo tài xế mới');
+    const data = await res.json();
+    return mapDriver(data);
+  },
+
+  async updateDriverStatus(driverId: string | number, status: string): Promise<Driver> {
+    const res = await fetch(`${BASE_URL}/drivers/${driverId}/status?status=${status}`, {
+      method: 'PUT'
+    });
+    if (!res.ok) throw new Error('Không thể cập nhật trạng thái tài xế');
+    const data = await res.json();
+    return mapDriver(data);
+  },
+
+  // 5. AUTH API
   async register(user: any): Promise<any> {
     const res = await fetch(`${BASE_URL}/auth/register`, {
       method: 'POST',

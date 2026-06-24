@@ -97,8 +97,8 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModalProps) {
             role: 'customer'
           };
           
-          await ApiService.register(payload);
-          setSuccessMsg(`Đăng ký tài khoản Khách hàng [${trimmedUsername}] lên MySQL (XAMPP) thành công! Bạn có thể sử dụng chính tài khoản này để Đăng nhập.`);
+          const regRes = await ApiService.register(payload);
+          setSuccessMsg(`Đăng ký tài khoản Khách hàng [${regRes.username || trimmedUsername}] lên MySQL (XAMPP) thành công! Bạn có thể sử dụng chính tài khoản này để Đăng nhập.`);
           setIsRegisterStep(false);
           return;
         } else {

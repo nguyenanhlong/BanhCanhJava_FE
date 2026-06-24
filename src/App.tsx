@@ -559,6 +559,23 @@ export default function App() {
     setDrivers(prev => prev.map(d => d.id === driverId ? { ...d, status } : d));
   };
 
+  // Product CRUD handlers
+  const handleCreateProduct = (product: Omit<Product, 'id'>) => {
+    const newProduct: Product = {
+      ...product,
+      id: 'p-' + Date.now(),
+    };
+    setProducts(prev => [newProduct, ...prev]);
+  };
+
+  const handleUpdateProduct = (id: string, product: Omit<Product, 'id'>) => {
+    setProducts(prev => prev.map(p => p.id === id ? { ...p, ...product } : p));
+  };
+
+  const handleDeleteProduct = (id: string) => {
+    setProducts(prev => prev.filter(p => p.id !== id));
+  };
+
   // Chat message processor
   const handleSendMessage = (orderId: string, text: string, sender: 'Customer' | 'Driver' | 'Kitchen' = 'Customer') => {
     const existingMessages = chatHistory[orderId] || [];
@@ -693,11 +710,16 @@ export default function App() {
           <AdminDashboard 
             orders={orders}
             drivers={drivers}
+            products={products}
+            isBackendConnected={isBackendConnected}
             onUpdateOrderStatus={handleUpdateOrderStatus}
             onAssignDriver={handleAssignDriver}
             onCreateDriver={handleCreateDriver}
             onUpdateDriverStatus={handleUpdateDriverStatus}
             onUpdateOrderProgress={handleUpdateOrderProgress}
+            onCreateProduct={handleCreateProduct}
+            onUpdateProduct={handleUpdateProduct}
+            onDeleteProduct={handleDeleteProduct}
           />
         </main>
 
@@ -894,11 +916,16 @@ export default function App() {
           <AdminDashboard 
             orders={orders}
             drivers={drivers}
+            products={products}
+            isBackendConnected={isBackendConnected}
             onUpdateOrderStatus={handleUpdateOrderStatus}
             onAssignDriver={handleAssignDriver}
             onCreateDriver={handleCreateDriver}
             onUpdateDriverStatus={handleUpdateDriverStatus}
             onUpdateOrderProgress={handleUpdateOrderProgress}
+            onCreateProduct={handleCreateProduct}
+            onUpdateProduct={handleUpdateProduct}
+            onDeleteProduct={handleDeleteProduct}
           />
         )}
 

@@ -1,30 +1,46 @@
 import React, { useState } from 'react';
-import { Order, Driver, OrderStatus } from '../types';
+import { Order, Driver, OrderStatus, Product } from '../types';
 import { JAVA_BACKEND_FILES, MYSQL_DATABASE_SQL, FRONTEND_INTEGRATION_FILES } from '../data';
-import { FileCode, Check, Copy, AlertTriangle } from 'lucide-react';
+import { FileCode, Check, Copy, AlertTriangle, Plus, Edit3, Trash2, X } from 'lucide-react';
+import { ApiService } from '../services/api';
 
 interface AdminDashboardProps {
   orders: Order[];
   drivers: Driver[];
+  products: Product[];
+  isBackendConnected: boolean;
   onUpdateOrderStatus: (orderId: string, status: OrderStatus) => void;
   onAssignDriver: (orderId: string, driverId: string) => void;
   onCreateDriver: (name: string, phone: string, vehicle: string) => void;
   onUpdateDriverStatus: (driverId: string, status: Driver['status']) => void;
   onUpdateOrderProgress?: (orderId: string, progress: number, stage: string) => void;
+  onCreateProduct?: (product: Omit<Product, 'id'>) => void;
+  onUpdateProduct?: (id: string, product: Omit<Product, 'id'>) => void;
+  onDeleteProduct?: (id: string) => void;
 }
 
 export function AdminDashboard({
   orders,
   drivers,
+  products,
+  isBackendConnected,
   onUpdateOrderStatus,
   onAssignDriver,
   onCreateDriver,
   onUpdateDriverStatus,
-  onUpdateOrderProgress
+  onUpdateOrderProgress,
+  onCreateProduct,
+  onUpdateProduct,
+  onDeleteProduct
 }: AdminDashboardProps) {
-  const [adminTab, setAdminTab] = useState<'orders' | 'drivers' | 'users' | 'java' | 'sql' | 'frontend'>('orders');
+  const [adminTab, setAdminTab] = useState<'orders' | 'products' | 'drivers' | 'users' | 'java' | 'sql' | 'frontend'>('orders');
   const [selectedFEFile, setSelectedFEFile] = useState(0);
   
+  // API Users state (fetched from backend)
+  const [apiUsers, setApiUsers] = useState<any[]>([]);
+  const [apiStats, setApiStats] = useState<any>(null);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+
   // Real registered users in localStorage for tracking
   const [localUsers, setLocalUsers] = useState<any[]>(() => {
     try {
@@ -35,12 +51,29 @@ export function AdminDashboard({
     }
   });
 
-  const handleRefreshUsers = () => {
+  const handleRefreshUsers = async () => {
+    // Refresh local users
     try {
       const saved = localStorage.getItem('banhcanh_registered_users');
       setLocalUsers(saved ? JSON.parse(saved) : []);
     } catch {
       setLocalUsers([]);
+    }
+    // Refresh API users if connected
+    if (isBackendConnected) {
+      setLoadingUsers(true);
+      try {
+        const [users, stats] = await Promise.all([
+          ApiService.getUsers(),
+          ApiService.getStats()
+        ]);
+        setApiUsers(users);
+        setApiStats(stats);
+      } catch (err) {
+        console.error('Failed to fetch users/stats from API:', err);
+      } finally {
+        setLoadingUsers(false);
+      }
     }
   };
 
@@ -51,6 +84,12 @@ export function AdminDashboard({
     }
   };
   
+  // Product Form State
+  const [productForm, setProductForm] = useState<{ name: string; description: string; price: number; category: 'main' | 'extra' | 'drink'; isBestSeller: boolean; image: string }>({ name: '', description: '', price: 0, category: 'main', isBestSeller: false, image: '' });
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [productSuccess, setProductSuccess] = useState('');
+  const [productError, setProductError] = useState('');
+
   // New Driver Form State
   const [driverName, setDriverName] = useState('');
   const [driverPhone, setDriverPhone] = useState('');
@@ -70,9 +109,82 @@ export function AdminDashboard({
     setTimeout(() => setCopiedText(false), 2000);
   };
 
-  const handleAddDriverSubmit = (e: React.FormEvent) => {
+  const resetProductForm = () => {
+    setProductForm({ name: '', description: '', price: 0, category: 'main', isBestSeller: false, image: '' });
+    setEditingProductId(null);
+    setProductError('');
+  };
+
+  const handleEditProduct = (p: Product) => {
+    setProductForm({ name: p.name, description: p.description, price: p.price, category: p.category, isBestSeller: p.isBestSeller, image: p.image });
+    setEditingProductId(p.id);
+    setProductError('');
+  };
+
+  const handleProductSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setProductError('');
+    if (!productForm.name || !productForm.price) {
+      setProductError('Tên và giá sản phẩm là bắt buộc');
+      return;
+    }
+
+    const category = productForm.category as 'main' | 'extra' | 'drink';
+    const payload = {
+      name: productForm.name,
+      description: productForm.description,
+      price: Number(productForm.price),
+      category,
+      isBestSeller: productForm.isBestSeller,
+      imageUrl: productForm.image || undefined
+    };
+
+    const productData: Omit<Product, 'id'> = { ...productForm, price: Number(productForm.price), category };
+
+    try {
+      if (editingProductId) {
+        if (isBackendConnected) {
+          await ApiService.updateProduct(editingProductId, payload);
+        }
+        if (onUpdateProduct) onUpdateProduct(editingProductId, productData);
+      } else {
+        if (isBackendConnected) {
+          await ApiService.createProduct(payload);
+        }
+        if (onCreateProduct) onCreateProduct(productData);
+      }
+      resetProductForm();
+      setProductSuccess(editingProductId ? 'Đã cập nhật sản phẩm thành công!' : 'Đã thêm sản phẩm mới thành công!');
+      setTimeout(() => setProductSuccess(''), 3000);
+    } catch (err: any) {
+      setProductError(err.message || 'Lỗi khi lưu sản phẩm');
+    }
+  };
+
+  const handleDeleteProduct = async (id: string) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa sản phẩm này?')) return;
+    try {
+      if (isBackendConnected) {
+        await ApiService.deleteProduct(id);
+      }
+      if (onDeleteProduct) onDeleteProduct(id);
+      setProductSuccess('Đã xóa sản phẩm!');
+      setTimeout(() => setProductSuccess(''), 3000);
+    } catch (err: any) {
+      setProductError(err.message || 'Lỗi khi xóa sản phẩm');
+    }
+  };
+
+  const handleAddDriverSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!driverName || !driverPhone || !driverVehicle) return;
+    if (isBackendConnected) {
+      try {
+        await ApiService.createDriver({ name: driverName, phone: driverPhone, vehicle: driverVehicle });
+      } catch (err) {
+        console.error('API create driver failed, falling back to local:', err);
+      }
+    }
     onCreateDriver(driverName, driverPhone, driverVehicle);
     setDriverName('');
     setDriverPhone('');
@@ -120,6 +232,14 @@ export function AdminDashboard({
             }`}
           >
             📋 Live Orders ({orders.length})
+          </button>
+          <button
+            onClick={() => setAdminTab('products')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              adminTab === 'products' ? 'bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] shadow-xs' : 'text-[#3E2F26] dark:text-[#EAE3D2] hover:bg-[#E5E1D8] dark:hover:bg-[#3E302D]'
+            }`}
+          >
+            🍲 Sản Phẩm ({products.length})
           </button>
           <button
             onClick={() => setAdminTab('drivers')}
@@ -329,7 +449,152 @@ export function AdminDashboard({
           </div>
         )}
 
-        {/* TAB 2: DRIVER MANAGEMENT */}
+        {/* TAB 2: PRODUCT MANAGEMENT */}
+        {adminTab === 'products' && (
+          <div className="space-y-6">
+            <div className="flex flex-wrap justify-between items-center border-b border-[#F3F0E9] dark:border-[#2D2321] pb-3">
+              <div>
+                <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#FAF8F5]">Quản Lý Sản Phẩm</h3>
+                <p className="text-xs text-[#8B7E74] dark:text-[#B2A496] mt-0.5">Thêm, sửa, xóa món ăn trong thực đơn</p>
+              </div>
+              <div className="flex gap-2">
+                <span className={`text-[9px] px-2 py-1 rounded font-mono font-bold ${isBackendConnected ? 'bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400' : 'bg-amber-100 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400'}`}>
+                  {isBackendConnected ? '🟢 API Live' : '🟡 Local Only'}
+                </span>
+              </div>
+            </div>
+
+            {productSuccess && (
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/50 text-emerald-800 dark:text-emerald-400 text-xs rounded-xl text-center font-bold">
+                {productSuccess}
+              </div>
+            )}
+
+            {productError && (
+              <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/50 text-red-800 dark:text-red-400 text-xs rounded-xl text-center font-bold">
+                {productError}
+              </div>
+            )}
+
+            {/* Product Form */}
+            <div className="bg-[#F3F0E9] dark:bg-[#2D2321] p-5 rounded-3xl border border-[#E5E1D8] dark:border-[#3E302D]">
+              <h4 className="font-serif font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5] mb-3">
+                {editingProductId ? <><Edit3 className="w-4 h-4 inline mr-1 text-[#D97706]" /> Sửa Sản Phẩm</> : <><Plus className="w-4 h-4 inline mr-1 text-emerald-500" /> Thêm Sản Phẩm Mới</>}
+              </h4>
+              <form onSubmit={handleProductSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Tên Món</label>
+                  <input type="text" required placeholder="Bánh Canh Cá Lóc..."
+                    value={productForm.name}
+                    onChange={(e) => setProductForm(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Giá (VNĐ)</label>
+                  <input type="number" required min={0} step={1000} placeholder="45000"
+                    value={productForm.price || ''}
+                    onChange={(e) => setProductForm(prev => ({ ...prev, price: Number(e.target.value) }))}
+                    className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Danh Mục</label>
+                  <select value={productForm.category}
+                    onChange={(e) => setProductForm(prev => ({ ...prev, category: e.target.value as 'main' | 'extra' | 'drink' }))}
+                    className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]">
+                    <option value="main">Bánh canh chính</option>
+                    <option value="extra">Toppings thêm</option>
+                    <option value="drink">Nước giải nhiệt</option>
+                  </select>
+                </div>
+                <div className="space-y-1 md:col-span-2">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Mô Tả</label>
+                  <input type="text" placeholder="Mô tả món ăn..."
+                    value={productForm.description}
+                    onChange={(e) => setProductForm(prev => ({ ...prev, description: e.target.value }))}
+                    className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Hình Ảnh (URL)</label>
+                  <input type="text" placeholder="https://..."
+                    value={productForm.image}
+                    onChange={(e) => setProductForm(prev => ({ ...prev, image: e.target.value }))}
+                    className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
+                </div>
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={productForm.isBestSeller}
+                      onChange={(e) => setProductForm(prev => ({ ...prev, isBestSeller: e.target.checked }))}
+                      className="w-4 h-4 accent-[#D97706]" />
+                    <span className="text-xs font-bold text-[#3E2F26] dark:text-[#EAE3D2]">🔥 Bán chạy</span>
+                  </label>
+                </div>
+                <div className="flex gap-2 items-end justify-end md:col-span-3">
+                  {editingProductId && (
+                    <button type="button" onClick={resetProductForm}
+                      className="px-4 py-2 rounded-xl border border-[#E5E1D8] dark:border-[#3E302D] text-xs font-bold text-[#3E2F26] dark:text-[#EAE3D2] hover:bg-[#E5E1D8] dark:hover:bg-[#3E302D] cursor-pointer">
+                      <X className="w-3.5 h-3.5 inline mr-1" />Hủy
+                    </button>
+                  )}
+                  <button type="submit"
+                    className="px-6 py-2 rounded-xl bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] text-xs font-bold hover:opacity-90 cursor-pointer">
+                    {editingProductId ? 'Cập Nhật' : 'Thêm Món'}
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* Product List */}
+            <div className="overflow-x-auto border border-[#E5E1D8] dark:border-[#2D2321] rounded-2xl bg-[#FAF8F5] dark:bg-[#1E1210]">
+              <table className="w-full text-left text-xs text-[#3E2F26] dark:text-[#EAE3D2]">
+                <thead className="bg-[#F3F0E9] dark:bg-[#2D2321] uppercase font-bold text-[#2D241E] dark:text-[#FAF8F5] border-b border-[#E5E1D8] dark:border-[#2D2321]">
+                  <tr>
+                    <th className="p-3">Ảnh</th>
+                    <th className="p-3">Tên Món</th>
+                    <th className="p-3">Danh Mục</th>
+                    <th className="p-3 text-right">Giá</th>
+                    <th className="p-3 text-center">Bán Chạy</th>
+                    <th className="p-3 text-center">Thao Tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E5E1D8] dark:divide-[#2D2321] bg-white dark:bg-[#1C1311]">
+                  {products.length === 0 ? (
+                    <tr><td colSpan={6} className="p-6 text-center text-[#8B7E74] dark:text-[#B2A496] italic">Chưa có sản phẩm nào.</td></tr>
+                  ) : (products.map((p) => (
+                    <tr key={p.id} className="hover:bg-[#FAF8F5]/80 dark:hover:bg-[#2D2321]/50 transition-colors">
+                      <td className="p-3">
+                        <span className="text-2xl">{p.image?.startsWith('http') ? <img src={p.image} alt={p.name} className="w-10 h-10 rounded-lg object-cover" /> : (p.image || '🍲')}</span>
+                      </td>
+                      <td className="p-3 font-bold text-[#2D241E] dark:text-[#FAF8F5]">{p.name}</td>
+                      <td className="p-3">
+                        <span className="text-[10px] px-2 py-0.5 rounded-full border bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700">
+                          {p.category === 'main' ? 'Bánh canh' : p.category === 'extra' ? 'Topping' : 'Đồ uống'}
+                        </span>
+                      </td>
+                      <td className="p-3 text-right font-extrabold text-[#D97706]">{p.price.toLocaleString('vi-VN')} đ</td>
+                      <td className="p-3 text-center">{p.isBestSeller ? <span className="text-emerald-500 font-bold">🔥 Bán chạy</span> : '-'}</td>
+                      <td className="p-3">
+                        <div className="flex gap-1.5 justify-center">
+                          <button onClick={() => handleEditProduct(p)}
+                            className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-950/50 cursor-pointer"
+                            title="Sửa sản phẩm">
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => handleDeleteProduct(p.id)}
+                            className="p-1.5 rounded-lg bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-950/50 cursor-pointer"
+                            title="Xóa sản phẩm">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: DRIVER MANAGEMENT */}
         {adminTab === 'drivers' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             
@@ -357,7 +622,13 @@ export function AdminDashboard({
                         <span className="text-[9px] text-[#8B7E74] dark:text-[#B2A496]">Trạng thái:</span>
                         <select
                           value={d.status}
-                          onChange={(e) => onUpdateDriverStatus(d.id, e.target.value as Driver['status'])}
+                          onChange={async (e) => {
+                            const newStatus = e.target.value as Driver['status'];
+                            if (isBackendConnected) {
+                              try { await ApiService.updateDriverStatus(d.id, newStatus); } catch (err) { console.error(err); }
+                            }
+                            onUpdateDriverStatus(d.id, newStatus);
+                          }}
                           className="text-[9px] p-1.5 rounded-lg border border-[#E5E1D8] dark:border-[#3D302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-none"
                         >
                           <option value="available" className="dark:bg-[#1C1311]">🟢 Rảnh rỗi</option>
@@ -711,67 +982,129 @@ public class User {
 
             </div>
 
-            {/* RIGHT COLUMN: ACTIVE USERS ENGINE IN SIMULATOR */}
+            {/* RIGHT COLUMN: USERS FROM API + LOCAL */}
             <div className="xl:col-span-5 space-y-4">
-              
+
+              {/* API Users (when connected) */}
+              {isBackendConnected && (
+                <div className="p-4.5 bg-[#1C1311] border border-[#2D2321] rounded-2xl shadow-xs space-y-3">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h4 className="font-serif font-bold text-sm text-[#FAF8F5]">
+                        👥 Người Dùng Từ Database {loadingUsers && <span className="text-[9px] text-[#B2A496] font-sans">(đang tải...)</span>}
+                      </h4>
+                      <p className="text-[10px] text-[#8B7E74]">Spring Boot + MySQL — {apiUsers.length} tài khoản</p>
+                    </div>
+                    {apiStats && (
+                      <span className="text-[10px] text-emerald-400 font-mono bg-emerald-950/30 px-2 py-1 rounded border border-emerald-900/40">
+                        {apiStats.totalUsers} users
+                      </span>
+                    )}
+                  </div>
+
+                  {apiUsers.length === 0 ? (
+                    <div className="py-6 text-center text-xs text-[#8B7E74] italic border border-dashed border-[#2D2321] rounded-xl">
+                      {loadingUsers ? 'Đang kết nối đến MySQL...' : 'Chưa có người dùng nào trong database. Hãy đăng ký tài khoản mới.'}
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto border border-[#2D2321] rounded-xl">
+                      <table className="w-full text-left text-[10px]">
+                        <thead className="bg-[#241A18] text-[#B2A496] uppercase font-bold border-b border-[#2D2321]">
+                          <tr>
+                            <th className="p-2">Username</th>
+                            <th className="p-2">Email</th>
+                            <th className="p-2">Vai trò</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[#2D2321]">
+                          {apiUsers.map((u: any) => (
+                            <tr key={u.id} className="hover:bg-[#241A18]/50">
+                              <td className="p-2 font-bold text-amber-500">{u.username}</td>
+                              <td className="p-2 text-[#B2A496]">{u.email}</td>
+                              <td className="p-2">
+                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
+                                  u.role === 'admin' ? 'bg-amber-950/30 text-amber-400 border-amber-900/40' :
+                                  u.role === 'driver' ? 'bg-blue-950/30 text-blue-400 border-blue-900/40' :
+                                  'bg-emerald-950/30 text-emerald-400 border-emerald-900/40'
+                                }`}>
+                                  {u.role === 'admin' ? 'Quản trị' : u.role === 'driver' ? 'Tài xế' : 'Khách hàng'}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Stats Summary Card */}
+              {isBackendConnected && apiStats && (
+                <div className="p-4 bg-[#1C1311] border border-[#2D2321] rounded-2xl shadow-xs">
+                  <h5 className="font-serif font-bold text-xs text-[#FAF8F5] mb-3">📊 Thống Kê Hệ Thống</h5>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-[#241A18] p-2.5 rounded-xl border border-[#2D2321]">
+                      <p className="text-[9px] text-[#8B7E74] font-mono">Đơn hàng</p>
+                      <p className="text-sm font-bold text-[#D97706]">{apiStats.totalOrders}</p>
+                    </div>
+                    <div className="bg-[#241A18] p-2.5 rounded-xl border border-[#2D2321]">
+                      <p className="text-[9px] text-[#8B7E74] font-mono">Hoàn thành</p>
+                      <p className="text-sm font-bold text-emerald-400">{apiStats.completedOrders}</p>
+                    </div>
+                    <div className="bg-[#241A18] p-2.5 rounded-xl border border-[#2D2321]">
+                      <p className="text-[9px] text-[#8B7E74] font-mono">Doanh thu</p>
+                      <p className="text-sm font-bold text-amber-500">{apiStats.totalRevenue.toLocaleString('vi-VN')}đ</p>
+                    </div>
+                    <div className="bg-[#241A18] p-2.5 rounded-xl border border-[#2D2321]">
+                      <p className="text-[9px] text-[#8B7E74] font-mono">Tài xế bận</p>
+                      <p className="text-sm font-bold text-blue-400">{apiStats.busyDrivers}/{apiStats.totalDrivers}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Local Storage Users */}
               <div className="p-4.5 bg-[#1C1311] border border-[#2D2321] rounded-2xl shadow-xs space-y-4">
                 <div className="flex justify-between items-center">
                   <div>
-                    <h4 className="font-serif font-bold text-sm text-[#FAF8F5]">Tài Khoản Khách Hàng</h4>
-                    <p className="text-[10px] text-[#8B7E74]">Lưu trữ mô phỏng khách hàng đã đăng ký</p>
+                    <h4 className="font-serif font-bold text-sm text-[#FAF8F5]">Tài Khoản Local</h4>
+                    <p className="text-[10px] text-[#8B7E74]">Lưu trữ mô phỏng khách hàng offline</p>
                   </div>
                   <button
                     onClick={handleResetSimulatedUsers}
                     className="bg-red-950/20 hover:bg-red-950/40 text-red-100 border border-red-900/50 text-[9px] font-bold px-2.5 py-1.5 rounded-lg cursor-pointer transition-all"
                   >
-                    Reset Bộ Nhớ
+                    Reset
                   </button>
                 </div>
 
                 {localUsers.length === 0 ? (
-                  <div className="py-8 text-center text-xs text-[#8B7E74] italic border border-dashed border-[#2D2321] rounded-xl">
-                    Chưa có khách hàng vãng lai nào đăng ký trên website này. Bạn có thể nhấn Đăng xuất, nhấp Đăng ký để tạo tài khoản Khách hàng thử nghiệm.
+                  <div className="py-6 text-center text-xs text-[#8B7E74] italic border border-dashed border-[#2D2321] rounded-xl">
+                    Chưa có khách hàng offline đăng ký.
                   </div>
                 ) : (
-                  <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
+                  <div className="space-y-1.5 max-h-[200px] overflow-y-auto pr-1">
                     {localUsers.map((u, index) => (
-                      <div key={index} className="p-3 rounded-xl bg-[#241A18] border border-[#3E2E2A] flex items-center justify-between text-xs transition-colors hover:bg-[#2C1F1D]">
-                        <div className="space-y-0.5">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-amber-500 font-mono">{u.username}</span>
-                            <span className="bg-[#FAF8F5]/10 text-[8px] font-black uppercase text-[#FAF8F5]/80 font-mono px-1 rounded">
-                              {u.role}
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-[#8B7E74] truncate max-w-[190px]">{u.email}</p>
+                      <div key={index} className="p-2.5 rounded-xl bg-[#241A18] border border-[#3E2E2A] flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-amber-500 font-mono text-[11px]">{u.username}</span>
+                          <span className="bg-[#FAF8F5]/10 text-[8px] font-black uppercase text-[#FAF8F5]/80 px-1 rounded">{u.role}</span>
                         </div>
-                        <div className="text-right">
-                          <span className="text-[10px] text-emerald-400 font-mono bg-emerald-950/30 px-1.5 py-0.5 rounded border border-emerald-900/40">
-                            • MySQL Sync
-                          </span>
-                        </div>
+                        <p className="text-[9px] text-[#8B7E74] truncate max-w-[140px]">{u.email}</p>
                       </div>
                     ))}
-                    <p className="text-[9px] text-[#8B7E74] text-center italic mt-2">
-                      💡 Sử dụng đúng tài khoản này để đăng nhập vào website với vai trò Khách hàng thành viên.
-                    </p>
                   </div>
                 )}
               </div>
 
               {/* Quick Credentials Sandbox summary */}
-              <div className="p-4.5 bg-[#1C1311] border border-[#2D2321] rounded-2xl text-xs space-y-3 shadow-xs">
-                <h5 className="font-serif font-bold text-amber-500">🔑 Khung Đăng Nhập Tài Khoản Quản Trị</h5>
-                <p className="text-[11px] text-[#FAF8F5]/80 leading-relaxed">
-                  Để đăng nhập vào cổng quản trị riêng biệt dành cho chủ quán này, vui lòng sử dụng thông tin tài khoản admin mặc định:
-                </p>
+              <div className="p-4 bg-[#1C1311] border border-[#2D2321] rounded-2xl text-xs space-y-3 shadow-xs">
+                <h5 className="font-serif font-bold text-amber-500">🔑 Tài Khoản Quản Trị</h5>
                 <div className="bg-[#140D0C] p-3 rounded-xl font-mono text-[11px] text-amber-200/90 border border-[#2D2321] space-y-1">
                   <p>• <strong>Username:</strong> <span className="text-white">admin</span></p>
                   <p>• <strong>Password:</strong> <span className="text-white">admin</span></p>
                   <p>• <strong>Vai trò:</strong> <span className="text-emerald-400 font-black">Chủ quán (Admin)</span></p>
-                </div>
-                <div className="p-2.5 bg-blue-950/20 rounded-xl border border-blue-900/40 text-[10px] text-blue-300 leading-normal">
-                  📌 <strong className="text-blue-200">Nhắc nhở bảo mật:</strong> Chỉ cho phép Khách hàng đăng ký tài khoản tự do. Tránh đặt quyền đăng ký online làm Admin để ngăn chặn hành vi xâm nhập trái phép.
                 </div>
               </div>
 
