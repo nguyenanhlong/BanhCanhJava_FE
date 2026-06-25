@@ -2,12 +2,7 @@ import React, { useState } from 'react';
 import { Product, ProductReview } from '../types';
 import { Plus, ShoppingCart, Star, MessageSquare, Check } from 'lucide-react';
 
-const TOPPING_OPTIONS: Product[] = [
-  { id: 'top-01', name: 'Chả Cua Huế thêm', price: 15000, categoryId: 2, categoryName: 'Đồ Ăn Kèm', isBestSeller: false, isAvailable: true, imageUrl: 'https://images.unsplash.com/photo-1582450871972-ab5ca641643d?w=200&auto=format&fit=crop&q=80', description: 'Chả cua quết tay thơm nức, dai ngon đậm đà gia vị miền Trung.', preparationTime: 5 },
-  { id: 'top-02', name: 'Bộ Lòng Cá Lóc thêm', price: 25000, categoryId: 2, categoryName: 'Đồ Ăn Kèm', isBestSeller: false, isAvailable: true, imageUrl: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=200&auto=format&fit=crop&q=80', description: 'Bao tử cá béo ngậy và gan cá lóc chiên sả ớt, đậm đà giòn rụm.', preparationTime: 5 },
-  { id: 'top-03', name: 'Bánh Quẩy Giòn', price: 5000, categoryId: 2, categoryName: 'Đồ Ăn Kèm', isBestSeller: false, isAvailable: true, imageUrl: 'https://images.unsplash.com/photo-1549931319-a545dcf3bc73?w=200&auto=format&fit=crop&q=80', description: 'Quẩy giòn rụm, nhúng nước bánh canh ăn siêu ngon cuốn hút.', preparationTime: 3 },
-  { id: 'top-04', name: 'Trứng Cút (5 Quả)', price: 8000, categoryId: 2, categoryName: 'Đồ Ăn Kèm', isBestSeller: false, isAvailable: true, imageUrl: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=200&auto=format&fit=crop&q=80', description: 'Trứng cút luộc chín tới bùi bùi béo béo.', preparationTime: 5 }
-];
+const TOPPING_OPTIONS: Product[] = [];
 
 interface ProductCardProps {
   key?: string;
@@ -33,8 +28,10 @@ export function ProductCard({ product, onAddToCart, reviews = [] }: ProductCardP
   };
 
   const isMain = product.categoryName === 'Bánh Canh Cá Lóc' || product.categoryId === 1;
+  const isOutOfStock = !product.isAvailable;
 
   const handleQuickAdd = () => {
+    if (!product.isAvailable) return;
     if (isMain) {
       setShowOptions(true);
     } else {
@@ -43,6 +40,7 @@ export function ProductCard({ product, onAddToCart, reviews = [] }: ProductCardP
   };
 
   const handleConfirmAdd = () => {
+    if (!product.isAvailable) return;
     onAddToCart(product, selectedNoodle, notes, selectedToppings);
     setShowOptions(false);
     setSelectedToppings([]);
@@ -58,10 +56,10 @@ export function ProductCard({ product, onAddToCart, reviews = [] }: ProductCardP
     return p.categoryName || 'Khác';
   };
 
-  const productImage = product.imageUrl || '🍲';
+  const hasImage = !!product.imageUrl;
 
   return (
-    <div className="bg-white dark:bg-[#1C1311] rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] shadow-xs hover:shadow-xl hover:-translate-y-1 hover:scale-[1.02] transition-colors duration-300 ease-out flex flex-col overflow-hidden relative group">
+    <div className={`bg-white dark:bg-[#1C1311] rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] shadow-xs hover:shadow-xl hover:-translate-y-1 hover:scale-[1.02] transition-colors duration-300 ease-out flex flex-col overflow-hidden relative group ${isOutOfStock ? 'opacity-60' : ''}`}>
       
       <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10">
         {product.isBestSeller && (
@@ -75,15 +73,16 @@ export function ProductCard({ product, onAddToCart, reviews = [] }: ProductCardP
       </div>
 
       <div className="aspect-video bg-[#FAF8F5] dark:bg-[#1E1715] flex items-center justify-center relative select-none border-b border-[#E5E1D8] dark:border-[#2D2321] group-hover:scale-105 transition-transform duration-300 overflow-hidden">
-        {productImage.startsWith('http') ? (
+        {hasImage ? (
           <img 
-            src={productImage}
+            src={product.imageUrl}
             alt={product.name} 
             className="w-full h-full object-cover" 
             referrerPolicy="no-referrer"
+            onError={(e) => { (e.target as HTMLElement).style.display = 'none'; (e.currentTarget.parentElement as HTMLElement).innerText = '🍲'; }}
           />
         ) : (
-          <span className="text-6xl drop-shadow-sm">{productImage || '🍲'}</span>
+          <span className="text-6xl drop-shadow-sm">🍲</span>
         )}
         
         {isMain && (
@@ -128,6 +127,9 @@ export function ProductCard({ product, onAddToCart, reviews = [] }: ProductCardP
           <span className="text-lg font-extrabold text-[#D97706]">
             {formatPrice(product.price)}
           </span>
+          {isOutOfStock ? (
+            <span className="bg-[#8B7E74] text-white text-[10px] font-extrabold px-3 py-2.5 rounded-xl">Hết hàng</span>
+          ) : (
           <button 
             onClick={handleQuickAdd}
             className="bg-[#F3F0E9] dark:bg-[#2D2321] hover:bg-[#D97706] dark:hover:bg-[#D97706] text-[#2D241E] dark:text-[#FAF8F5] hover:text-white p-2.5 rounded-xl transition-all duration-300 flex items-center justify-center gap-1 text-xs font-bold"
@@ -137,6 +139,7 @@ export function ProductCard({ product, onAddToCart, reviews = [] }: ProductCardP
             <Plus className="w-4 h-4" />
             <span>Thêm</span>
           </button>
+          )}
         </div>
       </div>
 

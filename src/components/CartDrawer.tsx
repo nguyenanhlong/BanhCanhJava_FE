@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { CartItem, User } from '../types';
-import { X, Trash2, ShoppingBag, MapPin, Phone, User as UserIcon, ShieldAlert, Tag, Check, AlertTriangle } from 'lucide-react';
+import { X, Trash2, ShoppingBag, MapPin, Phone, User as UserIcon, ShieldAlert, Tag, Check, AlertTriangle, Utensils } from 'lucide-react';
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -13,7 +13,7 @@ interface CartDrawerProps {
     customerName: string;
     phone: string;
     address: string;
-    paymentMethod: 'cod' | 'momo' | 'vnpay' | 'card';
+    paymentMethod: 'cod' | 'momo';
     finalTotalAmount?: number;
   }) => void;
 }
@@ -38,7 +38,7 @@ export function CartDrawer({
   const [customerName, setCustomerName] = useState(user?.username || '');
   const [phone, setPhone] = useState(user?.phone || '');
   const [address, setAddress] = useState(user?.address || '');
-  const [paymentMethod, setPaymentMethod] = useState<'cod' | 'momo' | 'vnpay' | 'card'>('cod');
+  const [paymentMethod, setPaymentMethod] = useState<'cod' | 'momo'>('cod');
   const [checkoutStep, setCheckoutStep] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -50,6 +50,10 @@ export function CartDrawer({
   // Item removal confirmation state
   const [itemIndexToConfirmRemove, setItemIndexToConfirmRemove] = useState<number | null>(null);
 
+  // Order type state
+  const [orderType, setOrderType] = useState<'delivery' | 'dinein' | 'takeaway'>('delivery');
+  const [tableNumber, setTableNumber] = useState('');
+
   if (!isOpen) return null;
 
   const totalAmount = cartItems.reduce(
@@ -57,7 +61,7 @@ export function CartDrawer({
     0
   );
 
-  let deliveryFee = totalAmount > 150000 ? 0 : 15000;
+  let deliveryFee = orderType === 'delivery' ? (totalAmount > 150000 ? 0 : 15000) : 0;
   let discountAmount = 0;
 
   if (appliedPromo) {
@@ -103,8 +107,12 @@ export function CartDrawer({
 
   const handleSubmitCheckout = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!customerName.trim() || !phone.trim() || !address.trim()) {
-      setErrorMsg('Vui lòng điền đầy đủ thông tin giao hàng!');
+    if (!customerName.trim() || !phone.trim()) {
+      setErrorMsg('Vui lòng điền đầy đủ thông tin!');
+      return;
+    }
+    if (orderType === 'delivery' && !address.trim()) {
+      setErrorMsg('Vui lòng nhập địa chỉ giao hàng!');
       return;
     }
     if (phone.length < 9) {
@@ -112,10 +120,18 @@ export function CartDrawer({
       return;
     }
     setErrorMsg('');
+
+    let finalAddress = address;
+    if (orderType === 'dinein') {
+      finalAddress = `Ăn tại quán - Bàn số ${tableNumber || 'Chưa chọn'}`;
+    } else if (orderType === 'takeaway') {
+      finalAddress = 'Mang đi';
+    }
+
     onCheckout({
       customerName,
       phone,
-      address,
+      address: finalAddress,
       paymentMethod,
       finalTotalAmount: finalTotal
     });
@@ -159,7 +175,7 @@ export function CartDrawer({
               // STEP 1: CART CONTENTS
               cartItems.length === 0 ? (
                 <div className="text-center py-16 flex flex-col items-center justify-center">
-                  <span className="text-6xl mb-4">🥣</span>
+                  <span className="text-6xl mb-4 animate-pulse">🥣</span>
                   <p className="font-bold text-base text-[#2D241E] dark:text-[#FAF8F5]">Giỏ hàng của bạn đang trống</p>
                   <p className="text-xs text-[#8B7E74] dark:text-[#B2A496] max-w-xs mt-1">Đừng bỏ lỡ tô bánh canh cá lóc nóng hổi chuẩn vị miền Trung hôm nay nhé!</p>
                   <button 
@@ -174,15 +190,16 @@ export function CartDrawer({
                   {cartItems.map((item, idx) => (
                     <div key={idx} className="bg-white dark:bg-[#1C1311] p-4 rounded-xl border border-[#E5E1D8] dark:border-[#2D2321] flex gap-3.5 relative shadow-xs">
                       <div className="w-12 h-12 rounded-xl bg-[#F3F0E9] dark:bg-[#251A18] flex items-center justify-center text-2xl border border-[#E5E1D8] dark:border-[#2D2321] overflow-hidden shrink-0">
-                        {item.product.imageUrl?.startsWith('http') ? (
+                        {item.product.imageUrl ? (
                           <img 
                             src={item.product.imageUrl} 
                             alt={item.product.name} 
                             className="w-full h-full object-cover" 
                             referrerPolicy="no-referrer"
+                            onError={(e) => { (e.target as HTMLElement).style.display = 'none'; (e.currentTarget.parentElement as HTMLElement).innerText = '🍲'; }}
                           />
                         ) : (
-                          item.product.imageUrl || '🍲'
+                          '🍲'
                         )}
                       </div>
 
@@ -342,12 +359,12 @@ export function CartDrawer({
                         )}
                       </span>
                     </div>
-                    {deliveryFee > 0 && (
+                    {orderType === 'delivery' && deliveryFee > 0 && (
                       <p className="text-[10px] text-[#8B7E74] dark:text-[#B2A496] text-right italic font-mono">
                         (Mua thêm {(150000 - totalAmount).toLocaleString('vi-VN')} đ để được Free Shipping)
                       </p>
                     )}
-                    <div className="h-[1px] bg-[#E5E1D8] dark:bg-[#2D2321] my-1" />
+                    <div className="h-[1px] bg-[#E5E1D8] dark:border-[#2D2321] my-1" />
                     <div className="flex justify-between text-sm">
                       <span className="font-bold text-[#2D241E] dark:text-[#FAF8F5]">Tổng thanh toán:</span>
                       <span className="font-black text-lg text-[#D97706]">{finalTotal.toLocaleString('vi-VN')} đ</span>
@@ -358,8 +375,54 @@ export function CartDrawer({
             ) : (
               // STEP 2: CHECKOUT FORM
               <form onSubmit={handleSubmitCheckout} className="space-y-4">
+                {/* Order Type Selection */}
                 <div className="bg-white dark:bg-[#1C1311] p-4 rounded-xl border border-[#E5E1D8] dark:border-[#2D2321] space-y-3">
-                  <h4 className="font-bold text-xs text-[#8B7E74] dark:text-[#B2A496] uppercase tracking-wider">Thông Tin Địa Chỉ</h4>
+                  <h4 className="font-bold text-xs text-[#8B7E74] dark:text-[#B2A496] uppercase tracking-wider">Loại Đơn Hàng</h4>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setOrderType('delivery')}
+                      className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border text-xs font-bold transition-all ${
+                        orderType === 'delivery'
+                          ? 'bg-[#D97706] text-white border-[#D97706] shadow-sm'
+                          : 'bg-[#FAF8F5] dark:bg-[#150F0D] text-[#3E2F26] dark:text-[#EAE3D2] border-[#E5E1D8] dark:border-[#2D2321] hover:border-[#D97706]/50'
+                      }`}
+                    >
+                      <MapPin className="w-5 h-5" />
+                      <span>Giao hàng</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOrderType('dinein')}
+                      className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border text-xs font-bold transition-all ${
+                        orderType === 'dinein'
+                          ? 'bg-[#D97706] text-white border-[#D97706] shadow-sm'
+                          : 'bg-[#FAF8F5] dark:bg-[#150F0D] text-[#3E2F26] dark:text-[#EAE3D2] border-[#E5E1D8] dark:border-[#2D2321] hover:border-[#D97706]/50'
+                      }`}
+                    >
+                      <Utensils className="w-5 h-5" />
+                      <span>Ăn tại quán</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOrderType('takeaway')}
+                      className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border text-xs font-bold transition-all ${
+                        orderType === 'takeaway'
+                          ? 'bg-[#D97706] text-white border-[#D97706] shadow-sm'
+                          : 'bg-[#FAF8F5] dark:bg-[#150F0D] text-[#3E2F26] dark:text-[#EAE3D2] border-[#E5E1D8] dark:border-[#2D2321] hover:border-[#D97706]/50'
+                      }`}
+                    >
+                      <ShoppingBag className="w-5 h-5" />
+                      <span>Mang đi</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Customer Info */}
+                <div className="bg-white dark:bg-[#1C1311] p-4 rounded-xl border border-[#E5E1D8] dark:border-[#2D2321] space-y-3">
+                  <h4 className="font-bold text-xs text-[#8B7E74] dark:text-[#B2A496] uppercase tracking-wider">
+                    {orderType === 'delivery' ? 'Thông Tin Giao Hàng' : orderType === 'dinein' ? 'Thông Tin Khách Hàng' : 'Thông Tin Khách Hàng'}
+                  </h4>
                   
                   <div>
                     <label className="block text-xs font-semibold text-[#3E2F26] dark:text-[#EAE3D2] mb-1 flex items-center gap-1">
@@ -389,19 +452,47 @@ export function CartDrawer({
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-[#3E2F26] dark:text-[#EAE3D2] mb-1 flex items-center gap-1">
-                      <MapPin className="w-3.5 h-3.5 text-[#8B7E74]" /> Địa Chỉ Giao Hàng:
-                    </label>
-                    <textarea
-                      placeholder="Nhập số nhà, tên đường, phường/xã, quận/huyện..."
-                      value={address}
-                      onChange={(e) => setAddress(e.target.value)}
-                      rows={2}
-                      className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#2D2321] bg-[#FAF8F5] dark:bg-[#150F0D] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]"
-                      required
-                    />
-                  </div>
+                  {orderType === 'delivery' ? (
+                    <div>
+                      <label className="block text-xs font-semibold text-[#3E2F26] dark:text-[#EAE3D2] mb-1 flex items-center gap-1">
+                        <MapPin className="w-3.5 h-3.5 text-[#8B7E74]" /> Địa Chỉ Giao Hàng:
+                      </label>
+                      <textarea
+                        placeholder="Nhập số nhà, tên đường, phường/xã, quận/huyện..."
+                        value={address}
+                        onChange={(e) => setAddress(e.target.value)}
+                        rows={2}
+                        className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#2D2321] bg-[#FAF8F5] dark:bg-[#150F0D] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]"
+                        required
+                      />
+                      {user?.address && address !== user.address && (
+                        <div className="mt-2.5">
+                          <p className="text-[10px] text-[#8B7E74] mb-1">Địa chỉ đã lưu:</p>
+                          <button
+                            type="button"
+                            onClick={() => setAddress(user.address!)}
+                            className="flex items-center gap-2 text-xs p-2.5 w-full rounded-lg border border-dashed border-[#D97706]/40 bg-amber-50/50 dark:bg-amber-950/20 text-left hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors"
+                          >
+                            <MapPin className="w-3.5 h-3.5 text-[#D97706] shrink-0" />
+                            <span className="text-[#3E2F26] dark:text-[#EAE3D2]">{user.address}</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ) : orderType === 'dinein' ? (
+                    <div>
+                      <label className="block text-xs font-semibold text-[#3E2F26] dark:text-[#EAE3D2] mb-1 flex items-center gap-1">
+                        <Utensils className="w-3.5 h-3.5 text-[#8B7E74]" /> Số Bàn:
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Nhập số bàn (VD: Bàn 5, Bàn 12...)"
+                        value={tableNumber}
+                        onChange={(e) => setTableNumber(e.target.value)}
+                        className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#2D2321] bg-[#FAF8F5] dark:bg-[#150F0D] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]"
+                      />
+                    </div>
+                  ) : null}
                 </div>
 
                 {/* Secure electronic payment integrations */}
@@ -429,37 +520,10 @@ export function CartDrawer({
                       onChange={() => setPaymentMethod('momo')}
                       className="text-[#D97706] focus:ring-[#D97706]"
                     />
-                    <div className="flex-1 flex justify-between items-center text-xs">
-                      <span className="font-semibold text-[#2D241E] dark:text-[#FAF8F5]">👛 Ví điện tử MoMo (Trực tuyến)</span>
-                      <span className="text-[10px] bg-pink-100 text-pink-700 px-1.5 py-0.5 rounded font-bold uppercase">Mã QR</span>
-                    </div>
-                  </label>
-
-                  <label className="flex items-center gap-2.5 p-2.5 rounded-xl border border-[#E5E1D8] dark:border-[#2D2321] cursor-pointer hover:bg-[#FAF8F5] dark:hover:bg-[#211715] transition-colors">
-                    <input
-                      type="radio"
-                      name="payment"
-                      checked={paymentMethod === 'vnpay'}
-                      onChange={() => setPaymentMethod('vnpay')}
-                      className="text-[#D97706] focus:ring-[#D97706]"
-                    />
-                    <div className="flex-1 flex justify-between items-center text-xs">
-                      <span className="font-semibold text-[#2D241E] dark:text-[#FAF8F5]">🏛️ Cổng VNPay QR (Nội địa & Visa)</span>
-                      <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold uppercase">Ưu đãi</span>
-                    </div>
-                  </label>
-
-                  <label className="flex items-center gap-2.5 p-2.5 rounded-xl border border-[#E5E1D8] dark:border-[#2D2321] cursor-pointer hover:bg-[#FAF8F5] dark:hover:bg-[#211715] transition-colors">
-                    <input
-                      type="radio"
-                      name="payment"
-                      checked={paymentMethod === 'card'}
-                      onChange={() => setPaymentMethod('card')}
-                      className="text-[#D97706] focus:ring-[#D97706]"
-                    />
-                    <div className="flex-1 flex justify-between items-center text-xs">
-                      <span className="font-semibold text-[#2D241E] dark:text-[#FAF8F5]">💳 Thẻ Quốc Tế (Visa/Mastercard)</span>
-                      <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold uppercase">3D Secure</span>
+                    <div className="flex-1 flex items-center gap-2 text-xs">
+                      <img src="https://upload.wikimedia.org/wikipedia/vi/f/fe/MoMo_Logo.png" alt="MoMo" className="h-5 w-auto" onError={(e) => { (e.target as HTMLElement).style.display = 'none' }} />
+                      <span className="font-semibold text-[#2D241E] dark:text-[#FAF8F5]">Ví MoMo (Quét QR)</span>
+                      <span className="text-[10px] bg-pink-100 text-pink-700 px-1.5 py-0.5 rounded font-bold uppercase ml-auto">Mã QR</span>
                     </div>
                   </label>
                 </div>

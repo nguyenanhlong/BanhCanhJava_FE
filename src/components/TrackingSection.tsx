@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Order, OrderStatus, ProductReview, User } from '../types';
+import { Order, OrderStatus, ProductReview, User, Driver } from '../types';
 import { Clock, Phone, MapPin, Navigation, MessageCircle, Send, Check, Star } from 'lucide-react';
 
 interface TrackingSectionProps {
@@ -10,6 +10,7 @@ interface TrackingSectionProps {
   onAddReview: (review: Omit<ProductReview, 'id' | 'createdAt'>) => void;
   currentUser: User | null;
   onCancelOrder?: (orderId: string) => void;
+  drivers?: Driver[];
 }
 
 export function TrackingSection({ 
@@ -19,7 +20,8 @@ export function TrackingSection({
   reviews,
   onAddReview,
   currentUser,
-  onCancelOrder
+  onCancelOrder,
+  drivers = []
 }: TrackingSectionProps) {
   const [searchId, setSearchId] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -342,7 +344,66 @@ export function TrackingSection({
 
                 </div>
 
-                {/* VISUAL SIMULATED MAP */}
+                {/* INVOICE / BILL SECTION */}
+                <div className="mt-6 p-5 bg-[#FAF8F5] dark:bg-[#1C1311] rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] text-xs">
+                  <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5] mb-3 flex items-center gap-2">
+                    <span className="text-lg">🧾</span> Chi Tiết Hóa Đơn
+                  </h4>
+                  <div className="divide-y divide-[#E5E1D8] dark:divide-[#2D2321]">
+                    {selectedOrder.items.map((it, idx) => (
+                      <div key={idx} className="py-2 flex justify-between items-center">
+                        <div className="flex-1 min-w-0">
+                          <span className="font-bold text-[#2D241E] dark:text-[#FAF8F5] truncate block">{it.productName}</span>
+                          {it.noodleType && <span className="text-[10px] text-[#8B7E74]">Sợi: {it.noodleType}</span>}
+                          {it.notes && <span className="text-[10px] text-[#8B7E74] italic block">✍️ {it.notes}</span>}
+                        </div>
+                        <div className="text-right shrink-0 ml-4">
+                          <span className="font-bold text-[#2D241E] dark:text-[#FAF8F5]">x{it.quantity}</span>
+                          <span className="block text-[#D97706] font-extrabold">{(it.price * it.quantity).toLocaleString('vi-VN')}₫</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-[#E5E1D8] dark:border-[#2D2321] space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-[#8B7E74]">Tạm tính:</span>
+                      <span className="font-bold">{(selectedOrder.subtotal || selectedOrder.totalAmount).toLocaleString('vi-VN')}₫</span>
+                    </div>
+                    {selectedOrder.shippingFee ? (
+                      <div className="flex justify-between">
+                        <span className="text-[#8B7E74]">Phí giao hàng:</span>
+                        <span className="font-bold">{selectedOrder.shippingFee.toLocaleString('vi-VN')}₫</span>
+                      </div>
+                    ) : null}
+                    {selectedOrder.discountAmount ? (
+                      <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
+                        <span>Giảm giá:</span>
+                        <span className="font-bold">-{selectedOrder.discountAmount.toLocaleString('vi-VN')}₫</span>
+                      </div>
+                    ) : null}
+                    <div className="flex justify-between text-sm pt-1 border-t border-[#E5E1D8] dark:border-[#2D2321]">
+                      <span className="font-bold text-[#2D241E] dark:text-[#FAF8F5]">Tổng cộng:</span>
+                      <span className="font-black text-[#D97706]">{selectedOrder.totalAmount.toLocaleString('vi-VN')}₫</span>
+                    </div>
+                    <div className="flex justify-between mt-1">
+                      <span className="text-[#8B7E74]">Thanh toán:</span>
+                      <span className="font-bold capitalize">
+                        {selectedOrder.paymentMethod === 'cash' ? '💵 Tiền mặt (COD)' :
+                         selectedOrder.paymentMethod === 'momo' ? '🎀 MoMo' :
+                         selectedOrder.paymentMethod || 'Chưa xác định'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-[#8B7E74]">Trạng thái:</span>
+                      <span className={`font-bold ${selectedOrder.paymentStatus === 'paid' ? 'text-emerald-600' : 'text-amber-600'}`}>
+                        {selectedOrder.paymentStatus === 'paid' ? '✅ Đã thanh toán' : '⏳ Chờ thanh toán'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* VISUAL SIMULATED MAP — hidden after completed */}
+                {selectedOrder.status !== 'completed' && (
                 <div className="bg-[#F3F0E9] dark:bg-[#1E1311] rounded-2xl h-56 border border-[#E5E1D8] dark:border-[#2D2321] relative overflow-hidden flex items-center justify-center">
                   
                   {/* Grid Lines mockup representing maps */}
@@ -401,13 +462,14 @@ export function TrackingSection({
                       <Clock className="w-3 h-3 text-[#D97706]" /> Thời gian nhận dự kiến
                     </p>
                     <p className="mt-0.5 font-bold text-[#D97706] font-sans">
-                      {selectedOrder.status === 'completed' ? 'Đã giao' : 
+                      {(selectedOrder.status as string) === 'completed' ? 'Đã giao' : 
                        selectedOrder.status === 'shipping' ? `Còn khoảng ${Math.max(2, Math.round(15 - (selectedOrder.deliveryProgress || 0) * 0.13))} phút` : 
                        selectedOrder.status === 'preparing' ? 'Chuẩn bị thêm 5 phút' : 
                        selectedOrder.status === 'cancelled' ? 'Đơn hàng đã hủy' : 'Chờ xác nhận'}
                     </p>
                   </div>
                 </div>
+                )}
 
                 {/* Driver information */}
                 {selectedOrder.driverId && selectedOrder.status !== 'cancelled' ? (
@@ -415,16 +477,34 @@ export function TrackingSection({
                     <div className="flex items-center gap-3 font-sans">
                       <div className="text-2xl">🛵</div>
                       <div>
-                        <p className="font-bold text-[#2D241E] dark:text-[#FAF8F5]">Tài xế (ID: {selectedOrder.driverId})</p>
-                        <p className="text-[10px] text-[#8B7E74] dark:text-[#B2A496]">
+                        {(() => {
+                          const driver = drivers.find(d => String(d.id) === String(selectedOrder.driverId));
+                          return driver ? (
+                            <>
+                              <p className="font-bold text-[#2D241E] dark:text-[#FAF8F5]">{driver.name}</p>
+                              <p className="text-[10px] text-[#8B7E74]">📞 {driver.phone} &nbsp;|&nbsp; 🚛 {driver.vehicle}</p>
+                            </>
+                          ) : (
+                            <>
+                              <p className="font-bold text-[#2D241E] dark:text-[#FAF8F5]">Tài xế (ID: {selectedOrder.driverId})</p>
+                              <p className="text-[10px] text-[#8B7E74] dark:text-[#B2A496]">⏳ Đang tải thông tin tài xế...</p>
+                            </>
+                          );
+                        })()}
+                        <p className="text-[10px] text-[#8B7E74] dark:text-[#B2A496] mt-1">
                           {selectedOrder.deliveryStage || 'Tài xế đang nhận thố dọn bánh canh chuẩn bị xuất phát.'}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <a href={`tel:${selectedOrder.phone}`} className="p-2 bg-white dark:bg-[#251A18] border border-[#E5E1D8] dark:border-[#2D2321] text-[#8B7E74] dark:text-[#B2A496] hover:text-[#2D241E] dark:hover:text-[#FAF8F5] rounded-full">
-                        <Phone className="w-4 h-4" />
-                      </a>
+                      {(() => {
+                        const driver = drivers.find(d => String(d.id) === String(selectedOrder.driverId));
+                        return driver ? (
+                          <a href={`tel:${driver.phone}`} className="p-2 bg-white dark:bg-[#251A18] border border-[#E5E1D8] dark:border-[#2D2321] text-[#8B7E74] dark:text-[#B2A496] hover:text-[#2D241E] dark:hover:text-[#FAF8F5] rounded-full">
+                            <Phone className="w-4 h-4" />
+                          </a>
+                        ) : null;
+                      })()}
                     </div>
                   </div>
                 ) : (
