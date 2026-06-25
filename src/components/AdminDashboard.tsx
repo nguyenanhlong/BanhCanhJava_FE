@@ -34,7 +34,7 @@ interface ToppingItem { id: string; name: string; price: number; category: strin
 interface MaterialItem { id: number; name: string; unit: string; stock: number; min: number; price: number; }
 interface TableItem { id: number; number: string; capacity: number; position: string; }
 interface PromoItem { id: number; code: string; name: string; discount_type: string; discount_value: number; min_order_amount: number; }
-interface ReviewItem { id: number; customer: string; product: string; rating: number; comment: string; }
+interface ReviewItem { id: number; customer: string; product: string; rating: number; comment: string; isApproved?: boolean; adminReply?: string; }
 interface RoleItem { id: number; name: string; display: string; desc: string; }
 
 const PERMISSION_MODULES = [
@@ -496,7 +496,9 @@ export function AdminDashboard({
       ApiService.getCategories().then(apiCats => {
         setCategories(apiCats.map(c => ({ id: Number(c.id), name: c.name, slug: c.slug, count: 0 })));
       }).catch(() => {});
-      ApiService.getReviews().then(setReviews).catch(() => {});
+      ApiService.getReviews().then(apiReviews => {
+        setReviews(apiReviews.map(r => ({ id: Number(r.id), customer: r.customerName || '', product: r.productName || '', rating: r.rating, comment: r.comment, isApproved: r.isApproved, adminReply: r.adminReply })));
+      }).catch(() => {});
     }
   }, [isBackendConnected]);
 
@@ -716,10 +718,10 @@ export function AdminDashboard({
                         </td>
                         <td className="p-3.5 text-[10px]">
                           {order.orderType === 'dine-in' ? '🍽️ Tại quán' :
-                           order.orderType === 'pickup' ? '🛍️ Mang đi' :
-                           order.orderType === 'delivery' ? '🛵 Giao hàng' :
-                           order.orderType || '🛵 Giao hàng'}
-                          {order.tableNumber && <span className="block text-[9px] text-[#8B7E74]">Bàn {order.tableNumber}</span>}
+                            order.orderType === 'takeaway' ? '🛍️ Mang đi' :
+                            order.orderType === 'delivery' ? '🛵 Giao hàng' :
+                            order.orderType || '🛵 Giao hàng'}
+                          {(order as any).tableNumber && <span className="block text-[9px] text-[#8B7E74]">Bàn {(order as any).tableNumber}</span>}
                         </td>
                         <td className="p-3.5 text-right font-extrabold text-[#D97706] dark:text-amber-500 whitespace-nowrap">
                           {order.totalAmount.toLocaleString('vi-VN')} đ
@@ -738,7 +740,6 @@ export function AdminDashboard({
                           </span>
                           <span className="block text-[9px] text-[#8B7E74] mt-0.5">
                             {order.paymentMethod === 'momo' ? '🎀 MoMo' :
-                             order.paymentMethod === 'cod' ? '💵 COD' :
                              order.paymentMethod === 'cash' ? '💵 Tiền mặt' :
                              order.paymentMethod || '-'}
                           </span>

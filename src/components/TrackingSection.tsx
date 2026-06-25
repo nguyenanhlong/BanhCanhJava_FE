@@ -388,9 +388,8 @@ export function TrackingSection({
                     <div className="flex justify-between mt-1">
                       <span className="text-[#8B7E74]">Thanh toán:</span>
                       <span className="font-bold capitalize">
-                        {selectedOrder.paymentMethod === 'cod' ? '💵 Tiền mặt (COD)' :
+                        {selectedOrder.paymentMethod === 'cash' ? '💵 Tiền mặt (COD)' :
                          selectedOrder.paymentMethod === 'momo' ? '🎀 MoMo' :
-                         selectedOrder.paymentMethod === 'cash' ? '💵 Tiền mặt' :
                          selectedOrder.paymentMethod || 'Chưa xác định'}
                       </span>
                     </div>
@@ -463,7 +462,7 @@ export function TrackingSection({
                       <Clock className="w-3 h-3 text-[#D97706]" /> Thời gian nhận dự kiến
                     </p>
                     <p className="mt-0.5 font-bold text-[#D97706] font-sans">
-                      {selectedOrder.status === 'completed' ? 'Đã giao' : 
+                      {(selectedOrder.status as string) === 'completed' ? 'Đã giao' : 
                        selectedOrder.status === 'shipping' ? `Còn khoảng ${Math.max(2, Math.round(15 - (selectedOrder.deliveryProgress || 0) * 0.13))} phút` : 
                        selectedOrder.status === 'preparing' ? 'Chuẩn bị thêm 5 phút' : 
                        selectedOrder.status === 'cancelled' ? 'Đơn hàng đã hủy' : 'Chờ xác nhận'}
