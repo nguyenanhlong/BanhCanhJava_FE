@@ -66,6 +66,42 @@ export function AboutUs() {
           ))}
         </div>
       </div>
+
+      {/* Stats Section */}
+      <div className="mt-12 grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-[#F1EDE4] dark:bg-[#1E1513] p-6 rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] text-center hover:shadow-sm transition-all">
+          <div className="text-3xl mb-2">📅</div>
+          <div className="text-3xl font-black text-[#D97706]">1998</div>
+          <div className="text-xs text-[#8B7E74] dark:text-[#B2A496] mt-1 font-semibold">Năm thành lập</div>
+        </div>
+        <div className="bg-[#F1EDE4] dark:bg-[#1E1513] p-6 rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] text-center hover:shadow-sm transition-all">
+          <div className="text-3xl mb-2">🍜</div>
+          <div className="text-3xl font-black text-[#D97706]">20+</div>
+          <div className="text-xs text-[#8B7E74] dark:text-[#B2A496] mt-1 font-semibold">Món ăn đặc sắc</div>
+        </div>
+        <div className="bg-[#F1EDE4] dark:bg-[#1E1513] p-6 rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] text-center hover:shadow-sm transition-all">
+          <div className="text-3xl mb-2">❤️</div>
+          <div className="text-3xl font-black text-[#D97706]">5.000+</div>
+          <div className="text-xs text-[#8B7E74] dark:text-[#B2A496] mt-1 font-semibold">Khách hàng thân thiết</div>
+        </div>
+        <div className="bg-[#F1EDE4] dark:bg-[#1E1513] p-6 rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] text-center hover:shadow-sm transition-all">
+          <div className="text-3xl mb-2">👨‍🍳</div>
+          <div className="text-3xl font-black text-[#D97706]">15+</div>
+          <div className="text-xs text-[#8B7E74] dark:text-[#B2A496] mt-1 font-semibold">Nhân viên tận tâm</div>
+        </div>
+      </div>
+
+      {/* Delivery Partners */}
+      <div className="mt-12 text-center">
+        <span className="text-[#D97706] font-mono text-xs uppercase tracking-widest font-black">Đối tác vận chuyển</span>
+        <div className="mt-4 flex flex-wrap justify-center gap-4">
+          {['🚴 GrabFood', '🛵 ShopeeFood', '🏍️ Baemin', '🚗 GoFood'].map((partner, idx) => (
+            <div key={idx} className="bg-white dark:bg-[#1C1311] border border-[#E5E1D8] dark:border-[#2D2321] px-5 py-3 rounded-xl text-sm font-bold text-[#3E2F26] dark:text-[#EAE3D2] hover:bg-[#F3F0E9] dark:hover:bg-[#251A18] transition-all shadow-xs">
+              {partner}
+            </div>
+          ))}
+        </div>
+      </div>
     </section>
   );
 }

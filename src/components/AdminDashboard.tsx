@@ -1,5 +1,5 @@
-﻿import React, { useState } from 'react';
-import { Order, Driver, OrderStatus, Product, Category, DEFAULT_CATEGORIES } from '../types';
+﻿import React, { useState, useEffect } from 'react';
+import { Order, Driver, OrderStatus, Product } from '../types';
 import { JAVA_BACKEND_FILES, MYSQL_DATABASE_SQL, FRONTEND_INTEGRATION_FILES } from '../data';
 import { FileCode, Check, Copy, AlertTriangle, Plus, Edit3, Trash2, X } from 'lucide-react';
 import { ApiService } from '../services/api';
@@ -117,6 +117,7 @@ export function AdminDashboard({
   const [productSuccess, setProductSuccess] = useState('');
   const [productError, setProductError] = useState('');
   const [pendingNewCategory, setPendingNewCategory] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   // New Driver Form State
   const [driverName, setDriverName] = useState('');
@@ -131,75 +132,77 @@ export function AdminDashboard({
   // Order cancellation confirmation state
   const [orderIdToCancel, setOrderIdToCancel] = useState<string | null>(null);
 
-  // Categories CRUD
-  const [categories, setCategories] = useState([
-    { id: 1, name: 'Bánh Canh Cá Lóc', slug: 'banh-canh-ca-loc', count: 5 },
-    { id: 2, name: 'Đồ Ăn Kèm', slug: 'do-an-kem', count: 8 },
-    { id: 3, name: 'Đồ Uống', slug: 'do-uong', count: 6 },
-    { id: 4, name: 'Tráng Miệng', slug: 'trang-mieng', count: 3 },
-    { id: 5, name: 'Combo', slug: 'combo', count: 2 },
-  ]);
+  // Categories CRUD (persisted to localStorage)
+  const [categories, setCategories] = useState<{ id: number; name: string; slug: string; count: number }[]>(() => {
+    try {
+      const saved = localStorage.getItem('banhcanh_categories');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
   const [categoryForm, setCategoryForm] = useState<{ name: string; slug: string }>({ name: '', slug: '' });
   const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null);
 
   // Toppings CRUD
-  const [toppings, setToppings] = useState<ToppingItem[]>([
-    { id: '1', name: 'Bánh phở', price: 5000, category: 'Đồ Ăn Kèm', isAvailable: true },
-    { id: '2', name: 'Miến', price: 5000, category: 'Đồ Ăn Kèm', isAvailable: true },
-    { id: '3', name: 'Thêm chả', price: 10000, category: 'Đồ Ăn Kèm', isAvailable: true },
-    { id: '4', name: 'Thêm trứng', price: 5000, category: 'Đồ Ăn Kèm', isAvailable: true },
-    { id: '5', name: 'Rau sống', price: 3000, category: 'Đồ Ăn Kèm', isAvailable: true },
-  ]);
+  const [toppings, setToppings] = useState<ToppingItem[]>([]);
   const [toppingForm, setToppingForm] = useState({ name: '', price: 0, category: 'Đồ Ăn Kèm', isAvailable: true });
   const [editingToppingId, setEditingToppingId] = useState<string | null>(null);
 
   // Materials CRUD
-  const [materials, setMaterials] = useState<MaterialItem[]>([
-    { id: 1, name: 'Cá lóc', unit: 'kg', stock: 10, min: 2, price: 80000 },
-    { id: 2, name: 'Bột gạo', unit: 'kg', stock: 15, min: 5, price: 25000 },
-    { id: 3, name: 'Bột năng', unit: 'kg', stock: 10, min: 3, price: 20000 },
-    { id: 4, name: 'Hành lá', unit: 'kg', stock: 2, min: 0.5, price: 30000 },
-    { id: 5, name: 'Rau răm', unit: 'kg', stock: 1, min: 0.3, price: 25000 },
-    { id: 6, name: 'Chả cá', unit: 'kg', stock: 5, min: 1, price: 120000 },
-    { id: 7, name: 'Trứng cút', unit: 'cái', stock: 100, min: 30, price: 2000 },
-  ]);
+  const [materials, setMaterials] = useState<MaterialItem[]>([]);
   const [materialForm, setMaterialForm] = useState({ name: '', unit: 'kg', stock: 0, min: 0, price: 0 });
   const [editingMaterialId, setEditingMaterialId] = useState<number | null>(null);
 
   // Tables CRUD
-  const [tables, setTables] = useState<TableItem[]>([
-    { id: 1, number: 'A1', capacity: 2, position: 'Tầng 1 - Gần cửa' },
-    { id: 2, number: 'A2', capacity: 4, position: 'Tầng 1 - Giữa' },
-    { id: 3, number: 'A3', capacity: 4, position: 'Tầng 1 - Góc' },
-    { id: 4, number: 'B1', capacity: 6, position: 'Tầng 2 - Phòng lạnh' },
-  ]);
+  const [tables, setTables] = useState<TableItem[]>([]);
   const [tableForm, setTableForm] = useState({ number: '', capacity: 2, position: '' });
   const [editingTableId, setEditingTableId] = useState<number | null>(null);
 
   // Promotions CRUD
-  const [promotions, setPromotions] = useState<PromoItem[]>([
-    { id: 1, code: 'WELCOME10', name: 'Giảm 10% khách mới', discount_type: 'percentage', discount_value: 10, min_order_amount: 100000 },
-    { id: 2, code: 'FREESHIP', name: 'Free ship đơn 150k', discount_type: 'fixed', discount_value: 20000, min_order_amount: 150000 },
-  ]);
+  const [promotions, setPromotions] = useState<PromoItem[]>([]);
   const [promoForm, setPromoForm] = useState({ code: '', name: '', discount_type: 'percentage', discount_value: 0, min_order_amount: 0 });
   const [editingPromoId, setEditingPromoId] = useState<number | null>(null);
 
   // Reviews CRUD
-  const [reviews, setReviews] = useState<ReviewItem[]>([
-    { id: 1, customer: 'Nguyễn Thị A', product: 'Bánh Canh Cá Lóc', rating: 5, comment: 'Nước dùng ngọt thanh, cá tươi ngon!' },
-    { id: 2, customer: 'Trần Văn B', product: 'Bánh Canh Cá Lóc', rating: 4, comment: 'Rất ngon, sẽ ủng hộ quán dài dài.' },
-  ]);
+  const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const [reviewForm, setReviewForm] = useState({ customer: '', product: '', rating: 5, comment: '' });
   const [editingReviewId, setEditingReviewId] = useState<number | null>(null);
 
   // Role Manager
-  const [roleList, setRoleList] = useState<RoleItem[]>([
-    { id: 1, name: 'ROLE_SUPER_ADMIN', display: 'Đại Siêu Quản Trị', desc: 'Toàn quyền hệ thống' },
-    { id: 2, name: 'ROLE_ADMIN', display: 'Quản lý', desc: 'Quản lý đơn hàng, sản phẩm, tài xế' },
-    { id: 3, name: 'ROLE_STAFF', display: 'Nhân viên', desc: 'Xem và cập nhật đơn hàng' },
-    { id: 4, name: 'ROLE_CUSTOMER', display: 'Khách hàng', desc: 'Đặt món và theo dõi' },
-  ]);
+  const [roleList, setRoleList] = useState<RoleItem[]>([]);
   const [selectedRoleForPerms, setSelectedRoleForPerms] = useState<RoleItem | null>(null);
+
+  // Account creation state
+  const [accountForm, setAccountForm] = useState<{ username: string; password: string; email: string; fullName: string; roleId: number }>({ username: '', password: '', email: '', fullName: '', roleId: 0 });
+  const [accountUsers, setAccountUsers] = useState<{ id: number; username: string; email: string; fullName: string; roleName: string }[]>([]);
+  const [accountSuccess, setAccountSuccess] = useState('');
+  const [accountError, setAccountError] = useState('');
+
+  const handleCreateAccount = (e: React.FormEvent) => {
+    e.preventDefault();
+    setAccountError('');
+    setAccountSuccess('');
+    if (!accountForm.username || !accountForm.password || !accountForm.email || !accountForm.roleId) {
+      setAccountError('Vui lòng điền đầy đủ thông tin và chọn vai trò');
+      return;
+    }
+    const usernameExists = accountUsers.some(u => u.username === accountForm.username);
+    if (usernameExists) {
+      setAccountError('Tên đăng nhập đã tồn tại');
+      return;
+    }
+    const role = roleList.find(r => r.id === accountForm.roleId);
+    const newUser = {
+      id: Date.now(),
+      username: accountForm.username,
+      email: accountForm.email,
+      fullName: accountForm.fullName,
+      roleName: role?.display || role?.name || '',
+    };
+    setAccountUsers([...accountUsers, newUser]);
+    setAccountForm({ username: '', password: '', email: '', fullName: '', roleId: 0 });
+    setAccountSuccess(`Đã tạo tài khoản "${newUser.username}" với vai trò ${newUser.roleName}`);
+    setTimeout(() => setAccountSuccess(''), 3000);
+  };
   const [checkPermissions, setCheckPermissions] = useState<Record<string, boolean>>({});
   const [roleForm, setRoleForm] = useState({ name: '', display: '', desc: '' });
   const [editingRoleId, setEditingRoleId] = useState<number | null>(null);
@@ -240,10 +243,16 @@ export function AdminDashboard({
       imageUrl: productForm.imageUrl || undefined
     };
     const productData: Omit<Product, 'id'> = { ...productForm, price: Number(productForm.price), isAvailable: productForm.isAvailable, preparationTime: Number(productForm.preparationTime) };
+    const isNumeric = (v: string) => /^\d+$/.test(v);
     try {
       if (editingProductId) {
         if (isBackendConnected) {
-          await ApiService.updateProduct(editingProductId, payload);
+          if (isNumeric(editingProductId)) {
+            await ApiService.updateProduct(editingProductId, payload);
+          } else {
+            const created = await ApiService.createProduct(payload);
+            await ApiService.updateProduct(created.id, payload);
+          }
         }
         if (onUpdateProduct) onUpdateProduct(editingProductId, productData);
       } else {
@@ -263,7 +272,7 @@ export function AdminDashboard({
   const handleDeleteProduct = async (id: string) => {
     if (!window.confirm('Bạn có chắc chắn muốn xóa sản phẩm này?')) return;
     try {
-      if (isBackendConnected) {
+      if (isBackendConnected && /^\d+$/.test(id)) {
         await ApiService.deleteProduct(id);
       }
       if (onDeleteProduct) onDeleteProduct(id);
@@ -308,24 +317,38 @@ export function AdminDashboard({
   };
 
   // Category handlers
-  const handleCategorySubmit = (e: React.FormEvent) => {
+  const handleCategorySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!categoryForm.name || !categoryForm.slug) return;
+    if (!categoryForm.name) return;
+    const finalSlug = categoryForm.slug || toSlug(categoryForm.name);
     const slugExists = categories.some(c =>
-      c.slug === categoryForm.slug && (editingCategoryId === null || c.id !== editingCategoryId)
+      c.slug === finalSlug && (editingCategoryId === null || c.id !== editingCategoryId)
     );
     if (slugExists) {
-      alert(`Slug "${categoryForm.slug}" đã tồn tại! Vui lòng đặt tên khác.`);
+      alert(`Slug "${finalSlug}" đã tồn tại! Vui lòng đặt tên khác.`);
       return;
     }
-    if (editingCategoryId !== null) {
-      setCategories(categories.map(c => c.id === editingCategoryId ? { ...c, name: categoryForm.name, slug: categoryForm.slug } : c));
-    } else {
-      const newId = Math.max(...categories.map(c => c.id), 0) + 1;
-      setCategories([...categories, { id: newId, name: categoryForm.name, slug: categoryForm.slug, count: 0 }]);
+    try {
+      if (editingCategoryId !== null) {
+        if (isBackendConnected) {
+          await ApiService.updateCategory(editingCategoryId, { name: categoryForm.name, slug: finalSlug });
+        }
+        setCategories(categories.map(c => c.id === editingCategoryId ? { ...c, name: categoryForm.name, slug: finalSlug } : c));
+      } else {
+        if (isBackendConnected) {
+          const created = await ApiService.createCategory({ name: categoryForm.name, slug: finalSlug });
+          setCategories([...categories, { id: Number(created.id), name: created.name, slug: created.slug, count: 0 }]);
+        } else {
+          const newId = Math.max(...categories.map(c => c.id), 0) + 1;
+          setCategories([...categories, { id: newId, name: categoryForm.name, slug: finalSlug, count: 0 }]);
+        }
+      }
+      setCategoryForm({ name: '', slug: '' });
+      setEditingCategoryId(null);
+    } catch (err) {
+      console.error('Lỗi khi lưu danh mục:', err);
+      alert('Lỗi khi lưu danh mục!');
     }
-    setCategoryForm({ name: '', slug: '' });
-    setEditingCategoryId(null);
   };
 
   const handleEditCategory = (cat: { id: number; name: string; slug: string }) => {
@@ -333,12 +356,20 @@ export function AdminDashboard({
     setEditingCategoryId(cat.id);
   };
 
-  const handleDeleteCategory = (id: number) => {
+  const handleDeleteCategory = async (id: number) => {
     if (!window.confirm('Bạn có chắc chắn muốn xóa danh mục này?')) return;
-    setCategories(categories.filter(c => c.id !== id));
-    if (editingCategoryId === id) {
-      setEditingCategoryId(null);
-      setCategoryForm({ name: '', slug: '' });
+    try {
+      if (isBackendConnected) {
+        await ApiService.deleteCategory(id);
+      }
+      setCategories(categories.filter(c => c.id !== id));
+      if (editingCategoryId === id) {
+        setEditingCategoryId(null);
+        setCategoryForm({ name: '', slug: '' });
+      }
+    } catch (err) {
+      console.error('Lỗi khi xóa danh mục:', err);
+      alert('Lỗi khi xóa danh mục!');
     }
   };
 
@@ -454,18 +485,63 @@ export function AdminDashboard({
     }
   };
 
+  // Fetch reviews from backend on mount
+  // Persist categories to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('banhcanh_categories', JSON.stringify(categories));
+  }, [categories]);
+
+  useEffect(() => {
+    if (isBackendConnected) {
+      ApiService.getCategories().then(apiCats => {
+        setCategories(apiCats.map(c => ({ id: Number(c.id), name: c.name, slug: c.slug, count: 0 })));
+      }).catch(() => {});
+      ApiService.getReviews().then(setReviews).catch(() => {});
+    }
+  }, [isBackendConnected]);
+
   // Review handlers
-  const handleReviewSubmit = (e: React.FormEvent) => {
+  const handleReviewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!reviewForm.customer || !reviewForm.product) return;
-    if (editingReviewId !== null) {
-      setReviews(reviews.map(r => r.id === editingReviewId ? { ...r, ...reviewForm } : r));
-    } else {
-      const newId = Math.max(...reviews.map(r => r.id), 0) + 1;
-      setReviews([...reviews, { id: newId, ...reviewForm }]);
+    const payload = {
+      customerName: reviewForm.customer,
+      productName: reviewForm.product,
+      rating: reviewForm.rating,
+      comment: reviewForm.comment,
+      isApproved: false
+    };
+    try {
+      if (editingReviewId !== null) {
+        if (isBackendConnected) {
+          await ApiService.updateReview(String(editingReviewId), payload);
+        }
+        setReviews(reviews.map(r => r.id === editingReviewId ? { ...r, ...payload, customer: payload.customerName, product: payload.productName } : r));
+      } else {
+        if (isBackendConnected) {
+          const created = await ApiService.createReview(payload);
+          setReviews([...reviews, { id: Number(created.id), customer: created.customerName || '', product: created.productName || '', rating: created.rating, comment: created.comment }]);
+        } else {
+          const newId = Math.max(...reviews.map(r => r.id), 0) + 1;
+          setReviews([...reviews, { id: newId, customer: payload.customerName, product: payload.productName, rating: payload.rating, comment: payload.comment }]);
+        }
+      }
+      setReviewForm({ customer: '', product: '', rating: 5, comment: '' });
+      setEditingReviewId(null);
+    } catch (err) {
+      console.error('Lỗi khi lưu đánh giá:', err);
     }
-    setReviewForm({ customer: '', product: '', rating: 5, comment: '' });
-    setEditingReviewId(null);
+  };
+
+  const handleApproveReview = async (id: number) => {
+    try {
+      if (isBackendConnected) {
+        await ApiService.updateReview(String(id), { isApproved: true });
+      }
+      setReviews(reviews.map(r => r.id === id ? { ...r, isApproved: true } : r));
+    } catch (err) {
+      console.error('Lỗi khi duyệt đánh giá:', err);
+    }
   };
 
   const handleEditReview = (r: ReviewItem) => {
@@ -473,12 +549,19 @@ export function AdminDashboard({
     setEditingReviewId(r.id);
   };
 
-  const handleDeleteReview = (id: number) => {
+  const handleDeleteReview = async (id: number) => {
     if (!window.confirm('Bạn có chắc chắn muốn xóa đánh giá này?')) return;
-    setReviews(reviews.filter(r => r.id !== id));
-    if (editingReviewId === id) {
-      setEditingReviewId(null);
-      setReviewForm({ customer: '', product: '', rating: 5, comment: '' });
+    try {
+      if (isBackendConnected) {
+        await ApiService.deleteReview(String(id));
+      }
+      setReviews(reviews.filter(r => r.id !== id));
+      if (editingReviewId === id) {
+        setEditingReviewId(null);
+        setReviewForm({ customer: '', product: '', rating: 5, comment: '' });
+      }
+    } catch (err) {
+      console.error('Lỗi khi xóa đánh giá:', err);
     }
   };
 
@@ -581,7 +664,7 @@ export function AdminDashboard({
           <button onClick={() => setAdminTab('java')} className={`${tabClass('java')} flex items-center gap-1`}><span>☕ Java</span><span className="bg-red-200 dark:bg-red-950/40 text-red-900 dark:text-red-400 text-[8px] font-black px-1 rounded-sm">XAMPP</span></button>
           <button onClick={() => setAdminTab('sql')} className={tabClass('sql')}>🗄️ SQL</button>
           <button onClick={() => setAdminTab('frontend')} className={tabClass('frontend')}>🔌 FE</button>
-          <button onClick={() => setAdminTab('permissions')} className={tabClass('permissions')}>🔐 Phân quyền & Vai trò</button>
+          {isSuperAdmin && <button onClick={() => setAdminTab('permissions')} className={tabClass('permissions')}>🔐 Phân quyền & Vai trò</button>}
         </div>
       </div>
 
@@ -605,8 +688,11 @@ export function AdminDashboard({
                       <th className="p-3.5">Mã Đơn</th>
                       <th className="p-3.5">Thông tin Khách</th>
                       <th className="p-3.5">Chi Tiết Bát Canh</th>
+                      <th className="p-3.5">Loại Đơn</th>
                       <th className="p-3.5 text-right">Tổng Tiền</th>
                       <th className="p-3.5">Trạng thái</th>
+                      <th className="p-3.5">Thanh toán</th>
+                      <th className="p-3.5">Ngày đặt</th>
                       <th className="p-3.5">Phân Tài Xế</th>
                       <th className="p-3.5 text-center">Hành động</th>
                     </tr>
@@ -628,6 +714,13 @@ export function AdminDashboard({
                             </p>
                           ))}
                         </td>
+                        <td className="p-3.5 text-[10px]">
+                          {order.orderType === 'dine-in' ? '🍽️ Tại quán' :
+                           order.orderType === 'pickup' ? '🛍️ Mang đi' :
+                           order.orderType === 'delivery' ? '🛵 Giao hàng' :
+                           order.orderType || '🛵 Giao hàng'}
+                          {order.tableNumber && <span className="block text-[9px] text-[#8B7E74]">Bàn {order.tableNumber}</span>}
+                        </td>
                         <td className="p-3.5 text-right font-extrabold text-[#D97706] dark:text-amber-500 whitespace-nowrap">
                           {order.totalAmount.toLocaleString('vi-VN')} đ
                         </td>
@@ -638,6 +731,20 @@ export function AdminDashboard({
                              order.status === 'shipping' ? 'Đang giao hàng' :
                              order.status === 'completed' ? 'Thành công' : 'Đã hủy'}
                           </span>
+                        </td>
+                        <td className="p-3.5 text-[10px]">
+                          <span className={`font-bold ${order.paymentStatus === 'paid' ? 'text-emerald-600' : 'text-amber-600'}`}>
+                            {order.paymentStatus === 'paid' ? '✅ Đã TT' : '⏳ Chưa TT'}
+                          </span>
+                          <span className="block text-[9px] text-[#8B7E74] mt-0.5">
+                            {order.paymentMethod === 'momo' ? '🎀 MoMo' :
+                             order.paymentMethod === 'cod' ? '💵 COD' :
+                             order.paymentMethod === 'cash' ? '💵 Tiền mặt' :
+                             order.paymentMethod || '-'}
+                          </span>
+                        </td>
+                        <td className="p-3.5 text-[10px] text-[#8B7E74] font-mono">
+                          {order.createdAt ? new Date(order.createdAt).toLocaleDateString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '-'}
                         </td>
                         <td className="p-3.5">
                           {order.status === 'cancelled' || order.status === 'completed' ? (
@@ -653,13 +760,19 @@ export function AdminDashboard({
                               className="text-[10px] p-1.5 rounded-lg border border-[#E5E1D8] dark:border-[#3D302D] bg-[#FAF8F5] dark:bg-[#1E1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-none"
                             >
                               <option value="" className="dark:bg-[#1E1311]">-- Chọn tài xế --</option>
-                              {drivers
-                                .filter((d) => d.status === 'available')
-                                .map((d) => (
-                                  <option key={d.id} value={d.id} className="dark:bg-[#1E1311]">
-                                    {d.name} ({d.vehicle.split('-')[0]})
-                                  </option>
-                                ))}
+                              {drivers.length === 0 ? (
+                                <option disabled className="dark:bg-[#1E1311] text-[#8B7E74]">⏳ Đang tải danh sách tài xế...</option>
+                              ) : drivers.filter((d) => d.status === 'available').length === 0 ? (
+                                <option disabled className="dark:bg-[#1E1311] text-[#8B7E74]">Không có tài xế khả dụng</option>
+                              ) : (
+                                drivers
+                                  .filter((d) => d.status === 'available')
+                                  .map((d) => (
+                                    <option key={d.id} value={d.id} className="dark:bg-[#1E1311]">
+                                      {d.name} ({d.vehicle.split('-')[0]})
+                                    </option>
+                                  ))
+                              )}
                             </select>
                           )}
                           {order.driverId && (
@@ -678,10 +791,11 @@ export function AdminDashboard({
                             )}
                             {order.status === 'preparing' && (
                               <button
-                                onClick={() => onUpdateOrderStatus(order.id, 'shipping')}
-                                className="bg-sky-600 hover:bg-sky-700 text-white font-bold px-2 py-1 rounded text-[10px] text-center w-full cursor-pointer"
+                                onClick={() => order.driverId ? onUpdateOrderStatus(order.id, 'shipping') : null}
+                                className={`${order.driverId ? 'bg-sky-600 hover:bg-sky-700 cursor-pointer' : 'bg-sky-600/40 cursor-not-allowed'} text-white font-bold px-2 py-1 rounded text-[10px] text-center w-full`}
+                                title={!order.driverId ? 'Vui lòng chọn tài xế trước khi lên xe' : ''}
                               >
-                                Xác Nhận Hoàn Tất Lên Xe
+                                {order.driverId ? 'Xác Nhận Hoàn Tất Lên Xe' : '⚠️ Chọn tài xế trước'}
                               </button>
                             )}
                             {order.status === 'shipping' && (
@@ -819,12 +933,42 @@ export function AdminDashboard({
                     onChange={(e) => setProductForm(prev => ({ ...prev, description: e.target.value }))}
                     className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Hình Ảnh (URL)</label>
-                  <input type="text" placeholder="https://..."
-                    value={productForm.imageUrl}
-                    onChange={(e) => setProductForm(prev => ({ ...prev, imageUrl: e.target.value }))}
-                    className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
+                <div className="space-y-1 md:col-span-2">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Hình Ảnh</label>
+                  <div className="flex flex-wrap gap-2">
+                    <div className="flex-1 min-w-[180px]">
+                      <input type="text" placeholder="https://... hoặc upload file bên cạnh"
+                        value={productForm.imageUrl}
+                        onChange={(e) => setProductForm(prev => ({ ...prev, imageUrl: e.target.value }))}
+                        className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <input type="file" accept="image/*" id="productImageUpload" className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          setUploadingImage(true);
+                          try {
+                            const url = await ApiService.uploadImage(file, 'product_Image');
+                            setProductForm(prev => ({ ...prev, imageUrl: url }));
+                          } catch (err: any) {
+                            setProductError(err.message || 'Lỗi upload ảnh');
+                          } finally {
+                            setUploadingImage(false);
+                            e.target.value = '';
+                          }
+                        }} />
+                      <label htmlFor="productImageUpload"
+                        className={`px-3 py-2.5 rounded-lg text-xs font-bold cursor-pointer transition-all whitespace-nowrap border ${uploadingImage ? 'bg-gray-400 text-white border-gray-400 cursor-not-allowed' : 'bg-[#D97706] text-white border-[#D97706] hover:bg-[#D97706]/90'}`}>
+                        {uploadingImage ? '⏳ Đang tải...' : '📁 Upload'}
+                      </label>
+                      {productForm.imageUrl && (
+                        <div className="w-9 h-9 rounded-lg overflow-hidden border border-[#E5E1D8] dark:border-[#3D302D] bg-[#FAF8F5] dark:bg-[#150F0D] shrink-0 flex items-center justify-center">
+                          <img src={productForm.imageUrl} alt="preview" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLElement).style.display = 'none'; (e.currentTarget.parentElement as HTMLElement).innerHTML = '🍲'; }} />
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
                 <div className="flex items-center gap-4">
                   <label className="flex items-center gap-2 cursor-pointer">
@@ -871,17 +1015,19 @@ export function AdminDashboard({
                     <th className="p-3">Tên Món</th>
                     <th className="p-3">Danh Mục</th>
                     <th className="p-3 text-right">Giá</th>
+                    <th className="p-3 text-center">Trạng thái</th>
                     <th className="p-3 text-center">Bán Chạy</th>
+                    <th className="p-3 text-right">TG CB</th>
                     <th className="p-3 text-center">Thao Tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E5E1D8] dark:divide-[#2D2321] bg-white dark:bg-[#1C1311]">
                   {products.length === 0 ? (
-                    <tr><td colSpan={6} className="p-6 text-center text-[#8B7E74] dark:text-[#B2A496] italic">Chưa có sản phẩm nào.</td></tr>
+                    <tr><td colSpan={8} className="p-6 text-center text-[#8B7E74] dark:text-[#B2A496] italic">Chưa có sản phẩm nào.</td></tr>
                   ) : (products.map((p) => (
                     <tr key={p.id} className="hover:bg-[#FAF8F5]/80 dark:hover:bg-[#2D2321]/50 transition-colors">
                       <td className="p-3">
-                        <span className="text-2xl">{(p.imageUrl || '').startsWith('http') ? <img src={p.imageUrl} alt={p.name} className="w-10 h-10 rounded-lg object-cover" /> : (p.imageUrl || '🍲')}</span>
+                        <span className="text-2xl">{p.imageUrl ? <img src={p.imageUrl} alt={p.name} className="w-10 h-10 rounded-lg object-cover" referrerPolicy="no-referrer" onError={(e) => { (e.target as HTMLElement).style.display = 'none'; (e.currentTarget.parentElement as HTMLElement).innerText = '🍲'; }} /> : '🍲'}</span>
                       </td>
                       <td className="p-3 font-bold text-[#2D241E] dark:text-[#FAF8F5]">{p.name}</td>
                       <td className="p-3">
@@ -890,7 +1036,13 @@ export function AdminDashboard({
                         </span>
                       </td>
                       <td className="p-3 text-right font-extrabold text-[#D97706]">{p.price.toLocaleString('vi-VN')} đ</td>
+                      <td className="p-3 text-center">
+                        {p.isAvailable
+                          ? <span className="text-emerald-500 font-bold text-[10px]">✅ Còn hàng</span>
+                          : <span className="text-red-400 font-bold text-[10px]">⛔ Hết hàng</span>}
+                      </td>
                       <td className="p-3 text-center">{p.isBestSeller ? <span className="text-emerald-500 font-bold">🔥 Bán chạy</span> : '-'}</td>
+                      <td className="p-3 text-right text-[#8B7E74] font-mono">{p.preparationTime || '-'} ph</td>
                       <td className="p-3">
                         <div className="flex gap-1.5 justify-center">
                           <button onClick={() => handleEditProduct(p)}
@@ -929,6 +1081,7 @@ export function AdminDashboard({
                     </div>
                     <div className="flex-1">
                       <p className="font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5]">{d.name}</p>
+                      <p className="text-[9px] text-[#D97706] font-mono">ID: {d.id}</p>
                       <p className="text-[10px] text-[#8B7E74] dark:text-[#B2A496]">📞 {d.phone}</p>
                       <p className="text-[10px] text-[#8B7E74] dark:text-[#B2A496] font-mono mt-0.5">{d.vehicle}</p>
 
@@ -1032,16 +1185,14 @@ export function AdminDashboard({
                     value={categoryForm.name}
                     onChange={(e) => {
                       const n = e.target.value;
-                      setCategoryForm(prev => ({ ...prev, name: n, slug: editingCategoryId ? prev.slug : toSlug(n) }));
+                      setCategoryForm(prev => ({ ...prev, name: n, slug: toSlug(n) }));
                     }}
                     className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
                 </div>
                 <div className="space-y-1 flex-1 min-w-[200px]">
                   <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Slug (tự động)</label>
-                  <input type="text" required placeholder="mon-moi"
-                    value={categoryForm.slug}
-                    onChange={(e) => setCategoryForm(prev => ({ ...prev, slug: toSlug(e.target.value) }))}
-                    className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
+                  <input type="text" readOnly value={toSlug(categoryForm.name)}
+                    className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-gray-100 dark:bg-gray-900 text-[#8B7E74] dark:text-[#B2A496] cursor-not-allowed" />
                 </div>
                 <div className="flex gap-2">
                   {editingCategoryId !== null && (
@@ -1506,37 +1657,47 @@ export function AdminDashboard({
 
             <div className="overflow-x-auto border border-[#E5E1D8] dark:border-[#2D2321] rounded-2xl bg-[#FAF8F5] dark:bg-[#1E1210]">
               <table className="w-full text-left text-xs text-[#3E2F26] dark:text-[#EAE3D2]">
-                <thead className="bg-[#F3F0E9] dark:bg-[#2D2321] uppercase font-bold text-[#2D241E] dark:text-[#FAF8F5] border-b border-[#E5E1D8] dark:border-[#2D2321]">
-                  <tr>
-                    <th className="p-3">Khách Hàng</th>
-                    <th className="p-3">Sản Phẩm</th>
-                    <th className="p-3 text-center">Đánh Giá</th>
-                    <th className="p-3">Nhận Xét</th>
-                    <th className="p-3 text-center">Thao Tác</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#E5E1D8] dark:divide-[#2D2321] bg-white dark:bg-[#1C1311]">
-                  {reviews.map(r => (
-                    <tr key={r.id} className="hover:bg-[#FAF8F5]/80 dark:hover:bg-[#2D2321]/50 transition-colors">
-                      <td className="p-3 font-bold text-[#2D241E] dark:text-[#FAF8F5]">{r.customer}</td>
-                      <td className="p-3">{r.product}</td>
-                      <td className="p-3 text-center text-amber-500">{'⭐'.repeat(r.rating)}</td>
-                      <td className="p-3 text-[#8B7E74] max-w-[200px] truncate">{r.comment}</td>
-                      <td className="p-3">
-                        <div className="flex gap-1.5 justify-center">
-                          <button onClick={() => handleEditReview(r)}
-                            className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-950/50 cursor-pointer">
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
-                          <button onClick={() => handleDeleteReview(r.id)}
-                            className="p-1.5 rounded-lg bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-950/50 cursor-pointer">
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
+                  <thead className="bg-[#F3F0E9] dark:bg-[#2D2321] uppercase font-bold text-[#2D241E] dark:text-[#FAF8F5] border-b border-[#E5E1D8] dark:border-[#2D2321]">
+                    <tr>
+                      <th className="p-3">Khách Hàng</th>
+                      <th className="p-3">Sản Phẩm</th>
+                      <th className="p-3 text-center">Đánh Giá</th>
+                      <th className="p-3">Nhận Xét</th>
+                      <th className="p-3 text-center">Duyệt</th>
+                      <th className="p-3">Ngày</th>
+                      <th className="p-3 text-center">Thao Tác</th>
                     </tr>
-                  ))}
-                </tbody>
+                  </thead>
+                  <tbody className="divide-y divide-[#E5E1D8] dark:divide-[#2D2321] bg-white dark:bg-[#1C1311]">
+                    {reviews.length === 0 ? (
+                      <tr><td colSpan={7} className="p-6 text-center text-[#8B7E74] dark:text-[#B2A496] italic">Chưa có đánh giá nào.</td></tr>
+                    ) : (reviews.map(r => (
+                      <tr key={r.id} className="hover:bg-[#FAF8F5]/80 dark:hover:bg-[#2D2321]/50 transition-colors">
+                        <td className="p-3 font-bold text-[#2D241E] dark:text-[#FAF8F5]">{r.customer}</td>
+                        <td className="p-3">{r.product}</td>
+                        <td className="p-3 text-center text-amber-500">{'⭐'.repeat(r.rating)}</td>
+                        <td className="p-3 text-[#8B7E74] max-w-[200px] truncate">{r.comment}</td>
+                        <td className="p-3 text-center">
+                          {(r as any).isApproved
+                            ? <span className="text-emerald-500 font-bold text-[10px]">✅ Đã duyệt</span>
+                            : <button onClick={() => handleApproveReview(r.id)} className="text-[10px] bg-amber-100 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 px-2 py-1 rounded-lg font-bold hover:bg-amber-200 dark:hover:bg-amber-950/50 cursor-pointer">Duyệt</button>}
+                        </td>
+                        <td className="p-3 text-[10px] text-[#8B7E74] font-mono">{(r as any).createdAt ? new Date((r as any).createdAt).toLocaleDateString('vi-VN') : '-'}</td>
+                        <td className="p-3">
+                          <div className="flex gap-1.5 justify-center">
+                            <button onClick={() => handleEditReview(r)}
+                              className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-950/50 cursor-pointer">
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={() => handleDeleteReview(r.id)}
+                              className="p-1.5 rounded-lg bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-950/50 cursor-pointer">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )))}
+                  </tbody>
               </table>
             </div>
           </div>
@@ -1610,7 +1771,7 @@ export function AdminDashboard({
         )}
 
         {/* TAB: PERMISSIONS & ROLE MANAGER (Super Admin only) */}
-        {adminTab === 'permissions' && (
+        {adminTab === 'permissions' && isSuperAdmin && (
           <div className="space-y-6">
             <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#FAF8F5]">🔐 Phân quyền & Vai trò</h3>
             <p className="text-xs text-[#8B7E74] dark:text-[#B2A496]">Quản lý vai trò và phân quyền chi tiết theo module</p>
@@ -1723,6 +1884,71 @@ export function AdminDashboard({
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* Account Creation Section */}
+            <div className="bg-[#FAF8F5] dark:bg-[#211715] p-5 rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321]">
+              <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5] mb-3">👤 Tạo Tài Khoản Người Dùng</h4>
+              {accountSuccess && <div className="mb-3 p-2.5 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/50 text-emerald-800 dark:text-emerald-400 text-xs rounded-xl text-center font-bold">{accountSuccess}</div>}
+              {accountError && <div className="mb-3 p-2.5 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/50 text-red-800 dark:text-red-400 text-xs rounded-xl text-center font-bold">{accountError}</div>}
+              <form onSubmit={handleCreateAccount} className="grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Tên ĐN</label>
+                  <input type="text" required placeholder="username" value={accountForm.username}
+                    onChange={e => setAccountForm(prev => ({ ...prev, username: e.target.value }))}
+                    className="w-full text-xs p-2 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Mật khẩu</label>
+                  <input type="password" required placeholder="••••••" value={accountForm.password}
+                    onChange={e => setAccountForm(prev => ({ ...prev, password: e.target.value }))}
+                    className="w-full text-xs p-2 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Email</label>
+                  <input type="email" required placeholder="user@email.com" value={accountForm.email}
+                    onChange={e => setAccountForm(prev => ({ ...prev, email: e.target.value }))}
+                    className="w-full text-xs p-2 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Họ tên</label>
+                  <input type="text" placeholder="Nguyễn Văn A" value={accountForm.fullName}
+                    onChange={e => setAccountForm(prev => ({ ...prev, fullName: e.target.value }))}
+                    className="w-full text-xs p-2 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Vai trò</label>
+                  <select value={accountForm.roleId} onChange={e => setAccountForm(prev => ({ ...prev, roleId: Number(e.target.value) }))}
+                    className="w-full text-xs p-2 rounded-lg border border-[#E5E1D8] dark:border-[#3E302D] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]">
+                    <option value={0}>-- Chọn role --</option>
+                    {roleList.map(r => <option key={r.id} value={r.id}>{r.display} ({r.name})</option>)}
+                  </select>
+                </div>
+                <button type="submit" className="bg-[#D97706] hover:bg-[#D97706]/90 text-white font-bold px-4 py-2 rounded-lg text-xs cursor-pointer">
+                  Tạo TK
+                </button>
+              </form>
+
+              {/* Existing Users Table */}
+              {accountUsers.length > 0 && (
+                <div className="mt-4 overflow-x-auto border border-[#E5E1D8] dark:border-[#2D2321] rounded-xl">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#F3F0E9] dark:bg-[#2D2321] text-[#2D241E] dark:text-[#FAF8F5] uppercase font-bold border-b border-[#E5E1D8] dark:border-[#2D2321]">
+                      <tr><th className="p-2">Username</th><th className="p-2">Họ tên</th><th className="p-2">Email</th><th className="p-2">Vai trò</th></tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#E5E1D8] dark:divide-[#2D2321] bg-white dark:bg-[#1C1311]">
+                      {accountUsers.map(u => (
+                        <tr key={u.id} className="hover:bg-[#FAF8F5]/80 dark:hover:bg-[#2D2321]/50">
+                          <td className="p-2 font-bold text-[#2D241E] dark:text-[#FAF8F5]">{u.username}</td>
+                          <td className="p-2">{u.fullName || '-'}</td>
+                          <td className="p-2 text-[#8B7E74]">{u.email}</td>
+                          <td className="p-2"><span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-900/50">{u.roleName}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         )}

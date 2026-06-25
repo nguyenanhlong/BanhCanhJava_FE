@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, CheckCircle, ShieldAlert, Wifi, CreditCard, Sparkles } from 'lucide-react';
+import { X, CheckCircle, Wifi } from 'lucide-react';
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -9,7 +9,7 @@ interface PaymentModalProps {
     customerName: string;
     phone: string;
     address: string;
-    paymentMethod: 'momo' | 'vnpay' | 'card' | 'cod';
+    paymentMethod: 'momo' | 'cod';
     totalAmount: number;
   } | null;
 }
@@ -22,10 +22,6 @@ export function PaymentModal({
 }: PaymentModalProps) {
   const [timeLeft, setTimeLeft] = useState(120); // 2 minutes countdown
   const [isProcessing, setIsProcessing] = useState(false);
-  const [cardNumber, setCardNumber] = useState('');
-  const [cardHolder, setCardHolder] = useState('');
-  const [cardExpiry, setCardExpiry] = useState('');
-  const [cardCvv, setCardCvv] = useState('');
 
   useEffect(() => {
     if (!isOpen || !orderDetails || orderDetails.paymentMethod === 'cod') return;
@@ -68,26 +64,8 @@ export function PaymentModal({
           accent: 'bg-pink-600 text-white',
           border: 'border-pink-200 dark:border-pink-900/30',
           text: 'text-pink-700 dark:text-pink-400',
-          logo: '🎀 MoMo QR Pay',
+          logo: 'MoMo QR Pay',
           desc: 'Quét mã bằng ứng dụng Ví MoMo'
-        };
-      case 'vnpay':
-        return {
-          bg: 'from-blue-50 to-blue-100 dark:from-blue-950/20 dark:to-blue-900/30',
-          accent: 'bg-blue-600 text-white',
-          border: 'border-blue-200 dark:border-blue-900/30',
-          text: 'text-blue-700 dark:text-blue-400',
-          logo: '🏛️ VNPay SmartQRCode',
-          desc: 'Quét bằng Mobile Banking bất cứ ngân hàng nào'
-        };
-      case 'card':
-        return {
-          bg: 'from-purple-50 to-purple-100 dark:from-purple-950/20 dark:to-purple-900/30',
-          accent: 'bg-purple-600 text-white',
-          border: 'border-purple-200 dark:border-purple-900/30',
-          text: 'text-purple-700 dark:text-purple-400',
-          logo: '💳 Visa/Mastercard Checkout',
-          desc: 'Nhập thông tin thẻ quốc tế của bạn'
         };
       default:
         return {
@@ -116,7 +94,10 @@ export function PaymentModal({
               <span className={`inline-block text-[10px] uppercase tracking-widest font-black px-2 py-0.5 rounded-md ${theme.accent} mb-1.5`}>
                 Cổng thanh toán điện tử
               </span>
-              <h3 className="text-xl font-extrabold text-[#2D241E] dark:text-[#FAF8F5] font-sans">{theme.logo}</h3>
+              <h3 className="text-xl font-extrabold text-[#2D241E] dark:text-[#FAF8F5] font-sans flex items-center gap-2">
+                <img src="https://upload.wikimedia.org/wikipedia/vi/f/fe/MoMo_Logo.png" alt="MoMo" className="h-6 w-auto" onError={(e) => { (e.target as HTMLElement).style.display = 'none' }} />
+                {theme.logo}
+              </h3>
               <p className="text-xs text-[#8B7E74] dark:text-[#B2A496] mt-0.5">{theme.desc}</p>
             </div>
             <button 
@@ -143,67 +124,7 @@ export function PaymentModal({
             </div>
           </div>
 
-          {/* Dynamic Forms according to Payment Type Selection */}
-          {orderDetails.paymentMethod === 'card' ? (
-            /* VISA/MASTERCARD INPUT FORMS */
-            <div className="space-y-3.5">
-              <div className="bg-gradient-to-tr from-[#2D241E] to-[#3E2F26] text-white p-4 rounded-xl relative overflow-hidden shadow-xs">
-                <div className="absolute top-3 right-4 opacity-30 text-xs tracking-widest font-mono">WORLD CARD</div>
-                <div className="text-[10px] text-[#8B7E74] uppercase font-bold tracking-widest">Bánh Canh Quán Pay</div>
-                <div className="text-lg font-mono tracking-widest my-4">
-                  {cardNumber ? cardNumber.replace(/(.{4})/g, '$1 ') : '•••• •••• •••• ••••'}
-                </div>
-                <div className="flex justify-between items-center text-[10px] font-mono">
-                  <div>
-                    <span className="text-white/40 block">CHỦ THẺ</span>
-                    <span className="font-bold">{cardHolder.toUpperCase() || 'TEN CHU THE'}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-white/40 block">HẠN DÙNG</span>
-                    <span className="font-bold">{cardExpiry || 'MM/YY'}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-2.5">
-                <div>
-                  <label className="block text-[10px] font-extrabold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Số thẻ visa/Mastercard:</label>
-                  <input
-                    type="text"
-                    maxLength={16}
-                    placeholder="4111222233334444"
-                    value={cardNumber}
-                    onChange={(e) => setCardNumber(e.target.value.replace(/\D/g, ''))}
-                    className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#2D2321] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706] tracking-widest"
-                  />
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="col-span-2">
-                    <label className="block text-[10px] font-extrabold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Tên Trên Thẻ (Không dấu):</label>
-                    <input
-                      type="text"
-                      placeholder="NGUYEN VAN A"
-                      value={cardHolder}
-                      onChange={(e) => setCardHolder(e.target.value)}
-                      className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#2D2321] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-extrabold text-[#3E2F26] dark:text-[#EAE3D2] uppercase">Mã CVV:</label>
-                    <input
-                      type="password"
-                      maxLength={3}
-                      placeholder="123"
-                      value={cardCvv}
-                      onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, ''))}
-                      className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#2D2321] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706] text-center"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            /* QR CODE PRESENTATION FOR MOMO & VNPAY */
+          {/* QR CODE PRESENTATION FOR MOMO */}
             <div className="flex flex-col items-center space-y-4">
               
               {/* Fake QR Scanner frame */}
@@ -275,7 +196,6 @@ export function PaymentModal({
                 <p className="text-sm font-mono font-black text-[#2D241E] dark:text-[#FAF8F5] mt-0.5">{formatTime(timeLeft)}</p>
               </div>
             </div>
-          )}
 
           {/* Guidelines instruction */}
           <div className="p-3.5 bg-[#F3F0E9] dark:bg-[#251A18] rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] flex items-start gap-2.5">

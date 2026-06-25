@@ -6,22 +6,23 @@ import { ProductCard } from './components/ProductCard';
 import { CartDrawer } from './components/CartDrawer';
 import { PaymentModal } from './components/PaymentModal';
 import { TrackingSection } from './components/TrackingSection';
+import { ProfileSection } from './components/ProfileSection';
 import { AdminDashboard } from './components/AdminDashboard';
 import { AuthModal } from './components/AuthModal';
 
 import { Product, CartItem, User, Order, Driver, OrderStatus, ProductReview, OrderItem } from './types';
-import { INITIAL_PRODUCTS, INITIAL_DRIVERS, INITIAL_REVIEWS } from './data';
 import { ApiService } from './services/api';
 import { Sparkles, Utensils, MessageCircle, Heart, Info, Clock, CheckCircle2, ShoppingCart } from 'lucide-react';
 import { Toaster, Toast } from './components/Toaster';
 
 export default function App() {
   // Application tabs: 'home' | 'menu' | 'about' | 'tracking' | 'admin'
-  const [activeTab, setActiveTab] = useState<string>('home');
+  const [activeTab, setActiveTab] = useState<string>(() => localStorage.getItem('banhcanh_activeTab') || 'home');
+  useEffect(() => { localStorage.setItem('banhcanh_activeTab', activeTab); }, [activeTab]);
   
   // Products, drivers, orders list
-  const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
-  const [drivers, setDrivers] = useState<Driver[]>(INITIAL_DRIVERS);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
   const [orders, setOrders] = useState<Order[]>(() => {
     const saved = localStorage.getItem('banhcanh_orders');
     if (saved) {
@@ -31,51 +32,13 @@ export default function App() {
         console.error('Failed to parse saved orders:', e);
       }
     }
-    return [
-      {
-        id: 'DH-1001',
-        customerName: 'Lê Thanh Vy',
-        phone: '0943221100',
-        address: '24 Lê Lợi, TP. Huế',
-        items: [
-          { productName: 'Bánh Canh Cá Lóc Đặc Biệt', quantity: 2, price: 65000, noodleType: 'Bột gạo', notes: 'Cay vừa, nhiều hành và củ nén' },
-          { productName: 'Bánh Quẩy Giòn', quantity: 2, price: 5000 }
-        ],
-        totalAmount: 140000,
-        paymentMethod: 'momo',
-        paymentStatus: 'paid',
-        status: 'completed',
-        createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
-        driverId: 'driver-2',
-        etaMinutes: 0
-      },
-      {
-        id: 'DH-1002',
-        customerName: 'Phạm Ngọc Thạch',
-        phone: '0935555123',
-        address: 'K45/12 Nguyễn Chí Thanh, Hải Châu, Đà Nẵng',
-        items: [
-          { productName: 'Bánh Canh Đầu Lòng Cá Lóc', quantity: 1, price: 55000, noodleType: 'Bột lọc' },
-          { productName: 'Trứng Cút (5 Quả)', quantity: 2, price: 8000 }
-        ],
-        totalAmount: 71000,
-        paymentMethod: 'cod',
-        paymentStatus: 'pending',
-        status: 'preparing',
-        createdAt: new Date(Date.now() - 1000 * 60 * 10).toISOString()
-      }
-    ];
+    return [];
   });
 
   const [isBackendConnected, setIsBackendConnected] = useState<boolean>(false);
   const [isLoadingBackend, setIsLoadingBackend] = useState<boolean>(true);
 
-  // Sync orders to localStorage (as offline / redundant persistence cache)
-  useEffect(() => {
-    localStorage.setItem('banhcanh_orders', JSON.stringify(orders));
-  }, [orders]);
-
-  // Load real data from Spring Boot if online, otherwise use local fallback
+  // Load real data from Spring Boot if online
   useEffect(() => {
     async function synchronizeWithBackend() {
       try {
@@ -88,21 +51,14 @@ export default function App() {
             ApiService.getOrders()
           ]);
           
-          if (backendProducts && backendProducts.length > 0) {
-            setProducts(backendProducts);
-          }
-          if (backendDrivers && backendDrivers.length > 0) {
-            setDrivers(backendDrivers);
-          }
-          if (backendOrders && backendOrders.length > 0) {
-            setOrders(backendOrders);
-          }
+          setProducts(backendProducts || []);
+          if (backendDrivers) setDrivers(backendDrivers);
+          if (backendOrders) setOrders(backendOrders);
           
           setIsBackendConnected(true);
-          showToast('🔌 Đã kết nối thành công đến database MySQL & Spring Boot!', 'success', 'Cơ sở dữ liệu Live');
+          showToast('🔌 Đã kết nối đến database MySQL & Spring Boot!', 'success', 'Cơ sở dữ liệu Live');
         } else {
           setIsBackendConnected(false);
-          console.log('Spring Boot offline, falling back to local simulation database.');
         }
       } catch (err) {
         console.error('Error auto-syncing with Spring Boot:', err);
@@ -117,6 +73,13 @@ export default function App() {
   // Auth User
   const [user, setUser] = useState<User | null>(null);
 
+  // SECURITY: Force redirect away from admin tab if user is not admin/super_admin
+  useEffect(() => {
+    if (activeTab === 'admin' && !(user && (user.role === 'admin' || user.role === 'super_admin'))) {
+      setActiveTab('home');
+    }
+  }, [user, activeTab]);
+
   // Cart State
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
@@ -127,7 +90,7 @@ export default function App() {
     customerName: string;
     phone: string;
     address: string;
-    paymentMethod: 'momo' | 'vnpay' | 'card' | 'cod';
+    paymentMethod: 'momo' | 'cod';
     totalAmount: number;
     items: CartItem[];
   } | null>(null);
@@ -136,12 +99,7 @@ export default function App() {
   const [authOpen, setAuthOpen] = useState(false);
 
   // Chat message simulation state
-  const [chatHistory, setChatHistory] = useState<Record<string, { sender: string; text: string; timestamp: string }[]>>({
-    'DH-1001': [
-      { sender: 'System', text: 'Tài xế nhận đơn! Đang di chuyển giao hàng nóng hổi.', timestamp: '11:45 AM' },
-      { sender: 'Driver', text: 'Chào chị Vy ạ, em gần tới chỗ mình rồi nghen!', timestamp: '11:58 AM' }
-    ]
-  });
+  const [chatHistory, setChatHistory] = useState<Record<string, { sender: string; text: string; timestamp: string }[]>>({});
 
   const CATEGORY_FILTER_MAP: Record<string, string> = {
     all: 'all',
@@ -153,7 +111,7 @@ export default function App() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
   // Reviews State
-  const [reviews, setReviews] = useState<ProductReview[]>(INITIAL_REVIEWS);
+  const [reviews, setReviews] = useState<ProductReview[]>([]);
 
   // Toast System State
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -257,15 +215,23 @@ export default function App() {
     return () => clearInterval(timer);
   }, []);
 
-  const handleAddReview = (reviewData: Omit<ProductReview, 'id' | 'createdAt'>) => {
-    const newReview: ProductReview = {
-      ...reviewData,
-      id: 'rev-' + (reviews.length + 1) + '-' + Math.floor(Math.random() * 10000),
-      createdAt: new Date().toISOString()
-    };
-    const updated = [newReview, ...reviews];
-    setReviews(updated);
-    localStorage.setItem('banhcanh_reviews', JSON.stringify(updated));
+  const handleAddReview = async (reviewData: Omit<ProductReview, 'id' | 'createdAt'>) => {
+    if (isBackendConnected) {
+      try {
+        await ApiService.createReview({
+          userId: user?.id ? Number(user.id) : null,
+          orderId: reviewData.orderId ? Number(reviewData.orderId) : null,
+          productName: reviewData.productName,
+          customerName: reviewData.customerName,
+          rating: reviewData.rating,
+          comment: reviewData.comment,
+          isApproved: false
+        });
+        showToast('Cảm ơn bạn đã đánh giá món ăn!', 'success', 'Đánh giá thành công');
+      } catch (err) {
+        showToast('Không thể gửi đánh giá lên hệ thống!', 'warning', 'Lỗi đánh giá');
+      }
+    }
   };
 
   // Sync state modifications helper
@@ -274,10 +240,17 @@ export default function App() {
     localStorage.setItem('banhcanh_cart', JSON.stringify(items));
   };
 
-  const handleLoginSuccess = (loggedInUser: { id: string; username: string; email: string; role: string; isActive?: boolean }) => {
-    const userData: User = { ...loggedInUser, role: (loggedInUser.role as User['role']), isActive: loggedInUser.isActive ?? true };
+  const handleLoginSuccess = (loggedInUser: { id: string; username: string; email: string; role: string; fullName?: string; phone?: string; address?: string; avatarUrl?: string; isActive?: boolean }) => {
+    const userData: User = { ...loggedInUser, role: loggedInUser.role as User['role'], fullName: loggedInUser.fullName, phone: loggedInUser.phone, address: loggedInUser.address, avatarUrl: loggedInUser.avatarUrl, isActive: loggedInUser.isActive ?? true };
     setUser(userData);
     localStorage.setItem('banhcanh_user', JSON.stringify(userData));
+  };
+
+  const handleUpdateUser = (updates: Partial<User>) => {
+    if (!user) return;
+    const updated = { ...user, ...updates };
+    setUser(updated);
+    localStorage.setItem('banhcanh_user', JSON.stringify(updated));
   };
 
   const handleLogout = () => {
@@ -288,43 +261,33 @@ export default function App() {
 
   // Cart actions
   const handleAddToCart = (product: Product, noodleType?: 'Bột gạo' | 'Bột lọc', notes?: string, toppings?: Product[]) => {
+    if (!product.isAvailable) {
+      showToast('Sản phẩm này hiện đã hết hàng!', 'warning', 'Hết hàng');
+      return;
+    }
     const isMain = product.categoryName === 'Bánh Canh Cá Lóc' || product.categoryId === 1;
     const trimmedNotes = notes?.trim() || undefined;
     const itemToppings = toppings || [];
     
     setCartItems((prevCartItems) => {
-      // Check if exact item exists already (including options and toppings)
       const existingIdx = prevCartItems.findIndex(
         (item) => {
           if (item.product.id !== product.id) return false;
           if (isMain && item.noodleType !== noodleType) return false;
           if (item.notes !== trimmedNotes) return false;
-          
           const itemToppingsList = item.toppings || [];
           if (itemToppingsList.length !== itemToppings.length) return false;
-          
           const currentToppingIds = [...itemToppings].map(t => t.id).sort();
           const existingToppingIds = [...itemToppingsList].map(t => t.id).sort();
           return currentToppingIds.every((id, idx) => id === existingToppingIds[idx]);
         }
       );
-
       let updated: CartItem[];
       if (existingIdx > -1) {
         updated = [...prevCartItems];
-        updated[existingIdx] = {
-          ...updated[existingIdx],
-          quantity: updated[existingIdx].quantity + 1
-        };
+        updated[existingIdx] = { ...updated[existingIdx], quantity: updated[existingIdx].quantity + 1 };
       } else {
-        const newItem: CartItem = {
-          product,
-          quantity: 1,
-          noodleType: isMain ? noodleType : undefined,
-          notes: trimmedNotes,
-          toppings: itemToppings.length > 0 ? itemToppings : undefined
-        };
-        updated = [...prevCartItems, newItem];
+        updated = [...prevCartItems, { product, quantity: 1, noodleType: isMain ? noodleType : undefined, notes: trimmedNotes, toppings: itemToppings.length > 0 ? itemToppings : undefined }];
       }
       localStorage.setItem('banhcanh_cart', JSON.stringify(updated));
       return updated;
@@ -355,7 +318,7 @@ export default function App() {
     customerName: string;
     phone: string;
     address: string;
-    paymentMethod: 'cod' | 'momo' | 'vnpay' | 'card';
+    paymentMethod: 'cod' | 'momo';
     finalTotalAmount?: number;
   }) => {
     // Yêu cầu đăng nhập trước khi đặt hàng
@@ -391,7 +354,7 @@ export default function App() {
 
   const handleCompleteOrderFinalization = async (
     details: typeof pendingCheckoutDetails,
-    method: 'cod' | 'momo' | 'vnpay' | 'card'
+    method: 'cod' | 'momo'
   ) => {
     if (!details) return;
 
@@ -420,11 +383,9 @@ export default function App() {
       return list;
     });
 
-    const paymentMethodMap: Record<string, 'cash' | 'momo' | 'transfer'> = {
+    const paymentMethodMap: Record<string, 'cash' | 'momo'> = {
       cod: 'cash',
-      momo: 'momo',
-      vnpay: 'transfer',
-      card: 'transfer'
+      momo: 'momo'
     };
     const orderPayload = {
       customerName: details.customerName,
@@ -479,6 +440,15 @@ export default function App() {
 
   // Admin and driver operations
   const handleUpdateOrderStatus = async (orderId: string, status: OrderStatus) => {
+    // Must select driver before shipping
+    if (status === 'shipping') {
+      const order = orders.find(o => o.id === orderId);
+      if (!order?.driverId) {
+        showToast('Vui lòng chọn tài xế trước khi chuyển sang giao hàng!', 'warning', 'Thiếu tài xế');
+        return;
+      }
+    }
+
     let updatedOrder: Order | null = null;
     if (isBackendConnected) {
       try {
@@ -562,37 +532,49 @@ export default function App() {
     showToast(`Shipper ${driver.name} đã nhận đơn hàng ${orderId}!`, 'info', 'Đã phân công Shipper 🛵');
   };
 
-  const handleCreateDriver = (name: string, phone: string, vehicle: string) => {
-    const newDriver: Driver = {
-      id: 'driver-' + (drivers.length + 1),
-      name,
-      phone,
-      vehicle,
-      status: 'available',
-      isActive: true
-    };
-    setDrivers([...drivers, newDriver]);
+  const handleCreateDriver = async (name: string, phone: string, vehicle: string) => {
+    if (isBackendConnected) {
+      try {
+        const backendDrivers = await ApiService.getDrivers();
+        if (backendDrivers) setDrivers(backendDrivers);
+      } catch (err) {
+        console.error('Failed to refetch drivers:', err);
+      }
+    }
   };
 
   const handleUpdateDriverStatus = (driverId: string, status: Driver['status']) => {
     setDrivers(prev => prev.map(d => d.id === driverId ? { ...d, status } : d));
   };
 
-  // Product CRUD handlers
-  const handleCreateProduct = (product: Omit<Product, 'id'>) => {
-    const newProduct: Product = {
-      ...product,
-      id: 'p-' + Date.now(),
-    };
-    setProducts(prev => [newProduct, ...prev]);
+  // Product CRUD handlers — refetch from API after each operation
+  const handleRefetchProducts = async () => {
+    if (isBackendConnected) {
+      try {
+        const backendProducts = await ApiService.getProducts();
+        if (backendProducts) setProducts(backendProducts);
+      } catch (err) {
+        console.error('Failed to refetch products:', err);
+      }
+    }
   };
 
-  const handleUpdateProduct = (id: string, product: Omit<Product, 'id'>) => {
-    setProducts(prev => prev.map(p => p.id === id ? { ...p, ...product } : p));
+  const handleCreateProduct = async (product: Omit<Product, 'id'>) => {
+    if (isBackendConnected) {
+      await handleRefetchProducts();
+    }
   };
 
-  const handleDeleteProduct = (id: string) => {
-    setProducts(prev => prev.filter(p => p.id !== id));
+  const handleUpdateProduct = async (id: string, product: Omit<Product, 'id'>) => {
+    if (isBackendConnected) {
+      await handleRefetchProducts();
+    }
+  };
+
+  const handleDeleteProduct = async (id: string) => {
+    if (isBackendConnected) {
+      await handleRefetchProducts();
+    }
   };
 
   // Chat message processor
@@ -651,6 +633,7 @@ export default function App() {
   };
 
   const filteredProducts = products.filter(p => {
+    if (!p.isAvailable) return false;
     if (selectedCategory === 'all') return true;
     if (selectedCategory === 'bestsellers') return p.isBestSeller;
     const categoryName = CATEGORY_FILTER_MAP[selectedCategory];
@@ -824,7 +807,7 @@ export default function App() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                {products.filter(p => p.isBestSeller).map((product) => (
+                {products.filter(p => p.isBestSeller && p.isAvailable).map((product) => (
                   <ProductCard 
                     key={product.id}
                     product={product}
@@ -927,7 +910,7 @@ export default function App() {
               reviews={reviews}
               onAddReview={handleAddReview}
               currentUser={user}
-              onCancelOrder={(orderId) => handleUpdateOrderStatus(orderId, 'cancelled')}
+              drivers={drivers}
             />
           ) : (
             <div className="max-w-7xl mx-auto px-4 py-20 text-center">
@@ -944,8 +927,15 @@ export default function App() {
           )
         )}
 
-        {/* VIEW 5: ADMIN / CHỦ QUÁN AND JAVA SOURCE CONSOLE */}
-        {activeTab === 'admin' && (
+        {/* VIEW 5: PROFILE / TÀI KHOẢN */}
+        {activeTab === 'profile' && user && (
+          <div className="max-w-4xl mx-auto">
+            <ProfileSection user={user} isBackendConnected={isBackendConnected} onUpdateUser={handleUpdateUser} />
+          </div>
+        )}
+
+        {/* VIEW 6: ADMIN / CHỦ QUÁN AND JAVA SOURCE CONSOLE */}
+        {activeTab === 'admin' && user && (user.role === 'admin' || user.role === 'super_admin') && (
           <AdminDashboard 
             orders={orders}
             drivers={drivers}
@@ -979,14 +969,11 @@ export default function App() {
             <button onClick={() => setActiveTab('menu')} className="hover:text-[#D97706]">Thực Đơn</button>
             <button onClick={() => setActiveTab('about')} className="hover:text-[#D97706]">Về Chúng Tôi</button>
             <button onClick={() => setActiveTab('tracking')} className="hover:text-[#D97706]">Theo Dõi Đơn Hàng</button>
-            <button onClick={() => {
-              // Quick login simulation as admin to show backend instantly
-              const u: User = { id: 'admin-user', username: 'Chủ Quán (admin)', email: 'admin@banhcanhcaloc.com', role: 'admin', isActive: true };
-              setUser(u);
-              setActiveTab('admin');
-            }} className="text-[#D97706] hover:underline">
-              Bảng Java & XAMPP DB ☕
-            </button>
+            {user && (user.role === 'admin' || user.role === 'super_admin') && (
+              <button onClick={() => setActiveTab('admin')} className="text-[#D97706] hover:underline">
+                Quản Lý ⚙️
+              </button>
+            )}
           </div>
         </div>
       </footer>

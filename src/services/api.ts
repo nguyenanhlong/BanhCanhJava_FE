@@ -2,6 +2,13 @@ import { Product, Driver, Order, Category, Review, User } from '../types';
 
 const BASE_URL = 'https://banhcanhjavabe-production.up.railway.app/api';
 
+export function resolveImageUrl(url: string): string {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  if (url.startsWith('/api/')) return `https://banhcanhjavabe-production.up.railway.app${url}`;
+  return url;
+}
+
 function mapProduct(p: any): Product {
   return {
     id: String(p.id),
@@ -12,7 +19,7 @@ function mapProduct(p: any): Product {
     categoryName: p.categoryName || p.category_name || undefined,
     isBestSeller: !!p.isBestSeller || !!p.is_best_seller,
     isAvailable: p.isAvailable !== undefined ? !!p.isAvailable : (p.is_available !== undefined ? !!p.is_available : true),
-    imageUrl: p.imageUrl || p.image_url || p.image || '',
+    imageUrl: resolveImageUrl(p.imageUrl || p.image_url || p.image || ''),
     preparationTime: Number(p.preparationTime || p.preparation_time || 10),
   };
 }
@@ -260,6 +267,31 @@ export const ApiService = {
     return Array.isArray(data) ? data.map(mapCategory) : [];
   },
 
+  async createCategory(data: { name: string; slug: string }): Promise<Category> {
+    const res = await fetch(`${BASE_URL}/categories`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('Không thể tạo danh mục');
+    return mapCategory(await res.json());
+  },
+
+  async updateCategory(id: number, data: { name?: string; slug?: string }): Promise<Category> {
+    const res = await fetch(`${BASE_URL}/categories/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('Không thể cập nhật danh mục');
+    return mapCategory(await res.json());
+  },
+
+  async deleteCategory(id: number): Promise<void> {
+    const res = await fetch(`${BASE_URL}/categories/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Không thể xóa danh mục');
+  },
+
   // 8. REVIEWS API
   async getReviews(): Promise<Review[]> {
     const res = await fetch(`${BASE_URL}/reviews`);
@@ -268,7 +300,64 @@ export const ApiService = {
     return Array.isArray(data) ? data.map(mapReview) : [];
   },
 
-  // 9. IMAGE UPLOAD (Railway Bucket)
+  async createReview(review: any): Promise<Review> {
+    const res = await fetch(`${BASE_URL}/reviews`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(review)
+    });
+    if (!res.ok) throw new Error('Không thể gửi đánh giá');
+    const data = await res.json();
+    return mapReview(data);
+  },
+
+  async updateReview(id: string, data: any): Promise<Review> {
+    const res = await fetch(`${BASE_URL}/reviews/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('Không thể cập nhật đánh giá');
+    const json = await res.json();
+    return mapReview(json);
+  },
+
+  async deleteReview(id: string): Promise<void> {
+    const res = await fetch(`${BASE_URL}/reviews/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Không thể xóa đánh giá');
+  },
+
+  // 9. USER PROFILE API
+  async getUser(id: string): Promise<any> {
+    const res = await fetch(`${BASE_URL}/users/${id}`);
+    if (!res.ok) throw new Error('Không thể tải thông tin người dùng');
+    return res.json();
+  },
+
+  async updateUser(id: string, data: { fullName?: string; phone?: string; address?: string; email?: string }): Promise<any> {
+    const res = await fetch(`${BASE_URL}/users/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('Không thể cập nhật thông tin');
+    return res.json();
+  },
+
+  async changePassword(id: string, oldPassword: string, newPassword: string): Promise<any> {
+    const res = await fetch(`${BASE_URL}/users/${id}/password`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ oldPassword, newPassword })
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Không thể đổi mật khẩu');
+    }
+    return res.json();
+  },
+
+  // 10. IMAGE UPLOAD (Railway Bucket)
   async uploadImage(file: File, folder: string): Promise<string> {
     const formData = new FormData();
     formData.append('file', file);
@@ -279,7 +368,7 @@ export const ApiService = {
     });
     if (!res.ok) throw new Error('Không thể tải ảnh lên');
     const data = await res.json();
-    return data.url;
+    return resolveImageUrl(data.url);
   },
 
   // 10. RBAC API

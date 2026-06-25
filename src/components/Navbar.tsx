@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Logo } from './Logo';
-import { ShoppingCart, LogIn, User, LogOut, Menu, X, Shield, Truck, Sun, Moon } from 'lucide-react';
+import { ShoppingCart, LogIn, User, LogOut, Menu, X, Shield, Package, Sun, Moon } from 'lucide-react';
 import { User as UserType } from '../types';
 
 interface NavbarProps {
@@ -27,6 +27,7 @@ export function Navbar({
   onToggleDarkMode
 }: NavbarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   const navLinks = [
     { id: 'home', label: 'Trang Chủ' },
@@ -112,25 +113,47 @@ export function Navbar({
 
             {/* Auth / Profile menu */}
             {user ? (
-              <div className="hidden sm:flex items-center gap-2 pl-2 border-l border-[#E5E1D8] dark:border-[#2D2321]">
-                {/* Modern visual profile pill */}
-                <div className="flex items-center gap-1.5 bg-[#FAF8F5] dark:bg-[#251A18] px-2.5 py-1.5 rounded-xl border border-[#E5E1D8] dark:border-[#332522] text-xs font-bold text-[#2D241E] dark:text-[#E1DBD1]">
-                  <div className="w-4 h-4 rounded-full bg-[#E5E1D8] dark:bg-[#3D302D] flex items-center justify-center text-[10px] text-white dark:text-[#E1DBD1] font-serif shrink-0">
-                    {user.username.charAt(0).toUpperCase()}
-                  </div>
-                  <span className="max-w-[80px] truncate font-sans font-bold leading-none">{user.username}</span>
-                  <span className="text-[8px] bg-[#E1DBD1] dark:bg-[#3D302D] text-[#2D241E] dark:text-amber-400 font-black px-1.5 py-0.5 rounded uppercase font-mono tracking-tight shrink-0">
-                    {user.role === 'admin' || user.role === 'super_admin' ? 'Chủ' : 'Khách'}
-                  </span>
-                </div>
-                
+              <div className="hidden sm:flex items-center gap-2 pl-2 border-l border-[#E5E1D8] dark:border-[#2D2321] relative">
                 <button
-                  onClick={onLogout}
-                  title="Đăng xuất"
-                  className="p-2 text-[#8B7E74] hover:text-red-600 hover:bg-[#F3F0E9] dark:hover:bg-[#2D2321] rounded-full transition-colors"
+                  onClick={() => setProfileOpen(!profileOpen)}
+                  onBlur={() => setTimeout(() => setProfileOpen(false), 200)}
+                  className="flex items-center gap-1.5 bg-[#FAF8F5] dark:bg-[#251A18] px-2.5 py-1.5 rounded-xl border border-[#E5E1D8] dark:border-[#332522] text-xs font-bold text-[#2D241E] dark:text-[#E1DBD1] hover:bg-[#F3F0E9] dark:hover:bg-[#2D2321] transition-colors cursor-pointer"
                 >
-                  <LogOut className="w-4 h-4" />
+                  <div className="w-5 h-5 rounded-full bg-[#D97706] flex items-center justify-center text-[10px] text-white font-bold shrink-0">
+                    {user.fullName ? user.fullName.charAt(0).toUpperCase() : user.username.charAt(0).toUpperCase()}
+                  </div>
+                  <span className="max-w-[80px] truncate font-sans font-bold leading-none">{user.fullName || user.username}</span>
+                  <svg className={`w-3 h-3 text-[#8B7E74] transition-transform ${profileOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                 </button>
+                
+                {profileOpen && (
+                  <div className="absolute top-full right-0 mt-1 w-48 bg-white dark:bg-[#1C1311] border border-[#E5E1D8] dark:border-[#2D2321] rounded-xl shadow-xl z-50 py-1 overflow-hidden">
+                    <div className="px-3 py-2 border-b border-[#E5E1D8] dark:border-[#2D2321]">
+                      <p className="text-xs font-bold text-[#2D241E] dark:text-[#FAF8F5] truncate">{user.fullName || user.username}</p>
+                      <p className="text-[10px] text-[#8B7E74]">{user.email}</p>
+                    </div>
+                    <button onClick={() => { setActiveTab('profile'); setProfileOpen(false); }}
+                      className="w-full text-left px-3 py-2 text-xs font-semibold text-[#2D241E] dark:text-[#FAF8F5] hover:bg-[#FAF8F5] dark:hover:bg-[#2D2321] flex items-center gap-2 cursor-pointer">
+                      <User className="w-3.5 h-3.5" /> Tài Khoản
+                    </button>
+                    <button onClick={() => { setActiveTab('tracking'); setProfileOpen(false); }}
+                      className="w-full text-left px-3 py-2 text-xs font-semibold text-[#2D241E] dark:text-[#FAF8F5] hover:bg-[#FAF8F5] dark:hover:bg-[#2D2321] flex items-center gap-2 cursor-pointer">
+                      <Package className="w-3.5 h-3.5" /> Đơn Hàng Của Tôi
+                    </button>
+                    {user.role === 'admin' || user.role === 'super_admin' ? (
+                      <button onClick={() => { setActiveTab('admin'); setProfileOpen(false); }}
+                        className="w-full text-left px-3 py-2 text-xs font-semibold text-[#2D241E] dark:text-[#FAF8F5] hover:bg-[#FAF8F5] dark:hover:bg-[#2D2321] flex items-center gap-2 cursor-pointer">
+                        <Shield className="w-3.5 h-3.5" /> Quản Lý
+                      </button>
+                    ) : null}
+                    <div className="border-t border-[#E5E1D8] dark:border-[#2D2321] mt-1 pt-1">
+                      <button onClick={onLogout}
+                        className="w-full text-left px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 flex items-center gap-2 cursor-pointer">
+                        <LogOut className="w-3.5 h-3.5" /> Đăng Xuất
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <button
@@ -208,23 +231,21 @@ export function Navbar({
               )}
 
               {user ? (
-                <div className="flex items-center justify-between px-3 pt-1">
-                  <div className="flex items-center gap-2">
-                    <User className="w-5 h-5 text-[#3E2F26] dark:text-[#EAE3D2]" />
-                    <div className="flex flex-col">
-                      <span className="text-xs font-bold text-[#2D241E] dark:text-[#FAF8F5]">{user.username}</span>
-                      <span className="text-[10px] text-[#8B7E74] dark:text-[#B2A496] capitalize">{user.role}</span>
+                <div className="flex flex-col gap-1 px-3 pt-1">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-full bg-[#D97706] flex items-center justify-center text-xs text-white font-bold">{user.fullName ? user.fullName.charAt(0).toUpperCase() : user.username.charAt(0).toUpperCase()}</div>
+                      <div className="flex flex-col">
+                        <span className="text-xs font-bold text-[#2D241E] dark:text-[#FAF8F5]">{user.fullName || user.username}</span>
+                        <span className="text-[10px] text-[#8B7E74] dark:text-[#B2A496]">{user.role === 'admin' || user.role === 'super_admin' ? 'Chủ quán' : 'Khách hàng'}</span>
+                      </div>
                     </div>
                   </div>
-                  <button
-                    onClick={() => {
-                      onLogout();
-                      setMobileMenuOpen(false);
-                    }}
-                    className="flex items-center gap-1 text-xs text-red-600 font-bold bg-white dark:bg-[#251A18] px-3 py-1.5 rounded-xl border border-[#E5E1D8] dark:border-[#332522] shadow-sm"
-                  >
-                    <LogOut className="w-3.5 h-3.5" /> Đăng Xuất
-                  </button>
+                  <div className="flex gap-2 mt-1">
+                    <button onClick={() => { setActiveTab('profile'); setMobileMenuOpen(false); }} className="flex-1 text-center text-[10px] font-bold text-[#2D241E] dark:text-[#FAF8F5] bg-[#FAF8F5] dark:bg-[#251A18] py-1.5 rounded-lg border border-[#E5E1D8] dark:border-[#332522] cursor-pointer"><User className="w-3 h-3 inline mr-0.5" /> Tài Khoản</button>
+                    <button onClick={() => { setActiveTab('tracking'); setMobileMenuOpen(false); }} className="flex-1 text-center text-[10px] font-bold text-[#2D241E] dark:text-[#FAF8F5] bg-[#FAF8F5] dark:bg-[#251A18] py-1.5 rounded-lg border border-[#E5E1D8] dark:border-[#332522] cursor-pointer"><Package className="w-3 h-3 inline mr-0.5" /> Đơn Hàng</button>
+                    <button onClick={() => { onLogout(); setMobileMenuOpen(false); }} className="flex-1 text-center text-[10px] font-bold text-red-600 bg-red-50 dark:bg-red-950/20 py-1.5 rounded-lg border border-red-200 dark:border-red-900/40 cursor-pointer"><LogOut className="w-3 h-3 inline mr-0.5" /> Thoát</button>
+                  </div>
                 </div>
               ) : (
                 <button
