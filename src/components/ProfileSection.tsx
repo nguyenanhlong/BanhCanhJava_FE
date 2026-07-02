@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { User } from '../types';
 import { ApiService } from '../services/api';
-import { User as UserIcon, Phone, Mail, MapPin, Lock, Save, X, Camera, Calendar, ShoppingBag, Award } from 'lucide-react';
+import { getUserTier, MEMBERSHIP_TIERS, formatVND, getVouchersForTier, claimVoucher } from '../services/membership';
+import { User as UserIcon, Phone, Mail, MapPin, Lock, Save, X, Camera, Calendar, ShoppingBag, Award, Gift, Star, TrendingUp, Ticket } from 'lucide-react';
 
 interface ProfileSectionProps {
   user: User;
@@ -14,6 +15,7 @@ export function ProfileSection({ user, isBackendConnected, onUpdateUser, orderCo
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ fullName: user.fullName || '', phone: user.phone || '', address: user.address || '', email: user.email || '', avatarUrl: user.avatarUrl || '' });
   const [pwForm, setPwForm] = useState({ oldPassword: '', newPassword: '', confirmPassword: '' });
+  const [voucherMsg, setVoucherMsg] = useState('');
   const [showPwForm, setShowPwForm] = useState(false);
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -130,8 +132,8 @@ export function ProfileSection({ user, isBackendConnected, onUpdateUser, orderCo
         </div>
         <div className={statCardClass}>
           <Award className="w-4 h-4 text-[#D97706] mx-auto mb-1" />
-          <p className="text-lg font-black text-[#2D241E] dark:text-[#FAF8F5]">{user.role === 'admin' || user.role === 'super_admin' ? 'VIP' : 'Thành viên'}</p>
-          <p className="text-[9px] text-[#8B7E74] uppercase font-bold tracking-wider">Hạng</p>
+          <p className="text-lg font-black text-[#2D241E] dark:text-[#FAF8F5]">{getUserTier((user as any).total_spent || 0, (user as any).total_orders || 0).displayName}</p>
+          <p className="text-[9px] text-[#8B7E74] uppercase font-bold tracking-wider">Hạng thành viên</p>
         </div>
         <div className={statCardClass}>
           <Calendar className="w-4 h-4 text-[#D97706] mx-auto mb-1" />
@@ -213,6 +215,106 @@ export function ProfileSection({ user, isBackendConnected, onUpdateUser, orderCo
             <div>
               <label className={labelClass}><Camera className="w-3 h-3" /> Ảnh Đại Diện (URL)</label>
               <input type="text" value={form.avatarUrl} onChange={e => setForm(p => ({ ...p, avatarUrl: e.target.value }))} placeholder="https://example.com/avatar.jpg" className={inputClass} />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* HẠNG THÀNH VIÊN */}
+      <div className="bg-white dark:bg-[#1C1311] rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-[#E5E1D8] dark:border-[#2D2321] bg-[#FAF8F5]/50 dark:bg-[#150F0D]/50 flex items-center gap-2">
+          <Gift className="w-4 h-4 text-[#D97706]" />
+          <h3 className="font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5]">Ưu Đãi Hạng Thành Viên</h3>
+        </div>
+        <div className="p-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {MEMBERSHIP_TIERS.map(tier => {
+              const isCurrentTier = getUserTier((user as any).total_spent || 0, (user as any).total_orders || 0).id === tier.id;
+              const isUnlocked = tier.id <= getUserTier((user as any).total_spent || 0, (user as any).total_orders || 0).id;
+              return (
+                <div key={tier.id} className={`relative p-4 rounded-xl border text-center transition-all ${
+                  isCurrentTier
+                    ? 'bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-950/30 dark:to-amber-950/10 border-[#D97706] ring-1 ring-[#D97706]/30'
+                    : isUnlocked
+                    ? 'bg-emerald-50/50 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-900/30'
+                    : 'bg-[#FAF8F5] dark:bg-[#150F0D] border-[#E5E1D8] dark:border-[#2D2321] opacity-60'
+                }`}>
+                  {isCurrentTier && (
+                    <span className="absolute -top-2 -right-2 bg-[#D97706] text-white text-[8px] font-bold px-2 py-0.5 rounded-full shadow-sm">
+                      Hiện tại
+                    </span>
+                  )}
+                  <div className={`text-3xl mb-2 ${tier.name === 'vip' ? '' : tier.name === 'loyal' ? '' : ''}`}>
+                    {tier.name === 'vip' ? '👑' : tier.name === 'loyal' ? '⭐' : '🌱'}
+                  </div>
+                  <h4 className="font-black text-sm text-[#2D241E] dark:text-[#FAF8F5]">{tier.displayName}</h4>
+                  <p className="text-[9px] text-[#8B7E74] mt-1 leading-relaxed">
+                    {tier.name === 'member' ? 'Hạng cơ bản cho mọi khách hàng' :
+                     tier.name === 'loyal' ? `Từ ${formatVND(tier.minTotalSpent)} & ${tier.minTotalOrders} đơn` :
+                     `Từ ${formatVND(tier.minTotalSpent)} & ${tier.minTotalOrders} đơn`}
+                  </p>
+                  {tier.autoDiscountPercent > 0 && (
+                    <p className="mt-2 text-xs font-bold text-[#D97706]">Giảm {tier.autoDiscountPercent}% hóa đơn</p>
+                  )}
+                  {tier.voucherCount > 0 && (
+                    <p className="text-[10px] text-[#3E2F26] dark:text-[#EAE3D2] mt-0.5">
+                      + {tier.voucherCount} voucher giảm {tier.voucherDiscountPercent}%
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Voucher claim section */}
+          {(() => {
+            const tier = getUserTier((user as any).total_spent || 0, (user as any).total_orders || 0);
+            if (tier.voucherCount === 0) return null;
+            const vouchers = getVouchersForTier(tier);
+            const available = vouchers.filter(v => !v.usedAt && new Date(v.expiredAt) > new Date()).length;
+            const canClaim = tier.voucherCount > vouchers.length;
+            return (
+              <div className="mt-4 p-4 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/20 dark:to-orange-950/10 rounded-xl border border-amber-200 dark:border-amber-900/40">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Ticket className="w-4 h-4 text-[#D97706]" />
+                    <h4 className="font-bold text-xs text-[#2D241E] dark:text-[#FAF8F5]">Voucher {tier.displayName}</h4>
+                  </div>
+                  <span className="text-[10px] text-[#8B7E74] bg-white/50 dark:bg-black/20 px-2 py-0.5 rounded-full">
+                    {available}/{tier.voucherCount} còn lại
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {vouchers.filter(v => !v.usedAt && new Date(v.expiredAt) > new Date()).map(v => (
+                    <div key={v.id} className="flex items-center gap-2 bg-white dark:bg-[#1C1311] px-3 py-1.5 rounded-lg border border-amber-200 dark:border-amber-900/40">
+                      <span className="text-xs font-bold text-[#D97706]">{v.discountPercent}%</span>
+                      <span className="text-[8px] font-mono text-[#8B7E74] max-w-[100px] truncate">{v.code}</span>
+                      <span className="text-[8px] font-mono text-[#8B7E74]">HSD: {new Date(v.expiredAt).toLocaleDateString('vi-VN')}</span>
+                    </div>
+                  ))}
+                  {canClaim && (
+                    <button onClick={() => {
+                      const v = claimVoucher(tier);
+                      if (v) {
+                        setVoucherMsg(`Đã nhận voucher ${v.discountPercent}% - Mã: ${v.code}`);
+                        setTimeout(() => setVoucherMsg(''), 4000);
+                        window.location.reload();
+                      }
+                    }}
+                      className="px-3 py-1.5 rounded-lg bg-[#D97706] hover:bg-[#D97706]/90 text-white text-[10px] font-bold cursor-pointer transition-all">
+                      + Nhận voucher
+                    </button>
+                  )}
+                </div>
+                {voucherMsg && <p className="mt-2 text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">{voucherMsg}</p>}
+              </div>
+            );
+          })()}
+
+          {user.role !== 'admin' && user.role !== 'super_admin' && (
+            <div className="mt-4 p-3 bg-[#FAF8F5] dark:bg-[#150F0D] rounded-xl border border-[#E5E1D8] dark:border-[#2D2321] text-[10px] text-[#8B7E74] flex items-start gap-2">
+              <TrendingUp className="w-4 h-4 text-[#D97706] shrink-0 mt-0.5" />
+              <span>Đặt hàng thường xuyên để nâng hạng thành viên và nhận nhiều ưu đãi hơn!</span>
             </div>
           )}
         </div>

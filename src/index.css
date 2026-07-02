@@ -9,3 +9,6 @@
 
 @variant dark (&:where(.dark, .dark *));
 
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { scrollbar-width: none; -ms-overflow-style: none; }
+

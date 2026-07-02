@@ -8,6 +8,7 @@ import { PaymentModal } from './components/PaymentModal';
 import { TrackingSection } from './components/TrackingSection';
 import { ProfileSection } from './components/ProfileSection';
 import { AdminDashboard } from './components/AdminDashboard';
+import { DriverDashboard } from './components/DriverDashboard';
 import { AuthModal } from './components/AuthModal';
 
 import { Product, CartItem, User, Order, Driver, OrderStatus, ProductReview, OrderItem } from './types';
@@ -463,6 +464,10 @@ export default function App() {
       if (o.id === orderId) {
         if (updatedOrder) return updatedOrder;
         const nextOrderState = { ...o, status };
+        if (status === 'shipping') {
+          nextOrderState.deliveryProgress = 10;
+          nextOrderState.deliveryStage = 'Đã xếp hàng lên xe, chuẩn bị lăn bánh!';
+        }
         if (status === 'completed') {
           nextOrderState.paymentStatus = 'paid' as const;
           nextOrderState.deliveryProgress = 100;
@@ -487,6 +492,7 @@ export default function App() {
     switch (status) {
       case 'pending': statusText = 'đang chờ xác nhận'; break;
       case 'preparing': statusText = 'đang được chế biến'; break;
+      case 'picked_up': statusText = 'đã được lấy hàng'; break;
       case 'shipping': statusText = 'đang được giao đi'; break;
       case 'completed': 
         statusText = 'đã giao xong xuôi!'; 
@@ -523,7 +529,6 @@ export default function App() {
         return {
           ...o,
           driverId: driver.id,
-          status: 'shipping' as const,
         };
       }
       return o;
@@ -640,36 +645,50 @@ export default function App() {
     return p.categoryName === categoryName;
   });
 
+  if (user && user.role === 'driver') {
+    return (
+      <DriverDashboard
+        orders={orders}
+        drivers={drivers}
+        currentUser={user as any}
+        onUpdateOrderStatus={handleUpdateOrderStatus}
+        onUpdateDriverStatus={handleUpdateDriverStatus}
+        onLogout={handleLogout}
+        isBackendConnected={isBackendConnected}
+      />
+    );
+  }
+
   if (user && (user.role === 'admin' || user.role === 'super_admin')) {
     return (
-      <div className="min-h-screen bg-[#110D0C] text-[#EAE3D2] transition-colors duration-300 font-sans flex flex-col antialiased">
+      <div className="min-h-screen bg-[#FFF8F0] text-[#3E2F26] transition-colors duration-300 font-sans flex flex-col antialiased">
         
         {/* STANDALONE ADMIN HEADER */}
-        <header className="bg-[#1C1311] border-b border-[#2D2321] px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg select-none">
+        <header className="bg-[#FFFAF3] border-b border-[#E5E1D8] px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm select-none">
           <div className="flex items-center gap-3">
             <span className="text-3xl">🍲</span>
             <div className="text-center sm:text-left">
-              <h1 className="text-sm font-serif font-black uppercase tracking-wider text-[#D97706]">
+              <h1 className="text-sm font-serif font-black uppercase tracking-wider text-[#E74C3C]">
                 BÁNH CANH CÁ LÓC MIỀN TRUNG
               </h1>
-              <p className="text-[10px] text-[#B2A496] font-mono uppercase tracking-widest mt-0.5">
+              <p className="text-[10px] text-[#8B7E74] font-mono uppercase tracking-widest mt-0.5">
                 CỔNG QUẢN TRỊ CHẤT LƯỢNG CAO • DÀNH CHO CHỦ QUÁN
               </p>
             </div>
           </div>
           
           <div className="flex flex-wrap items-center justify-center sm:justify-end gap-3.5 text-xs">
-            <span className={`bg-emerald-950/40 border border-emerald-900/60 text-emerald-400 font-mono px-3 py-1 rounded-sm text-[9px] font-bold flex items-center gap-1.5 ${isBackendConnected ? '' : 'opacity-50 grayscale'}`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${isBackendConnected ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}`}></span>
+            <span className={`bg-emerald-100 border border-emerald-300 text-emerald-700 font-mono px-3 py-1 rounded-sm text-[9px] font-bold flex items-center gap-1.5 ${isBackendConnected ? '' : 'opacity-50 grayscale'}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${isBackendConnected ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></span>
               {isBackendConnected ? 'CONNECTED TO SPRING BOOT MySQL' : 'OFFLINE SIMULATOR'}
             </span>
             <div className="text-center sm:text-right">
-              <p className="font-bold text-[#D97706] text-[11px]">ADMIN • {user.username}</p>
+              <p className="font-bold text-[#E74C3C] text-[11px]">ADMIN • {user.username}</p>
               <p className="max-w-[150px] truncate text-[9px] text-[#8B7E74] font-mono">{user.email}</p>
             </div>
             <button 
               onClick={handleLogout}
-              className="bg-red-600/90 hover:bg-red-700 text-white text-[10px] uppercase font-bold tracking-wider px-3.5 py-1.5 rounded-xl transition-all cursor-pointer shadow-md shrink-0 animate-pulse"
+              className="bg-[#E74C3C] hover:bg-[#C0392B] text-white text-[10px] uppercase font-bold tracking-wider px-3.5 py-1.5 rounded-xl transition-all cursor-pointer shadow-xs shrink-0"
             >
               Đăng xuất
             </button>
@@ -681,28 +700,28 @@ export default function App() {
           
           {/* Active Business Performance Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-[#1C1311] border border-[#2D2321] rounded-2xl p-4.5 shadow-sm">
+            <div className="bg-white border border-[#E5E1D8] rounded-2xl p-4.5 shadow-sm">
               <p className="text-[9px] uppercase font-bold text-[#8B7E74] font-mono">Đơn Hàng Gần Đây</p>
-              <h4 className="text-2xl font-serif font-bold text-[#D97706] mt-1">{orders.length} Đơn hàng</h4>
+              <h4 className="text-2xl font-serif font-bold text-[#E74C3C] mt-1">{orders.length} Đơn hàng</h4>
               <p className="text-[9px] text-[#8B7E74] mt-1 font-mono">Đồng bộ trực tiếp SQL</p>
             </div>
-            <div className="bg-[#1C1311] border border-[#2D2321] rounded-2xl p-4.5 shadow-sm">
+            <div className="bg-white border border-[#E5E1D8] rounded-2xl p-4.5 shadow-sm">
               <p className="text-[9px] uppercase font-bold text-[#8B7E74] font-mono">Doanh thu tích lũy</p>
-              <h4 className="text-2xl font-serif font-bold text-emerald-400 mt-1">
+              <h4 className="text-2xl font-serif font-bold text-emerald-600 mt-1">
                 {orders.filter(o => o.status === 'completed').reduce((sum, o) => sum + o.totalAmount, 0).toLocaleString('vi-VN')} đ
               </h4>
               <p className="text-[9px] text-[#8B7E74] mt-1 font-mono">Tổng hóa đơn thành công</p>
             </div>
-            <div className="bg-[#1C1311] border border-[#2D2321] rounded-2xl p-4.5 shadow-sm">
+            <div className="bg-white border border-[#E5E1D8] rounded-2xl p-4.5 shadow-sm">
               <p className="text-[9px] uppercase font-bold text-[#8B7E74] font-mono">Nhân sự giao hàng</p>
-              <h4 className="text-2xl font-serif font-bold text-blue-400 mt-1">
+              <h4 className="text-2xl font-serif font-bold text-blue-600 mt-1">
                 {drivers.length} Tài xế
               </h4>
               <p className="text-[9px] text-[#8B7E74] mt-1 font-mono">{drivers.filter(d => d.status === 'available').length} shipper sẵn sàng</p>
             </div>
-            <div className="bg-[#1C1311] border border-[#2D2321] rounded-2xl p-4.5 shadow-sm">
+            <div className="bg-white border border-[#E5E1D8] rounded-2xl p-4.5 shadow-sm">
               <p className="text-[9px] uppercase font-bold text-[#8B7E74] font-mono">Khách hàng tương tác</p>
-              <h4 className="text-2xl font-serif font-bold text-purple-400 mt-1">
+              <h4 className="text-2xl font-serif font-bold text-purple-600 mt-1">
                 {new Set(orders.map(o => o.customerName)).size || 1} người dùng
               </h4>
               <p className="text-[9px] text-[#8B7E74] mt-1 font-mono">Tự động cộng dồn</p>
@@ -725,7 +744,7 @@ export default function App() {
           />
         </main>
 
-        <footer className="bg-[#1C1311] border-t border-[#2D2321] py-6 text-center text-[10px] text-[#8B7E74] font-mono uppercase tracking-wider select-none">
+        <footer className="bg-[#FFFAF3] border-t border-[#E5E1D8] py-6 text-center text-[10px] text-[#8B7E74] font-mono uppercase tracking-wider select-none">
           Cổng Nghiệp Vụ - Bánh Canh Cá Lóc Miền Trung © 1998 - 2026 • Spring Boot Port: 8080 • MySQL: Localhost
         </footer>
 

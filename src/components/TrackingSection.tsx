@@ -80,7 +80,7 @@ export function TrackingSection({
   const [errorMsg, setErrorMsg] = useState('');
 
   const getStepStatus = (current: OrderStatus, step: OrderStatus) => {
-    const sequence: OrderStatus[] = ['pending', 'preparing', 'shipping', 'completed'];
+    const sequence: OrderStatus[] = ['pending', 'preparing', 'picked_up', 'shipping', 'completed'];
     const currentIndex = sequence.indexOf(current);
     const stepIndex = sequence.indexOf(step);
 
@@ -108,6 +108,7 @@ export function TrackingSection({
     switch (status) {
       case 'pending': return 'Chờ Quán Xác Nhận';
       case 'preparing': return 'Đang Chế Biến Sợi Bánh';
+      case 'picked_up': return 'Đã Lấy Hàng, Đang Giao';
       case 'shipping': return 'Đang Giao Hàng';
       case 'completed': return 'Giao Hàng Thành Công ';
       case 'cancelled': return 'Đã Hủy';
@@ -173,6 +174,7 @@ export function TrackingSection({
                       </div>
                       <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase ${
                         o.status === 'shipping' ? 'bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-900/30' :
+                        o.status === 'picked_up' ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-900/30' :
                         o.status === 'preparing' ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-900/30' :
                         'bg-[#F3F0E9] dark:bg-[#251A18] text-[#2D241E] dark:text-[#FAF8F5]'
                       }`}>

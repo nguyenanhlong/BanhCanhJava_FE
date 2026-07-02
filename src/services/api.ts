@@ -1,4 +1,4 @@
-import { Product, Driver, Order, Category, Review, User } from '../types';
+import { Product, Driver, Order, Category, Review, User, Invoice, DeliveryArea, DeliveryTrip, MembershipVoucher, UserMembership, InvoiceDetail, OrderStatusHistory, PaymentTransaction, Promotion, ProductOption, MembershipTier } from '../types';
 
 const BASE_URL = 'https://banhcanhjavabe-production.up.railway.app/api';
 
@@ -27,11 +27,19 @@ function mapProduct(p: any): Product {
 function mapDriver(d: any): Driver {
   return {
     id: String(d.id),
+    userId: d.userId ? Number(d.userId) : undefined,
     name: d.name || '',
     phone: d.phone || '',
-    vehicle: d.vehicle || '',
-    status: d.status || 'available',
+    vehicle: d.vehicle || d.vehicleType || 'Xe máy',
+    vehicleType: d.vehicleType || 'Xe máy',
+    vehiclePlate: d.vehiclePlate || '',
+    vehicleColor: d.vehicleColor || '',
+    status: d.status || 'offline',
     isActive: d.isActive !== undefined ? !!d.isActive : (d.is_active !== undefined ? !!d.is_active : true),
+    currentLat: d.currentLat,
+    currentLng: d.currentLng,
+    rating: d.rating || 5,
+    totalDeliveries: d.totalDeliveries || 0,
   };
 }
 
@@ -143,6 +151,12 @@ export const ApiService = {
     return mapOrder(data);
   },
 
+  async getOrderById(orderId: string | number): Promise<Order> {
+    const res = await fetch(`${BASE_URL}/orders/${orderId}`);
+    if (!res.ok) throw new Error('Không thể tải chi tiết đơn hàng');
+    return mapOrder(await res.json());
+  },
+
   async updateOrderStatus(orderId: string | number, status: string): Promise<Order> {
     const res = await fetch(`${BASE_URL}/orders/${orderId}/status?status=${status}`, {
       method: 'PUT'
@@ -197,6 +211,22 @@ export const ApiService = {
     if (!res.ok) throw new Error('Không thể tải danh sách tài xế');
     const data = await res.json();
     return Array.isArray(data) ? data.map(mapDriver) : [];
+  },
+
+  async registerDriver(driver: any): Promise<{ user: any; driver: Driver }> {
+    const res = await fetch(`${BASE_URL}/drivers/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(driver)
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      let errMsg = 'Không thể đăng ký tài xế';
+      try { const j = JSON.parse(errText); errMsg = j.error || errMsg; } catch {}
+      throw new Error(errMsg);
+    }
+    const data = await res.json();
+    return { user: data.user, driver: mapDriver(data.driver) };
   },
 
   async createDriver(driver: any): Promise<Driver> {
@@ -426,5 +456,306 @@ export const ApiService = {
     const res = await fetch(`${BASE_URL}/roles/${roleId}/permissions`);
     if (!res.ok) return [];
     return res.json();
+  },
+
+  // 11. INVOICES API
+  async getInvoices(): Promise<Invoice[]> {
+    const res = await fetch(`${BASE_URL}/invoices`);
+    if (!res.ok) throw new Error('Không thể tải hóa đơn');
+    return res.json();
+  },
+
+  async createInvoice(orderId: number): Promise<Invoice> {
+    const res = await fetch(`${BASE_URL}/invoices`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId })
+    });
+    if (!res.ok) throw new Error('Không thể tạo hóa đơn');
+    return res.json();
+  },
+
+  async cancelInvoice(id: number): Promise<Invoice> {
+    const res = await fetch(`${BASE_URL}/invoices/${id}/cancel`, { method: 'PUT' });
+    if (!res.ok) throw new Error('Không thể hủy hóa đơn');
+    return res.json();
+  },
+
+  // 12. DELIVERY AREAS API
+  async getDeliveryAreas(): Promise<DeliveryArea[]> {
+    const res = await fetch(`${BASE_URL}/delivery-areas`);
+    if (!res.ok) throw new Error('Không thể tải khu vực giao hàng');
+    return res.json();
+  },
+
+  async createDeliveryArea(area: Partial<DeliveryArea>): Promise<DeliveryArea> {
+    const res = await fetch(`${BASE_URL}/delivery-areas`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(area)
+    });
+    if (!res.ok) throw new Error('Không thể tạo khu vực giao hàng');
+    return res.json();
+  },
+
+  async updateDeliveryArea(id: number, area: Partial<DeliveryArea>): Promise<DeliveryArea> {
+    const res = await fetch(`${BASE_URL}/delivery-areas/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(area)
+    });
+    if (!res.ok) throw new Error('Không thể cập nhật khu vực giao hàng');
+    return res.json();
+  },
+
+  async deleteDeliveryArea(id: number): Promise<void> {
+    const res = await fetch(`${BASE_URL}/delivery-areas/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Không thể xóa khu vực giao hàng');
+  },
+
+  // 13. DELIVERY TRIPS API
+  async getDeliveryTrips(): Promise<DeliveryTrip[]> {
+    const res = await fetch(`${BASE_URL}/delivery-trips`);
+    if (!res.ok) throw new Error('Không thể tải chuyến giao hàng');
+    return res.json();
+  },
+
+  async getDeliveryTripsByDriver(driverId: number): Promise<DeliveryTrip[]> {
+    const res = await fetch(`${BASE_URL}/delivery-trips/driver/${driverId}`);
+    if (!res.ok) throw new Error('Không thể tải chuyến giao của tài xế');
+    return res.json();
+  },
+
+  async getDeliveryTripsByOrder(orderId: number): Promise<DeliveryTrip[]> {
+    const res = await fetch(`${BASE_URL}/delivery-trips/order/${orderId}`);
+    if (!res.ok) throw new Error('Không thể tải chuyến giao của đơn hàng');
+    return res.json();
+  },
+
+  async createDeliveryTrip(orderId: number, driverId: number): Promise<DeliveryTrip> {
+    const res = await fetch(`${BASE_URL}/delivery-trips`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId, driverId })
+    });
+    if (!res.ok) throw new Error('Không thể tạo chuyến giao hàng');
+    return res.json();
+  },
+
+  async updateDeliveryTripStatus(id: number, status: string, lat?: number, lng?: number): Promise<DeliveryTrip> {
+    let url = `${BASE_URL}/delivery-trips/${id}/status?status=${status}`;
+    if (lat !== undefined && lng !== undefined) url += `&lat=${lat}&lng=${lng}`;
+    const res = await fetch(url, { method: 'PUT' });
+    if (!res.ok) throw new Error('Không thể cập nhật trạng thái chuyến giao');
+    return res.json();
+  },
+
+  async updateDeliveryTripLocation(id: number, lat: number, lng: number): Promise<DeliveryTrip> {
+    const res = await fetch(`${BASE_URL}/delivery-trips/${id}/location?lat=${lat}&lng=${lng}`, { method: 'PUT' });
+    if (!res.ok) throw new Error('Không thể cập nhật vị trí');
+    return res.json();
+  },
+
+  // 14. MEMBERSHIPS API
+  async getMembership(userId: number): Promise<UserMembership | null> {
+    const res = await fetch(`${BASE_URL}/memberships/${userId}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data || null;
+  },
+
+  async createOrUpdateMembership(userId: number, data: { tierId: number; currentPoints?: number; totalOrders?: number }): Promise<UserMembership> {
+    const res = await fetch(`${BASE_URL}/memberships/${userId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('Không thể cập nhật thành viên');
+    return res.json();
+  },
+
+  async getVouchers(userId: number): Promise<MembershipVoucher[]> {
+    const res = await fetch(`${BASE_URL}/memberships/${userId}/vouchers`);
+    if (!res.ok) throw new Error('Không thể tải voucher');
+    return res.json();
+  },
+
+  async claimVoucher(userId: number, tierId: number): Promise<MembershipVoucher> {
+    const res = await fetch(`${BASE_URL}/memberships/${userId}/vouchers/claim?tierId=${tierId}`, { method: 'POST' });
+    if (!res.ok) throw new Error('Không thể nhận voucher');
+    return res.json();
+  },
+
+  async useVoucher(voucherId: number): Promise<MembershipVoucher> {
+    const res = await fetch(`${BASE_URL}/memberships/vouchers/${voucherId}/use`, { method: 'PUT' });
+    if (!res.ok) throw new Error('Không thể sử dụng voucher');
+    return res.json();
+  },
+
+  // 15. ORDER HISTORY API
+  async getOrderHistory(orderId: number): Promise<OrderStatusHistory[]> {
+    const res = await fetch(`${BASE_URL}/order-history/order/${orderId}`);
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  // 16. PAYMENT TRANSACTIONS API
+  async getPaymentTransactions(orderId: number): Promise<PaymentTransaction[]> {
+    const res = await fetch(`${BASE_URL}/payments/order/${orderId}`);
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  // 17. INVOICE DETAILS API
+  async getInvoiceDetails(invoiceId: number): Promise<InvoiceDetail[]> {
+    const res = await fetch(`${BASE_URL}/invoice-details/invoice/${invoiceId}`);
+    if (!res.ok) throw new Error('Không thể tải chi tiết hóa đơn');
+    return res.json();
+  },
+
+  async createInvoiceDetail(detail: Partial<InvoiceDetail>): Promise<InvoiceDetail> {
+    const res = await fetch(`${BASE_URL}/invoice-details`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(detail)
+    });
+    if (!res.ok) throw new Error('Không thể tạo chi tiết hóa đơn');
+    return res.json();
+  },
+
+  // 18. DRIVER EXTENDED API
+  async getDriver(id: number): Promise<Driver> {
+    const res = await fetch(`${BASE_URL}/drivers/${id}`);
+    if (!res.ok) throw new Error('Không thể tải thông tin tài xế');
+    return res.json();
+  },
+
+  async deleteDriver(id: number): Promise<void> {
+    const res = await fetch(`${BASE_URL}/drivers/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Không thể xóa tài xế');
+  },
+
+  async updateDriver(id: number, data: Partial<Driver>): Promise<Driver> {
+    const res = await fetch(`${BASE_URL}/drivers/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('Không thể cập nhật tài xế');
+    return res.json();
+  },
+
+  async updateDriverLocation(id: number, lat: number, lng: number): Promise<Driver> {
+    const res = await fetch(`${BASE_URL}/drivers/${id}/location?lat=${lat}&lng=${lng}`, { method: 'PUT' });
+    if (!res.ok) throw new Error('Không thể cập nhật vị trí tài xế');
+    return res.json();
+  },
+
+  async getDriverStats(id: number): Promise<{ totalTrips: number; activeTrips: number; completedTrips: number; totalEarnings: number; rating: number }> {
+    const res = await fetch(`${BASE_URL}/drivers/${id}/stats`);
+    if (!res.ok) return { totalTrips: 0, activeTrips: 0, completedTrips: 0, totalEarnings: 0, rating: 5 };
+    return res.json();
+  },
+
+  async getDriverTrips(id: number): Promise<DeliveryTrip[]> {
+    const res = await fetch(`${BASE_URL}/drivers/${id}/trips`);
+    if (!res.ok) throw new Error('Không thể tải chuyến giao của tài xế');
+    return res.json();
+  },
+
+  // 19. PROMOTIONS API
+  async getPromotions(): Promise<Promotion[]> {
+    const res = await fetch(`${BASE_URL}/promotions`);
+    if (!res.ok) throw new Error('Không thể tải khuyến mãi');
+    return res.json();
+  },
+
+  async createPromotion(promo: any): Promise<Promotion> {
+    const res = await fetch(`${BASE_URL}/promotions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(promo)
+    });
+    if (!res.ok) throw new Error('Không thể tạo khuyến mãi');
+    return res.json();
+  },
+
+  async updatePromotion(id: number, promo: any): Promise<Promotion> {
+    const res = await fetch(`${BASE_URL}/promotions/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(promo)
+    });
+    if (!res.ok) throw new Error('Không thể cập nhật khuyến mãi');
+    return res.json();
+  },
+
+  async deletePromotion(id: number): Promise<void> {
+    const res = await fetch(`${BASE_URL}/promotions/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Không thể xóa khuyến mãi');
+  },
+
+  // 20. PRODUCT OPTIONS (TOPPINGS) API
+  async getProductOptions(): Promise<ProductOption[]> {
+    const res = await fetch(`${BASE_URL}/product-options`);
+    if (!res.ok) throw new Error('Không thể tải tuỳ chọn sản phẩm');
+    return res.json();
+  },
+
+  async createProductOption(opt: any): Promise<ProductOption> {
+    const res = await fetch(`${BASE_URL}/product-options`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(opt)
+    });
+    if (!res.ok) throw new Error('Không thể tạo tuỳ chọn');
+    return res.json();
+  },
+
+  async updateProductOption(id: number, opt: any): Promise<ProductOption> {
+    const res = await fetch(`${BASE_URL}/product-options/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(opt)
+    });
+    if (!res.ok) throw new Error('Không thể cập nhật tuỳ chọn');
+    return res.json();
+  },
+
+  async deleteProductOption(id: number): Promise<void> {
+    const res = await fetch(`${BASE_URL}/product-options/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Không thể xóa tuỳ chọn');
+  },
+
+  // 21. MEMBERSHIP TIERS API
+  async getMembershipTiers(): Promise<MembershipTier[]> {
+    const res = await fetch(`${BASE_URL}/membership-tiers`);
+    if (!res.ok) throw new Error('Không thể tải hạng thành viên');
+    return res.json();
+  },
+
+  async createMembershipTier(tier: any): Promise<MembershipTier> {
+    const res = await fetch(`${BASE_URL}/membership-tiers`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(tier)
+    });
+    if (!res.ok) throw new Error('Không thể tạo hạng thành viên');
+    return res.json();
+  },
+
+  async updateMembershipTier(id: number, tier: any): Promise<MembershipTier> {
+    const res = await fetch(`${BASE_URL}/membership-tiers/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(tier)
+    });
+    if (!res.ok) throw new Error('Không thể cập nhật hạng thành viên');
+    return res.json();
+  },
+
+  async deleteMembershipTier(id: number): Promise<void> {
+    const res = await fetch(`${BASE_URL}/membership-tiers/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Không thể xóa hạng thành viên');
   },
 };
