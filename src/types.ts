@@ -41,7 +41,7 @@ export interface User {
   id: string;
   username: string;
   email: string;
-  role: 'customer' | 'admin' | 'super_admin';
+  role: 'customer' | 'admin' | 'super_admin' | 'driver';
   fullName?: string;
   phone?: string;
   address?: string;
@@ -49,7 +49,7 @@ export interface User {
   isActive: boolean;
 }
 
-export type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'shipping' | 'completed' | 'cancelled';
+export type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'picked_up' | 'shipping' | 'completed' | 'cancelled';
 
 export interface OrderItem {
   productId?: number;
@@ -88,11 +88,19 @@ export interface Order {
 
 export interface Driver {
   id: string;
+  userId?: number;
   name: string;
   phone: string;
   vehicle: string;
+  vehicleType?: string;
+  vehiclePlate?: string;
+  vehicleColor?: string;
   status: 'available' | 'busy' | 'offline';
   isActive: boolean;
+  currentLat?: number;
+  currentLng?: number;
+  rating?: number;
+  totalDeliveries?: number;
 }
 
 export interface DiningTable {
@@ -186,6 +194,23 @@ export interface Message {
   timestamp: string;
 }
 
+export interface Invoice {
+  id: number;
+  orderId: number;
+  invoiceNumber: string;
+  customerName: string;
+  customerPhone?: string;
+  address?: string;
+  subtotal: number;
+  discountAmount: number;
+  shippingFee: number;
+  totalAmount: number;
+  status: 'pending' | 'issued' | 'cancelled';
+  paymentMethod: string;
+  issuedAt: string;
+  createdAt: string;
+}
+
 export interface ProductReview {
   id: string;
   orderId: string;
@@ -193,5 +218,110 @@ export interface ProductReview {
   customerName: string;
   rating: number;
   comment: string;
+  createdAt: string;
+}
+
+export interface DeliveryArea {
+  id: number;
+  name: string;
+  centerLat: number;
+  centerLng: number;
+  radiusKm: number;
+  baseFee: number;
+  feePerKm: number;
+  maxDistanceKm: number;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface DeliveryTrip {
+  id: number;
+  orderId: number;
+  driverId: number;
+  status: 'assigned' | 'accepted' | 'picked_up' | 'delivered' | 'cancelled';
+  startAddress?: string;
+  endAddress?: string;
+  currentLat?: number;
+  currentLng?: number;
+  acceptedAt?: string;
+  pickedUpAt?: string;
+  deliveredAt?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MembershipVoucher {
+  id: number;
+  userId: number;
+  tierId: number;
+  code: string;
+  discountPercent: number;
+  maxDiscount: number;
+  minOrderAmount: number;
+  status: 'available' | 'used' | 'expired';
+  issuedAt: string;
+  usedAt?: string;
+  expiresAt: string;
+}
+
+export interface UserMembership {
+  id: number;
+  userId: number;
+  tierId: number;
+  currentPoints: number;
+  totalOrders: number;
+  upgradedAt: string;
+  expiresAt?: string;
+}
+
+export interface InvoiceDetail {
+  id: number;
+  invoiceId: number;
+  productName: string;
+  unit: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+}
+
+export interface Promotion {
+  id: number;
+  code: string;
+  name: string;
+  description?: string;
+  discountType: 'percentage' | 'fixed_amount';
+  discountValue: number;
+  minOrderAmount: number;
+  maxDiscount: number;
+  usageLimit: number;
+  usedCount: number;
+  startDate: string;
+  endDate: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface ProductOption {
+  id: number;
+  productId: number;
+  name: string;
+  optionGroup: 'topping' | 'size' | 'spice_level';
+  price: number;
+  isRequired: boolean;
+  isActive: boolean;
+  displayOrder: number;
+}
+
+export interface MembershipTier {
+  id: number;
+  name: string;
+  displayName: string;
+  minTotalSpent: number;
+  minTotalOrders: number;
+  autoDiscountPercent: number;
+  voucherCount: number;
+  voucherDiscountPercent: number;
+  isActive: boolean;
   createdAt: string;
 }

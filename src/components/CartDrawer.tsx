@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { CartItem, User } from '../types';
-import { X, Trash2, ShoppingBag, MapPin, Phone, User as UserIcon, ShieldAlert, Tag, Check, AlertTriangle, Utensils } from 'lucide-react';
+import { getUserTier, MEMBERSHIP_TIERS, calculateAutoDiscount, getVouchersForTier, useVoucher } from '../services/membership';
+import { X, Trash2, ShoppingBag, MapPin, Phone, User as UserIcon, ShieldAlert, Tag, Check, AlertTriangle, Utensils, Award, Ticket } from 'lucide-react';
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -47,8 +48,20 @@ export function CartDrawer({
   const [appliedPromo, setAppliedPromo] = useState<{ code: string; type: 'percentage' | 'freeship'; value: number; label: string } | null>(null);
   const [promoError, setPromoError] = useState('');
   
+  // Membership voucher state
+  const [appliedVoucher, setAppliedVoucher] = useState<{ id: string; code: string; discountPercent: number; maxDiscount: number } | null>(null);
+  
   // Item removal confirmation state
   const [itemIndexToConfirmRemove, setItemIndexToConfirmRemove] = useState<number | null>(null);
+
+  // Auto-fill from user data when checkout step opens
+  useEffect(() => {
+    if (checkoutStep && user) {
+      if (!customerName || customerName === user.username) setCustomerName(user.fullName || user.username);
+      if (!phone) setPhone(user.phone || '');
+      if (!address) setAddress(user.address || '');
+    }
+  }, [checkoutStep, user]);
 
   // Order type state
   const [orderType, setOrderType] = useState<'delivery' | 'dinein' | 'takeaway'>('delivery');
@@ -61,8 +74,50 @@ export function CartDrawer({
     0
   );
 
+  // Geographic check: HCMC districts
+  const HCMC_KEYWORDS = [
+    'hồ chí minh', 'tphcm', 'tp.hcm', 'tp hcm', 'sài gòn', 'saigon',
+    'quận 1', 'quận 2', 'quận 3', 'quận 4', 'quận 5', 'quận 6', 'quận 7',
+    'quận 8', 'quận 9', 'quận 10', 'quận 11', 'quận 12',
+    'bình tân', 'tân bình', 'tân phú', 'phú nhuận', 'gò vấp',
+    'bình thạnh', 'thủ đức', 'thành phố thủ đức',
+    'nhà bè', 'hóc môn', 'củ chi', 'bình chánh', 'cần giờ'
+  ];
+  const isOutsideHCMC = orderType === 'delivery' && address.trim() && !HCMC_KEYWORDS.some(kw => address.toLowerCase().includes(kw));
+
+  // Distance-based delivery fee
+  const estimateDeliveryZone = (addr: string): { min: number; max: number } => {
+    const a = addr.toLowerCase();
+    if (['quận 1','quận 3','quận 4','quận 5','quận 10','quận 11','bình thạnh','phú nhuận','tân bình'].some(z => a.includes(z))) {
+      return { min: 15000, max: 20000 }; // inner city
+    }
+    if (['quận 2','quận 7','quận 8','quận 9','quận 12','tân phú','gò vấp','bình tân','thủ đức'].some(z => a.includes(z))) {
+      return { min: 20000, max: 30000 }; // suburban
+    }
+    if (['nhà bè','hóc môn','củ chi','bình chánh','cần giờ'].some(z => a.includes(z))) {
+      return { min: 35000, max: 50000 }; // outer districts
+    }
+    return { min: 15000, max: 25000 }; // default / unknown
+  };
+
   let deliveryFee = orderType === 'delivery' ? (totalAmount > 150000 ? 0 : 15000) : 0;
+  if (orderType === 'delivery' && address.trim() && !isOutsideHCMC) {
+    const zone = estimateDeliveryZone(address);
+    deliveryFee = totalAmount > 150000 ? 0 : zone.min;
+  }
   let discountAmount = 0;
+  let membershipDiscount = 0;
+
+  // Membership auto discount
+  if (user) {
+    const tier = getUserTier((user as any).total_spent || 0, (user as any).total_orders || 0);
+    membershipDiscount = calculateAutoDiscount(tier, totalAmount);
+  }
+
+  let voucherDiscount = 0;
+  if (appliedVoucher) {
+    voucherDiscount = Math.min(Math.round(totalAmount * appliedVoucher.discountPercent / 100), appliedVoucher.maxDiscount);
+  }
 
   if (appliedPromo) {
     if (appliedPromo.type === 'percentage') {
@@ -73,7 +128,7 @@ export function CartDrawer({
     }
   }
 
-  const finalTotal = Math.max(0, totalAmount + deliveryFee - (appliedPromo?.type === 'freeship' ? 0 : discountAmount));
+  const finalTotal = Math.max(0, totalAmount + deliveryFee - membershipDiscount - voucherDiscount - (appliedPromo?.type === 'freeship' ? 0 : discountAmount));
 
   const handleApplyPromo = (code: string) => {
     const trimmed = code.trim().toUpperCase();
@@ -119,6 +174,10 @@ export function CartDrawer({
       setErrorMsg('Số điện thoại không hợp lệ!');
       return;
     }
+    if (orderType === 'delivery' && address.trim() && isOutsideHCMC) {
+      setErrorMsg('❌ Hiện tại quán chỉ giao hàng trong khu vực TP. Hồ Chí Minh!');
+      return;
+    }
     setErrorMsg('');
 
     let finalAddress = address;
@@ -135,9 +194,14 @@ export function CartDrawer({
       paymentMethod,
       finalTotalAmount: finalTotal
     });
+    if (appliedVoucher && user) {
+      const tier = getUserTier((user as any).total_spent || 0, (user as any).total_orders || 0);
+      useVoucher(tier, appliedVoucher.id);
+    }
     // Reset state values
     setCheckoutStep(false);
     setAppliedPromo(null);
+    setAppliedVoucher(null);
   };
 
   return (
@@ -335,6 +399,40 @@ export function CartDrawer({
                     )}
                   </div>
 
+                  {/* Membership Voucher */}
+                  {user && (() => {
+                    const tier = getUserTier((user as any).total_spent || 0, (user as any).total_orders || 0);
+                    const vouchers = getVouchersForTier(tier);
+                    const available = vouchers.filter(v => !v.usedAt && new Date(v.expiredAt) > new Date());
+                    if (available.length === 0) return null;
+                    return (
+                      <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/20 dark:to-orange-950/10 p-3 rounded-xl border border-amber-200 dark:border-amber-900/40">
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <Ticket className="w-3.5 h-3.5 text-[#D97706]" />
+                          <span className="text-[10px] font-bold text-[#2D241E] dark:text-[#FAF8F5]">Voucher {tier.displayName}</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {available.map(v => (
+                            <button key={v.id} type="button" onClick={() => {
+                              if (appliedVoucher?.id === v.id) {
+                                setAppliedVoucher(null);
+                              } else {
+                                setAppliedVoucher({ id: v.id, code: v.code, discountPercent: v.discountPercent, maxDiscount: v.maxDiscount });
+                              }
+                            }}
+                              className={`text-[10px] px-2.5 py-1 rounded-lg font-bold border transition-all cursor-pointer ${
+                                appliedVoucher?.id === v.id
+                                  ? 'bg-[#D97706] text-white border-[#D97706]'
+                                  : 'bg-white dark:bg-[#1C1311] text-[#D97706] border-amber-200 dark:border-amber-900/50 hover:border-[#D97706]'
+                              }`}>
+                              {v.discountPercent}% — {v.code.slice(-6)}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   {/* Summary Block */}
                   <div className="bg-[#FAF8F5] dark:bg-[#1C1311] border border-[#E5E1D8] dark:border-[#2D2321] rounded-xl p-4 space-y-2 mt-4">
                     <div className="flex justify-between text-xs">
@@ -342,9 +440,21 @@ export function CartDrawer({
                       <span className="font-bold text-[#2D241E] dark:text-[#FAF8F5]">{totalAmount.toLocaleString('vi-VN')} đ</span>
                     </div>
 
+                    {membershipDiscount > 0 && (
+                      <div className="flex justify-between text-xs text-[#D97706] font-bold">
+                        <span className="flex items-center gap-1"><Award className="w-3 h-3" /> Giảm hạng thành viên:</span>
+                        <span>-{membershipDiscount.toLocaleString('vi-VN')} đ</span>
+                      </div>
+                    )}
+                    {appliedVoucher && (
+                      <div className="flex justify-between text-xs text-[#D97706] font-bold">
+                        <span className="flex items-center gap-1"><Ticket className="w-3 h-3" /> Voucher ({appliedVoucher.code.slice(-6)}):</span>
+                        <span>-{voucherDiscount.toLocaleString('vi-VN')} đ</span>
+                      </div>
+                    )}
                     {appliedPromo && (
                       <div className="flex justify-between text-xs text-emerald-700 dark:text-emerald-400 font-bold">
-                        <span>Chết khấu ({appliedPromo.code}):</span>
+                        <span>Giảm giá ({appliedPromo.code}):</span>
                         <span>-{discountAmount.toLocaleString('vi-VN')} đ</span>
                       </div>
                     )}
@@ -359,9 +469,11 @@ export function CartDrawer({
                         )}
                       </span>
                     </div>
-                    {orderType === 'delivery' && deliveryFee > 0 && (
+                    {orderType === 'delivery' && address.trim() && !isOutsideHCMC && (
                       <p className="text-[10px] text-[#8B7E74] dark:text-[#B2A496] text-right italic font-mono">
-                        (Mua thêm {(150000 - totalAmount).toLocaleString('vi-VN')} đ để được Free Shipping)
+                        {deliveryFee > 0
+                          ? `(Mua thêm ${(150000 - totalAmount).toLocaleString('vi-VN')} đ để được Free Ship)`
+                          : `(Đơn trên 150.000đ — Miễn ship theo chính sách)`}
                       </p>
                     )}
                     <div className="h-[1px] bg-[#E5E1D8] dark:border-[#2D2321] my-1" />
@@ -424,6 +536,21 @@ export function CartDrawer({
                     {orderType === 'delivery' ? 'Thông Tin Giao Hàng' : orderType === 'dinein' ? 'Thông Tin Khách Hàng' : 'Thông Tin Khách Hàng'}
                   </h4>
                   
+                  {user && (
+                    <div className="mb-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCustomerName(user.fullName || user.username);
+                          setPhone(user.phone || '');
+                          setAddress(user.address || '');
+                        }}
+                        className="flex items-center gap-1.5 text-[10px] text-[#D97706] font-bold hover:underline"
+                      >
+                        <UserIcon className="w-3 h-3" /> Khôi phục thông tin từ tài khoản
+                      </button>
+                    </div>
+                  )}
                   <div>
                     <label className="block text-xs font-semibold text-[#3E2F26] dark:text-[#EAE3D2] mb-1 flex items-center gap-1">
                       <UserIcon className="w-3.5 h-3.5 text-[#8B7E74]" /> Tên Khách Hàng:
@@ -465,6 +592,16 @@ export function CartDrawer({
                         className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#2D2321] bg-[#FAF8F5] dark:bg-[#150F0D] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]"
                         required
                       />
+                      {address.trim() && isOutsideHCMC && (
+                        <p className="mt-1.5 text-[10px] text-red-500 dark:text-red-400 font-bold flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3" /> Khu vực ngoài TP. Hồ Chí Minh — quán chưa hỗ trợ giao hàng
+                        </p>
+                      )}
+                      {address.trim() && !isOutsideHCMC && orderType === 'delivery' && estimateDeliveryZone(address).min > 15000 && (
+                        <p className="mt-1.5 text-[10px] text-amber-500 font-bold">
+                          📍 Phí ship khu vực này từ {estimateDeliveryZone(address).min.toLocaleString('vi-VN')}đ
+                        </p>
+                      )}
                       {user?.address && address !== user.address && (
                         <div className="mt-2.5">
                           <p className="text-[10px] text-[#8B7E74] mb-1">Địa chỉ đã lưu:</p>
@@ -530,9 +667,33 @@ export function CartDrawer({
 
                 {/* Order total */}
                 <div className="p-3 bg-white dark:bg-[#1C1311] border border-[#E5E1D8] dark:border-[#2D2321] rounded-xl flex flex-col gap-1 shadow-xs">
+                  {membershipDiscount > 0 && (
+                    <div className="flex justify-between items-center text-xs text-[#D97706] font-bold border-b border-[#F3F0E9] pb-1.5 mb-1">
+                      <span className="flex items-center gap-1"><Award className="w-3 h-3" /> Giảm hạng thành viên:</span>
+                      <span>-{membershipDiscount.toLocaleString('vi-VN')} đ</span>
+                    </div>
+                  )}
+                  {orderType === 'delivery' && deliveryFee > 0 && (
+                    <div className="flex justify-between items-center text-xs text-[#8B7E74] border-b border-[#F3F0E9] pb-1.5 mb-1">
+                      <span>📦 Phí giao hàng:</span>
+                      <span>+{deliveryFee.toLocaleString('vi-VN')} đ</span>
+                    </div>
+                  )}
+                  {orderType === 'delivery' && deliveryFee === 0 && totalAmount > 150000 && (
+                    <div className="flex justify-between items-center text-xs text-emerald-600 font-bold border-b border-[#F3F0E9] pb-1.5 mb-1">
+                      <span>🚚 Miễn phí giao hàng:</span>
+                      <span>-{estimateDeliveryZone(address).min.toLocaleString('vi-VN')} đ</span>
+                    </div>
+                  )}
+                  {appliedVoucher && (
+                    <div className="flex justify-between items-center text-xs text-[#D97706] font-bold border-b border-[#F3F0E9] pb-1.5 mb-1">
+                      <span className="flex items-center gap-1"><Ticket className="w-3 h-3" /> Voucher ({appliedVoucher.code.slice(-6)}):</span>
+                      <span>-{voucherDiscount.toLocaleString('vi-VN')} đ</span>
+                    </div>
+                  )}
                   {appliedPromo && (
                     <div className="flex justify-between items-center text-xs text-emerald-700 font-bold border-b border-[#F3F0E9] pb-1.5 mb-1">
-                      <span>Mã giảm giá đã áp dụng ({appliedPromo.code}):</span>
+                      <span>Mã giảm giá ({appliedPromo.code}):</span>
                       <span>-{discountAmount.toLocaleString('vi-VN')} đ</span>
                     </div>
                   )}

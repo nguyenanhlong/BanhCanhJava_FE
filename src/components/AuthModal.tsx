@@ -13,6 +13,9 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModalProps) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [email, setEmail] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
   const [selectedRole, setSelectedRole] = useState<'customer' | 'admin' | 'driver'>('customer');
 
   const [errorMsg, setErrorMsg] = useState('');
@@ -94,7 +97,10 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModalProps) {
             username: trimmedUsername,
             password: trimmedPassword,
             email: email.trim(),
-            role: 'customer'
+            role: 'customer',
+            fullName: fullName.trim() || undefined,
+            phone: phone.trim() || undefined,
+            address: address.trim() || undefined
           };
           
           const regRes = await ApiService.register(payload);
@@ -166,7 +172,10 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModalProps) {
           username: trimmedUsername,
           email: email.trim(),
           password: trimmedPassword,
-          role: 'customer' as const
+          role: 'customer' as const,
+          fullName: fullName.trim() || undefined,
+          phone: phone.trim() || undefined,
+          address: address.trim() || undefined
         };
 
         registeredUsers.push(newUser);
@@ -309,16 +318,48 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModalProps) {
           </div>
 
           {isRegisterStep && (
-            <div>
-              <label className="block text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase mb-1">Địa chỉ Email:</label>
-              <input
-                type="email"
-                placeholder="sales@banhcanhcaloc.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full text-xs p-3 rounded-xl border border-[#E5E1D8] dark:border-[#2D2321] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]"
-              />
-            </div>
+            <>
+              <div>
+                <label className="block text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase mb-1">Địa chỉ Email:</label>
+                <input
+                  type="email"
+                  placeholder="sales@banhcanhcaloc.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full text-xs p-3 rounded-xl border border-[#E5E1D8] dark:border-[#2D2321] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase mb-1">Họ Và Tên:</label>
+                <input
+                  type="text"
+                  placeholder="Nguyễn Văn A"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  className="w-full text-xs p-3 rounded-xl border border-[#E5E1D8] dark:border-[#2D2321] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase mb-1">Số Điện Thoại:</label>
+                <input
+                  type="tel"
+                  placeholder="0912 345 678"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="w-full text-xs p-3 rounded-xl border border-[#E5E1D8] dark:border-[#2D2321] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase mb-1">Địa Chỉ:</label>
+                <textarea
+                  placeholder="Số nhà, đường, phường/xã, quận/huyện, TP. Hồ Chí Minh"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  rows={2}
+                  className="w-full text-xs p-3 rounded-xl border border-[#E5E1D8] dark:border-[#2D2321] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706] resize-none"
+                />
+              </div>
+            </>
           )}
 
           <div>
@@ -386,6 +427,9 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModalProps) {
               setIsRegisterStep(!isRegisterStep);
               setErrorMsg('');
               setSuccessMsg('');
+              setFullName('');
+              setPhone('');
+              setAddress('');
             }}
             className="text-xs font-bold text-[#D97706] hover:underline"
           >

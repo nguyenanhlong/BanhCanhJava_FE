@@ -50,8 +50,8 @@ export function Navbar({
             <Logo size="md" />
           </div>
 
-          {/* Desktop Navigation links */}
-          <div className="hidden md:flex items-center space-x-2 lg:space-x-4">
+          {/* Desktop Navigation links - Horizontal Scroll */}
+          <div className="hidden md:flex items-center overflow-x-auto whitespace-nowrap gap-1 lg:gap-3 scrollbar-hide">
             {navLinks.map((link) => (
               <button
                 key={link.id}
