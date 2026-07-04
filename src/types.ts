@@ -32,9 +32,10 @@ export interface Product {
 export interface CartItem {
   product: Product;
   quantity: number;
-  noodleType?: 'Bột gạo' | 'Bột lọc';
+  noodleType?: string;
   notes?: string;
   toppings?: Product[];
+  selectedOptions?: { optionId: number; name: string; optionGroup: string; price: number }[];
 }
 
 export interface User {
@@ -95,6 +96,7 @@ export interface Driver {
   vehicleType?: string;
   vehiclePlate?: string;
   vehicleColor?: string;
+  avatarUrl?: string;
   status: 'available' | 'busy' | 'offline';
   isActive: boolean;
   currentLat?: number;
@@ -143,7 +145,7 @@ export interface ProductOption {
   id: number;
   productId: number;
   name: string;
-  optionGroup: 'topping' | 'size' | 'spice_level';
+  optionGroup: 'topping' | 'size' | 'sugar' | 'ice' | 'coffee_type' | 'noodle';
   price: number;
   isRequired: boolean;
   isActive: boolean;
@@ -306,7 +308,7 @@ export interface ProductOption {
   id: number;
   productId: number;
   name: string;
-  optionGroup: 'topping' | 'size' | 'spice_level';
+  optionGroup: 'topping' | 'size' | 'sugar' | 'ice' | 'coffee_type' | 'noodle';
   price: number;
   isRequired: boolean;
   isActive: boolean;

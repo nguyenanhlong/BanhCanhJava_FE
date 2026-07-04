@@ -5,13 +5,14 @@ import { AboutUs } from './components/AboutUs';
 import { ProductCard } from './components/ProductCard';
 import { CartDrawer } from './components/CartDrawer';
 import { PaymentModal } from './components/PaymentModal';
+import { OrderConfirmation } from './components/OrderConfirmation';
 import { TrackingSection } from './components/TrackingSection';
 import { ProfileSection } from './components/ProfileSection';
 import { AdminDashboard } from './components/AdminDashboard';
 import { DriverDashboard } from './components/DriverDashboard';
 import { AuthModal } from './components/AuthModal';
 
-import { Product, CartItem, User, Order, Driver, OrderStatus, ProductReview, OrderItem } from './types';
+import { Product, CartItem, User, Order, Driver, OrderStatus, ProductReview, OrderItem, ProductOption, Promotion } from './types';
 import { ApiService } from './services/api';
 import { Sparkles, Utensils, MessageCircle, Heart, Info, Clock, CheckCircle2, ShoppingCart } from 'lucide-react';
 import { Toaster, Toast } from './components/Toaster';
@@ -23,6 +24,7 @@ export default function App() {
   
   // Products, drivers, orders list
   const [products, setProducts] = useState<Product[]>([]);
+  const [productOptions, setProductOptions] = useState<ProductOption[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [orders, setOrders] = useState<Order[]>(() => {
     const saved = localStorage.getItem('banhcanh_orders');
@@ -46,13 +48,15 @@ export default function App() {
         setIsLoadingBackend(true);
         const connected = await ApiService.checkConnection();
         if (connected) {
-          const [backendProducts, backendDrivers, backendOrders] = await Promise.all([
+          const [backendProducts, backendDrivers, backendOrders, backendOptions] = await Promise.all([
             ApiService.getProducts(),
             ApiService.getDrivers(),
-            ApiService.getOrders()
+            ApiService.getOrders(),
+            ApiService.getProductOptions()
           ]);
           
           setProducts(backendProducts || []);
+          setProductOptions(backendOptions || []);
           if (backendDrivers) setDrivers(backendDrivers);
           if (backendOrders) setOrders(backendOrders);
           
@@ -87,6 +91,7 @@ export default function App() {
 
   // Payment Gateway Simulator Modal State
   const [paymentOpen, setPaymentOpen] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
   const [pendingCheckoutDetails, setPendingCheckoutDetails] = useState<{
     customerName: string;
     phone: string;
@@ -94,6 +99,12 @@ export default function App() {
     paymentMethod: 'momo' | 'cod';
     totalAmount: number;
     items: CartItem[];
+    shippingFee?: number;
+    deliveryAreaId?: number;
+    appliedPromo?: Promotion;
+    membershipDiscount?: number;
+    voucherDiscount?: number;
+    discountAmount?: number;
   } | null>(null);
 
   // Auth Modal State
@@ -261,26 +272,31 @@ export default function App() {
   };
 
   // Cart actions
-  const handleAddToCart = (product: Product, noodleType?: 'Bột gạo' | 'Bột lọc', notes?: string, toppings?: Product[]) => {
+  const handleAddToCart = (product: Product, noodleType?: string, notes?: string, toppings?: Product[], selectedOptions?: { optionId: number; name: string; optionGroup: string; price: number }[]) => {
     if (!product.isAvailable) {
       showToast('Sản phẩm này hiện đã hết hàng!', 'warning', 'Hết hàng');
       return;
     }
-    const isMain = product.categoryName === 'Bánh Canh Cá Lóc' || product.categoryId === 1;
     const trimmedNotes = notes?.trim() || undefined;
     const itemToppings = toppings || [];
+    const itemOptions = selectedOptions || [];
     
     setCartItems((prevCartItems) => {
       const existingIdx = prevCartItems.findIndex(
         (item) => {
           if (item.product.id !== product.id) return false;
-          if (isMain && item.noodleType !== noodleType) return false;
+          if (item.noodleType !== (noodleType || undefined)) return false;
           if (item.notes !== trimmedNotes) return false;
           const itemToppingsList = item.toppings || [];
           if (itemToppingsList.length !== itemToppings.length) return false;
           const currentToppingIds = [...itemToppings].map(t => t.id).sort();
           const existingToppingIds = [...itemToppingsList].map(t => t.id).sort();
-          return currentToppingIds.every((id, idx) => id === existingToppingIds[idx]);
+          if (!currentToppingIds.every((id, idx) => id === existingToppingIds[idx])) return false;
+          const itemOpts = item.selectedOptions || [];
+          if (itemOpts.length !== itemOptions.length) return false;
+          const currentOptIds = itemOptions.map(o => o.optionId).sort();
+          const existingOptIds = itemOpts.map(o => o.optionId).sort();
+          return currentOptIds.every((id, idx) => id === existingOptIds[idx]);
         }
       );
       let updated: CartItem[];
@@ -288,7 +304,7 @@ export default function App() {
         updated = [...prevCartItems];
         updated[existingIdx] = { ...updated[existingIdx], quantity: updated[existingIdx].quantity + 1 };
       } else {
-        updated = [...prevCartItems, { product, quantity: 1, noodleType: isMain ? noodleType : undefined, notes: trimmedNotes, toppings: itemToppings.length > 0 ? itemToppings : undefined }];
+        updated = [...prevCartItems, { product, quantity: 1, noodleType: noodleType || undefined, notes: trimmedNotes, toppings: itemToppings.length > 0 ? itemToppings : undefined, selectedOptions: itemOptions.length > 0 ? itemOptions : undefined }];
       }
       localStorage.setItem('banhcanh_cart', JSON.stringify(updated));
       return updated;
@@ -314,41 +330,54 @@ export default function App() {
     }
   };
 
-  // Checkout process trigger
-  const handleCheckoutInit = (details: {
+  // Open order confirmation page
+  const handleOpenConfirmation = () => {
+    if (cartItems.length === 0) return;
+    setShowConfirmation(true);
+    setCartOpen(false);
+  };
+
+  // Order confirmed from confirmation page
+  const handleOrderConfirmed = (details: {
     customerName: string;
     phone: string;
     address: string;
     paymentMethod: 'cod' | 'momo';
-    finalTotalAmount?: number;
+    finalTotalAmount: number;
+    shippingFee: number;
+    deliveryAreaId?: number;
+    appliedPromo?: Promotion;
+    appliedVoucherId?: string;
+    membershipDiscount: number;
+    voucherDiscount: number;
+    discountAmount: number;
   }) => {
-    // Yêu cầu đăng nhập trước khi đặt hàng
     if (!user) {
       setAuthOpen(true);
       return;
     }
-    const totalAmount = cartItems.reduce(
-      (sum, item) => sum + (item.product.price + (item.toppings || []).reduce((s, t) => s + t.price, 0)) * item.quantity,
-      0
-    );
-    const finalAmount = details.finalTotalAmount !== undefined 
-      ? details.finalTotalAmount 
-      : totalAmount + (totalAmount > 150000 ? 0 : 15000);
 
     const checkDetails = {
-      ...details,
-      totalAmount: finalAmount,
-      items: [...cartItems]
+      customerName: details.customerName,
+      phone: details.phone,
+      address: details.address,
+      paymentMethod: details.paymentMethod,
+      totalAmount: details.finalTotalAmount,
+      items: [...cartItems],
+      shippingFee: details.shippingFee,
+      deliveryAreaId: details.deliveryAreaId,
+      appliedPromo: details.appliedPromo,
+      membershipDiscount: details.membershipDiscount,
+      voucherDiscount: details.voucherDiscount,
+      discountAmount: details.discountAmount,
     };
 
     setPendingCheckoutDetails(checkDetails);
-    setCartOpen(false);
+    setShowConfirmation(false);
 
     if (details.paymentMethod === 'cod') {
-      // Direct Cash checkout success simulation
       handleCompleteOrderFinalization(checkDetails, 'cod');
     } else {
-      // Open online interactive bank gateway
       setPaymentOpen(true);
     }
   };
@@ -381,6 +410,18 @@ export default function App() {
           });
         });
       }
+      if (it.selectedOptions && it.selectedOptions.length > 0) {
+        it.selectedOptions.forEach(opt => {
+          list.push({
+            productName: `${opt.name} (${it.product.name})`,
+            quantity: it.quantity,
+            price: opt.price,
+            subtotal: opt.price * it.quantity,
+            optionsText: opt.optionGroup,
+            notes: undefined
+          });
+        });
+      }
       return list;
     });
 
@@ -396,8 +437,11 @@ export default function App() {
       totalAmount: details.totalAmount,
       orderType: 'delivery' as const,
       subtotal: details.totalAmount,
-      discountAmount: 0,
-      shippingFee: 0,
+      discountAmount: details.discountAmount || 0,
+      shippingFee: details.shippingFee || 0,
+      deliveryAreaId: details.deliveryAreaId || null,
+      deliveryFee: details.shippingFee || 0,
+      membershipDiscount: details.membershipDiscount || 0,
       paymentMethod: paymentMethodMap[method] || 'cash',
       paymentStatus: (method === 'cod' ? 'pending' : 'paid') as 'pending' | 'paid',
       status: 'pending' as const,
@@ -774,6 +818,21 @@ export default function App() {
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         
+        {/* ORDER CONFIRMATION FULL PAGE */}
+        {showConfirmation ? (
+          <OrderConfirmation
+            isOpen={true}
+            onClose={() => setShowConfirmation(false)}
+            onConfirm={handleOrderConfirmed}
+            cartItems={cartItems}
+            user={user}
+            totalAmount={cartItems.reduce(
+              (sum, item) => sum + (item.product.price + (item.selectedOptions || []).reduce((s, o) => s + o.price, 0)) * item.quantity,
+              0
+            )}
+          />
+        ) : (
+        <>
         {/* VIEW 1: HOME PAGE */}
         {activeTab === 'home' && (
           <div className="space-y-12">
@@ -832,6 +891,7 @@ export default function App() {
                     product={product}
                     onAddToCart={handleAddToCart}
                     reviews={reviews}
+                    productOptions={productOptions}
                   />
                 ))}
               </div>
@@ -886,6 +946,7 @@ export default function App() {
                   product={product}
                   onAddToCart={handleAddToCart}
                   reviews={reviews}
+                  productOptions={productOptions}
                 />
               ))}
             </div>
@@ -972,6 +1033,9 @@ export default function App() {
           />
         )}
 
+        </>
+        )}
+
       </main>
 
       {/* FOOTER */}
@@ -1005,7 +1069,7 @@ export default function App() {
         onUpdateQuantity={handleUpdateCartQuantity}
         onRemoveItem={handleRemoveCartItem}
         user={user}
-        onCheckout={handleCheckoutInit}
+        onOpenConfirmation={handleOpenConfirmation}
       />
 
       {/* POPUP: INTERACTIVE BANK PAYMENT SCAN OVERLAY */}
