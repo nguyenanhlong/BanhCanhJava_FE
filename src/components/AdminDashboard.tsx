@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Order, Driver, OrderStatus, Product, MembershipTier } from '../types';
 import { JAVA_BACKEND_FILES, MYSQL_DATABASE_SQL, FRONTEND_INTEGRATION_FILES } from '../data';
 import { FileCode, Check, Copy, AlertTriangle, Plus, Edit3, Trash2, X, FileText } from 'lucide-react';
@@ -30,7 +30,7 @@ interface AdminDashboardProps {
   onDeleteProduct?: (id: string) => void;
 }
 
-interface ToppingItem { id: string; name: string; price: number; category: string; isAvailable: boolean; }
+interface ToppingItem { id: number; productId: number; name: string; optionGroup: string; price: number; isRequired: boolean; isActive: boolean; displayOrder: number; productName?: string; }
 interface MaterialItem { id: number; name: string; unit: string; stock: number; min: number; price: number; }
 interface TableItem { id: number; number: string; capacity: number; position: string; }
 interface PromoItem { id: number; code: string; name: string; description?: string; discount_type: string; discount_value: number; min_order_amount: number; max_discount?: number; usage_limit?: number; used_count?: number; start_date?: string; end_date?: string; isActive?: boolean; }
@@ -76,6 +76,9 @@ export function AdminDashboard({
     }
     if (adminTab === 'membership-tiers') {
       loadMembershipTiers();
+    }
+    if (adminTab === 'toppings') {
+      loadProductOptions();
     }
   }, [adminTab]);
 
@@ -142,10 +145,12 @@ export function AdminDashboard({
   const [driverVehicleType, setDriverVehicleType] = useState('Xe máy');
   const [driverVehiclePlate, setDriverVehiclePlate] = useState('');
   const [driverVehicleColor, setDriverVehicleColor] = useState('');
+  const [driverAvatarUrl, setDriverAvatarUrl] = useState('');
+  const [uploadingDriverAvatar, setUploadingDriverAvatar] = useState(false);
   const [driverSuccess, setDriverSuccess] = useState('');
   const [editingDriverId, setEditingDriverId] = useState<string | null>(null);
   const [driverEditModal, setDriverEditModal] = useState<any | null>(null);
-  const [driverEditForm, setDriverEditForm] = useState({ name: '', phone: '', vehicle: '', vehicleType: 'Xe máy', vehiclePlate: '', vehicleColor: '' });
+  const [driverEditForm, setDriverEditForm] = useState({ name: '', phone: '', vehicle: '', vehicleType: 'Xe máy', vehiclePlate: '', vehicleColor: '', avatarUrl: '', password: '' });
 
   // Source code state
   const [selectedJavaFile, setSelectedJavaFile] = useState(0);
@@ -164,10 +169,30 @@ export function AdminDashboard({
   const [categoryForm, setCategoryForm] = useState<{ name: string; slug: string; description?: string; imageUrl?: string; displayOrder?: number; isActive?: boolean }>({ name: '', slug: '', description: '', imageUrl: '', displayOrder: 0, isActive: true });
   const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null);
 
-  // Toppings CRUD
+  // Toppings / Product Options CRUD
   const [toppings, setToppings] = useState<ToppingItem[]>([]);
-  const [toppingForm, setToppingForm] = useState({ name: '', price: 0, category: 'Đồ Ăn Kèm', isAvailable: true });
-  const [editingToppingId, setEditingToppingId] = useState<string | null>(null);
+  const [toppingForm, setToppingForm] = useState({ productId: 1, name: '', optionGroup: 'topping', price: 0, isRequired: false, displayOrder: 1, isActive: true });
+  const [editingToppingId, setEditingToppingId] = useState<number | null>(null);
+
+  const loadProductOptions = async () => {
+    try {
+      const opts = await ApiService.getProductOptions();
+      const mapped = opts.map(o => ({
+        id: o.id,
+        productId: o.productId,
+        name: o.name,
+        optionGroup: o.optionGroup,
+        price: o.price,
+        isRequired: o.isRequired,
+        isActive: o.isActive,
+        displayOrder: o.displayOrder,
+        productName: products.find(p => Number(p.id) === o.productId)?.name || `Sản phẩm #${o.productId}`
+      }));
+      setToppings(mapped);
+    } catch (err) {
+      console.error('Failed to load product options:', err);
+    }
+  };
 
   // Materials CRUD
   const [materials, setMaterials] = useState<MaterialItem[]>([]);
@@ -181,7 +206,13 @@ export function AdminDashboard({
 
   // Promotions CRUD
   const [promotions, setPromotions] = useState<PromoItem[]>([]);
-  const [promoForm, setPromoForm] = useState({ code: '', name: '', description: '', discount_type: 'percentage', discount_value: 0, min_order_amount: 0, max_discount: 0, usage_limit: 100, start_date: new Date().toISOString().split('T')[0], end_date: new Date(Date.now() + 365 * 86400000).toISOString().split('T')[0], isActive: true });
+  const defaultPromoDate = () => {
+    const now = new Date();
+    const start = now.toISOString().slice(0, 16);
+    const end = new Date(now.getTime() + 365 * 86400000).toISOString().slice(0, 16);
+    return { start, end };
+  };
+  const [promoForm, setPromoForm] = useState({ code: '', name: '', description: '', discount_type: 'percentage', discount_value: 0, min_order_amount: 0, max_discount: 0, usage_limit: 100, start_date: defaultPromoDate().start, end_date: defaultPromoDate().end, isActive: true });
   const [editingPromoId, setEditingPromoId] = useState<number | null>(null);
 
   // Reviews CRUD
@@ -451,6 +482,7 @@ export function AdminDashboard({
       vehicleType: driverVehicleType,
       vehiclePlate: driverVehiclePlate,
       vehicleColor: driverVehicleColor,
+      avatarUrl: driverAvatarUrl || undefined,
     };
     if (isBackendConnected) {
       try {
@@ -463,7 +495,7 @@ export function AdminDashboard({
     }
     onCreateDriver(driverName, driverPhone, driverVehicle || `${driverVehicleType} - ${driverVehiclePlate}`);
     setDriverName(''); setDriverPhone(''); setDriverUsername(''); setDriverPassword(''); setDriverEmail('');
-    setDriverVehicle(''); setDriverVehicleType('Xe máy'); setDriverVehiclePlate(''); setDriverVehicleColor('');
+    setDriverVehicle(''); setDriverVehicleType('Xe máy'); setDriverVehiclePlate(''); setDriverVehicleColor(''); setDriverAvatarUrl('');
     setDriverSuccess('Đã đăng ký shipper mới thành công!');
     setTimeout(() => setDriverSuccess(''), 3000);
   };
@@ -476,6 +508,8 @@ export function AdminDashboard({
       vehicleType: d.vehicleType || 'Xe máy',
       vehiclePlate: d.vehiclePlate || '',
       vehicleColor: d.vehicleColor || '',
+      avatarUrl: d.avatarUrl || '',
+      password: '',
     });
     setEditingDriverId(d.id);
     setDriverEditModal(d);
@@ -483,9 +517,11 @@ export function AdminDashboard({
 
   const handleEditDriverSave = async () => {
     if (!editingDriverId) return;
+    const payload: any = { ...driverEditForm };
+    if (!payload.password) delete payload.password;
     if (isBackendConnected) {
       try {
-        await ApiService.updateDriver(Number(editingDriverId), driverEditForm);
+        await ApiService.updateDriver(Number(editingDriverId), payload);
       } catch (err) { console.error(err); }
     }
     setEditingDriverId(null);
@@ -590,44 +626,99 @@ export function AdminDashboard({
   // Topping handlers
   const handleToppingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!toppingForm.name || !toppingForm.price) return;
+    if (!toppingForm.name) return;
+    const payload = {
+      productId: toppingForm.productId,
+      name: toppingForm.name,
+      optionGroup: toppingForm.optionGroup,
+      price: toppingForm.price,
+      isRequired: toppingForm.isRequired,
+      displayOrder: toppingForm.displayOrder,
+      isActive: toppingForm.isActive
+    };
     if (isBackendConnected) {
       try {
         if (editingToppingId !== null) {
-          const updated = await ApiService.updateProductOption(Number(editingToppingId), { name: toppingForm.name, price: toppingForm.price, optionGroup: 'topping', isActive: toppingForm.isAvailable });
-          setToppings(toppings.map(t => t.id === editingToppingId ? { ...t, name: updated.name, price: updated.price, isAvailable: updated.isActive } : t));
+          const updated = await ApiService.updateProductOption(editingToppingId, payload);
+          setToppings(toppings.map(t => t.id === editingToppingId ? { ...t, ...updated, productName: products.find(p => Number(p.id) === updated.productId)?.name || `Sản phẩm #${updated.productId}` } : t));
         } else {
-          const created = await ApiService.createProductOption({ name: toppingForm.name, price: toppingForm.price, optionGroup: 'topping', isActive: toppingForm.isAvailable, productId: 0 });
-          setToppings([...toppings, { id: String(created.id), name: created.name, price: created.price, category: created.optionGroup, isAvailable: created.isActive }]);
+          const created = await ApiService.createProductOption(payload);
+          const newItem: ToppingItem = { id: created.id, productId: created.productId, name: created.name, optionGroup: created.optionGroup, price: created.price, isRequired: created.isRequired, isActive: created.isActive, displayOrder: created.displayOrder, productName: products.find(p => Number(p.id) === created.productId)?.name || `Sản phẩm #${created.productId}` };
+          setToppings([...toppings, newItem]);
         }
       } catch (err) { console.error(err); }
     } else {
       if (editingToppingId !== null) {
-        setToppings(toppings.map(t => t.id === editingToppingId ? { ...t, ...toppingForm } : t));
+        setToppings(toppings.map(t => t.id === editingToppingId ? { ...t, ...payload, productName: products.find(p => Number(p.id) === payload.productId)?.name } : t));
       } else {
-        const newId = String(Math.max(...toppings.map(t => Number(t.id)), 0) + 1);
-        setToppings([...toppings, { id: newId, ...toppingForm }]);
+        const newId = Math.max(...toppings.map(t => t.id), 0) + 1;
+        setToppings([...toppings, { id: newId, ...payload, productName: products.find(p => Number(p.id) === payload.productId)?.name }]);
       }
     }
-    setToppingForm({ name: '', price: 0, category: 'Đồ Ăn Kèm', isAvailable: true });
+    setToppingForm({ productId: 1, name: '', optionGroup: 'topping', price: 0, isRequired: false, displayOrder: 1, isActive: true });
     setEditingToppingId(null);
   };
 
   const handleEditTopping = (t: ToppingItem) => {
-    setToppingForm({ name: t.name, price: t.price, category: t.category, isAvailable: t.isAvailable });
+    setToppingForm({ productId: t.productId, name: t.name, optionGroup: t.optionGroup, price: t.price, isRequired: t.isRequired, displayOrder: t.displayOrder, isActive: t.isActive });
     setEditingToppingId(t.id);
   };
 
-  const handleDeleteTopping = async (id: string) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa topping này?')) return;
+  const handleDeleteTopping = async (id: number) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa tuỳ chọn này?')) return;
     if (isBackendConnected) {
-      try { await ApiService.deleteProductOption(Number(id)); } catch (err) { console.error(err); }
+      try { await ApiService.deleteProductOption(id); } catch (err) { console.error(err); }
     }
     setToppings(toppings.filter(t => t.id !== id));
     if (editingToppingId === id) {
       setEditingToppingId(null);
-      setToppingForm({ name: '', price: 0, category: 'Đồ Ăn Kèm', isAvailable: true });
+      setToppingForm({ productId: 1, name: '', optionGroup: 'topping', price: 0, isRequired: false, displayOrder: 1, isActive: true });
     }
+  };
+
+  const [customOptionGroups, setCustomOptionGroups] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('custom_option_groups') || '[]'); }
+    catch { return []; }
+  });
+  const [showNewGroupInput, setShowNewGroupInput] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+
+  const dbOptionGroups = useMemo(() =>
+    [...new Set(toppings.map(t => t.optionGroup).filter(Boolean))],
+    [toppings]
+  );
+  const allOptionGroups = useMemo(() =>
+    [...new Set([...customOptionGroups, ...dbOptionGroups])],
+    [customOptionGroups, dbOptionGroups]
+  );
+
+  const addCustomGroup = (name: string) => {
+    const key = name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    if (!key || allOptionGroups.includes(key)) return;
+    const updated = [...customOptionGroups, key];
+    setCustomOptionGroups(updated);
+    localStorage.setItem('custom_option_groups', JSON.stringify(updated));
+    setToppingForm(prev => ({ ...prev, optionGroup: key }));
+    setShowNewGroupInput(false);
+    setNewGroupName('');
+  };
+
+  const optionGroupLabels: Record<string, string> = {
+    topping: 'Topping',
+    size: 'Size',
+    sugar: 'Đường',
+    ice: 'Đá',
+    coffee_type: 'Loại Cà Phê',
+    noodle: 'Loại Sợi'
+  };
+
+  const optionGroupColors: Record<string, string> = {
+    topping: 'bg-orange-100 text-orange-700',
+    size: 'bg-blue-100 text-blue-700',
+    sugar: 'bg-pink-100 text-pink-700',
+    ice: 'bg-cyan-100 text-cyan-700',
+    coffee_type: 'bg-purple-100 text-purple-700',
+    noodle: 'bg-yellow-100 text-yellow-700'
   };
 
   // Material handlers
@@ -699,8 +790,8 @@ export function AdminDashboard({
       minOrderAmount: promoForm.min_order_amount,
       maxDiscount: promoForm.discount_type === 'percentage' ? promoForm.max_discount : 0,
       usageLimit: promoForm.usage_limit,
-      startDate: new Date(promoForm.start_date).toISOString(),
-      endDate: new Date(promoForm.end_date).toISOString(),
+      startDate: promoForm.start_date + ':00',
+      endDate: promoForm.end_date + ':00',
       isActive: promoForm.isActive,
     };
     if (isBackendConnected) {
@@ -721,12 +812,13 @@ export function AdminDashboard({
         setPromotions([...promotions, { id: newId, ...promoForm }]);
       }
     }
-    setPromoForm({ code: '', name: '', description: '', discount_type: 'percentage', discount_value: 0, min_order_amount: 0, max_discount: 0, usage_limit: 100, start_date: new Date().toISOString().split('T')[0], end_date: new Date(Date.now() + 365 * 86400000).toISOString().split('T')[0], isActive: true });
+    setPromoForm({ code: '', name: '', description: '', discount_type: 'percentage', discount_value: 0, min_order_amount: 0, max_discount: 0, usage_limit: 100, start_date: defaultPromoDate().start, end_date: defaultPromoDate().end, isActive: true });
     setEditingPromoId(null);
   };
 
   const handleEditPromo = (p: PromoItem) => {
-    setPromoForm({ code: p.code, name: p.name, description: p.description || '', discount_type: p.discount_type, discount_value: p.discount_value, min_order_amount: p.min_order_amount, max_discount: p.max_discount || 0, usage_limit: p.usage_limit || 100, start_date: p.start_date ? p.start_date.split('T')[0] : new Date().toISOString().split('T')[0], end_date: p.end_date ? p.end_date.split('T')[0] : new Date(Date.now() + 365 * 86400000).toISOString().split('T')[0], isActive: p.isActive !== false });
+    const toDatetimeLocal = (d: string | undefined) => d ? d.slice(0, 16) : defaultPromoDate().start;
+    setPromoForm({ code: p.code, name: p.name, description: p.description || '', discount_type: p.discount_type, discount_value: p.discount_value, min_order_amount: p.min_order_amount, max_discount: p.max_discount || 0, usage_limit: p.usage_limit || 100, start_date: toDatetimeLocal(p.start_date), end_date: toDatetimeLocal(p.end_date) || defaultPromoDate().end, isActive: p.isActive !== false });
     setEditingPromoId(p.id);
   };
 
@@ -738,7 +830,7 @@ export function AdminDashboard({
     setPromotions(promotions.filter(p => p.id !== id));
     if (editingPromoId === id) {
       setEditingPromoId(null);
-      setPromoForm({ code: '', name: '', description: '', discount_type: 'percentage', discount_value: 0, min_order_amount: 0, max_discount: 0, usage_limit: 100, start_date: new Date().toISOString().split('T')[0], end_date: new Date(Date.now() + 365 * 86400000).toISOString().split('T')[0], isActive: true });
+      setPromoForm({ code: '', name: '', description: '', discount_type: 'percentage', discount_value: 0, min_order_amount: 0, max_discount: 0, usage_limit: 100, start_date: defaultPromoDate().start, end_date: defaultPromoDate().end, isActive: true });
     }
   };
 
@@ -915,7 +1007,7 @@ export function AdminDashboard({
             <button onClick={() => setAdminTab('orders')} className={`shrink-0 ${tabClass('orders')}`}>📋 Đơn Hàng ({orders.length})</button>
             <button onClick={() => setAdminTab('products')} className={`shrink-0 ${tabClass('products')}`}>🍲 Sản Phẩm ({products.length})</button>
             <button onClick={() => setAdminTab('categories')} className={`shrink-0 ${tabClass('categories')}`}>📂 Danh Mục</button>
-            <button onClick={() => setAdminTab('toppings')} className={`shrink-0 ${tabClass('toppings')}`}>🧂 Topping</button>
+            <button onClick={() => setAdminTab('toppings')} className={`shrink-0 ${tabClass('toppings')}`}>🧂 Lựa Chọn</button>
             <button onClick={() => setAdminTab('promotions')} className={`shrink-0 ${tabClass('promotions')}`}>🏷️ Khuyến Mãi</button>
             <button onClick={() => setAdminTab('reviews')} className={`shrink-0 ${tabClass('reviews')}`}>⭐ Đánh Giá</button>
             <button onClick={() => setAdminTab('invoices')} className={`shrink-0 ${tabClass('invoices')}`}>🧾 Hóa Đơn</button>
@@ -1481,6 +1573,34 @@ export function AdminDashboard({
                 </div>
 
                 <div>
+                  <label className="block text-[10px] font-bold text-[#3E2F26] dark:text-[#3E2F26] uppercase">Ảnh Đại Diện:</label>
+                  <div className="flex gap-2 items-center">
+                    <input type="text" placeholder="https://... hoặc upload file"
+                      value={driverAvatarUrl} onChange={(e) => setDriverAvatarUrl(e.target.value)}
+                      className="flex-1 text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] bg-white dark:bg-[#FFF8F0] text-[#2D241E] dark:text-[#2D241E] focus:outline-[#E74C3C]" />
+                    <input type="file" accept="image/*" id="driverAvatarUpload" className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        setUploadingDriverAvatar(true);
+                        try {
+                          const url = await ApiService.uploadImage(file, 'avatar_Image');
+                          setDriverAvatarUrl(url);
+                        } catch (err: any) {
+                          console.error(err);
+                        } finally {
+                          setUploadingDriverAvatar(false);
+                          e.target.value = '';
+                        }
+                      }} />
+                    <label htmlFor="driverAvatarUpload" className="px-3 py-2.5 rounded-lg border border-[#E5E1D8] text-xs font-bold cursor-pointer hover:bg-gray-50">
+                      {uploadingDriverAvatar ? '⏳' : '📁'}
+                    </label>
+                    {driverAvatarUrl && <img src={driverAvatarUrl} alt="" className="w-8 h-8 rounded-full object-cover border" />}
+                  </div>
+                </div>
+
+                <div>
                   <label className="block text-[10px] font-bold text-[#3E2F26] dark:text-[#3E2F26] uppercase">Phương Tiện (mô tả):</label>
                   <input type="text" placeholder="Dream lùn - 43C1-999.99"
                     value={driverVehicle} onChange={(e) => setDriverVehicle(e.target.value)}
@@ -1498,21 +1618,92 @@ export function AdminDashboard({
 
           {driverEditModal && (
             <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-[#E74C3C]/60 backdrop-blur-xs animate-fade-in">
-              <div className="bg-white dark:bg-[#FFF5EB] rounded-2xl max-w-md w-full p-6 border border-[#E5E1D8] dark:border-[#E0D8D0] shadow-2xl space-y-4">
-                <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#2D241E]">✏️ Sửa Thông Tin Tài Xế</h4>
-                <div className="space-y-3">
-                  <div><label className="text-[10px] font-bold text-[#8B7E74] uppercase">Tên</label><input type="text" value={driverEditForm.name} onChange={e => setDriverEditForm(p => ({ ...p, name: e.target.value }))} className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] bg-white dark:bg-[#FFF8F0] text-[#2D241E] dark:text-[#2D241E] focus:outline-[#E74C3C]" /></div>
-                  <div><label className="text-[10px] font-bold text-[#8B7E74] uppercase">SĐT</label><input type="text" value={driverEditForm.phone} onChange={e => setDriverEditForm(p => ({ ...p, phone: e.target.value }))} className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] bg-white dark:bg-[#FFF8F0] text-[#2D241E] dark:text-[#2D241E] focus:outline-[#E74C3C]" /></div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div><label className="text-[10px] font-bold text-[#8B7E74] uppercase">Loại xe</label><select value={driverEditForm.vehicleType} onChange={e => setDriverEditForm(p => ({ ...p, vehicleType: e.target.value }))} className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] bg-white dark:bg-[#FFF8F0] text-[#2D241E] dark:text-[#2D241E] focus:outline-[#E74C3C]"><option value="Xe máy">Xe máy</option><option value="Xe tay ga">Xe tay ga</option><option value="Xe số">Xe số</option><option value="Ô tô">Ô tô</option></select></div>
-                    <div><label className="text-[10px] font-bold text-[#8B7E74] uppercase">Biển số</label><input type="text" value={driverEditForm.vehiclePlate} onChange={e => setDriverEditForm(p => ({ ...p, vehiclePlate: e.target.value }))} className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] bg-white dark:bg-[#FFF8F0] text-[#2D241E] dark:text-[#2D241E] focus:outline-[#E74C3C]" /></div>
+              <div className="bg-white dark:bg-[#FFF5EB] rounded-2xl max-w-md w-full p-6 border border-[#E5E1D8] dark:border-[#E0D8D0] shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+                <div className="flex items-center gap-3 border-b border-[#E5E1D8] pb-3">
+                  {driverEditForm.avatarUrl ? (
+                    <img src={driverEditForm.avatarUrl} alt="" className="w-10 h-10 rounded-full object-cover border-2 border-[#E74C3C]" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-[#F3F0E9] flex items-center justify-center text-lg">🛵</div>
+                  )}
+                  <div>
+                    <h4 className="font-bold text-sm text-[#2D241E]">✏️ Sửa Thông Tin Tài Xế</h4>
+                    <p className="text-[10px] text-[#8B7E74]">{driverEditForm.name || driverEditModal.name}</p>
                   </div>
-                  <div><label className="text-[10px] font-bold text-[#8B7E74] uppercase">Màu xe</label><input type="text" value={driverEditForm.vehicleColor} onChange={e => setDriverEditForm(p => ({ ...p, vehicleColor: e.target.value }))} className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] bg-white dark:bg-[#FFF8F0] text-[#2D241E] dark:text-[#2D241E] focus:outline-[#E74C3C]" /></div>
-                  <div><label className="text-[10px] font-bold text-[#8B7E74] uppercase">Mô tả</label><input type="text" value={driverEditForm.vehicle} onChange={e => setDriverEditForm(p => ({ ...p, vehicle: e.target.value }))} className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] bg-white dark:bg-[#FFF8F0] text-[#2D241E] dark:text-[#2D241E] focus:outline-[#E74C3C]" /></div>
+                </div>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] font-bold text-[#8B7E74] uppercase">Tên</label>
+                      <input type="text" value={driverEditForm.name} onChange={e => setDriverEditForm(p => ({ ...p, name: e.target.value }))}
+                        className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] bg-white text-[#2D241E] focus:outline-[#E74C3C]" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-[#8B7E74] uppercase">SĐT</label>
+                      <input type="text" value={driverEditForm.phone} onChange={e => setDriverEditForm(p => ({ ...p, phone: e.target.value }))}
+                        className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] bg-white text-[#2D241E] focus:outline-[#E74C3C]" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] font-bold text-[#8B7E74] uppercase">Loại xe</label>
+                      <select value={driverEditForm.vehicleType} onChange={e => setDriverEditForm(p => ({ ...p, vehicleType: e.target.value }))}
+                        className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] bg-white text-[#2D241E] focus:outline-[#E74C3C]">
+                        <option value="Xe máy">Xe máy</option>
+                        <option value="Xe tay ga">Xe tay ga</option>
+                        <option value="Xe số">Xe số</option>
+                        <option value="Ô tô">Ô tô</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-[#8B7E74] uppercase">Biển số</label>
+                      <input type="text" value={driverEditForm.vehiclePlate} onChange={e => setDriverEditForm(p => ({ ...p, vehiclePlate: e.target.value }))}
+                        className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] bg-white text-[#2D241E] focus:outline-[#E74C3C]" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] font-bold text-[#8B7E74] uppercase">Màu xe</label>
+                      <input type="text" value={driverEditForm.vehicleColor} onChange={e => setDriverEditForm(p => ({ ...p, vehicleColor: e.target.value }))}
+                        className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] bg-white text-[#2D241E] focus:outline-[#E74C3C]" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-[#8B7E74] uppercase">Mô tả</label>
+                      <input type="text" value={driverEditForm.vehicle} onChange={e => setDriverEditForm(p => ({ ...p, vehicle: e.target.value }))}
+                        className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] bg-white text-[#2D241E] focus:outline-[#E74C3C]" />
+                    </div>
+                  </div>
+                  <div className="border-t border-[#E5E1D8] pt-3">
+                    <label className="text-[10px] font-bold text-[#8B7E74] uppercase">Ảnh đại diện</label>
+                    <div className="flex gap-2 items-center mt-1">
+                      <input type="text" placeholder="URL ảnh..."
+                        value={driverEditForm.avatarUrl} onChange={e => setDriverEditForm(p => ({ ...p, avatarUrl: e.target.value }))}
+                        className="flex-1 text-xs p-2.5 rounded-lg border border-[#E5E1D8] bg-white text-[#2D241E] focus:outline-[#E74C3C]" />
+                      <input type="file" accept="image/*" id="driverEditAvatarUpload" className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          try {
+                            const url = await ApiService.uploadImage(file, 'avatar_Image');
+                            setDriverEditForm(p => ({ ...p, avatarUrl: url }));
+                          } catch (err: any) { console.error(err); }
+                          e.target.value = '';
+                        }} />
+                      <label htmlFor="driverEditAvatarUpload" className="px-3 py-2.5 rounded-lg border border-[#E5E1D8] text-xs font-bold cursor-pointer hover:bg-gray-50">📁</label>
+                    </div>
+                  </div>
+                  <div className="border-t border-[#E5E1D8] pt-3">
+                    <label className="text-[10px] font-bold text-[#E74C3C] uppercase">🔑 Đổi mật khẩu</label>
+                    <p className="text-[8px] text-[#8B7E74] mb-1">Để trống nếu không muốn đổi</p>
+                    <input type="password" placeholder="Mật khẩu mới..."
+                      value={driverEditForm.password} onChange={e => setDriverEditForm(p => ({ ...p, password: e.target.value }))}
+                      className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] bg-white text-[#2D241E] focus:outline-[#E74C3C]" />
+                  </div>
                 </div>
                 <div className="flex gap-2 pt-2">
-                  <button onClick={() => { setEditingDriverId(null); setDriverEditModal(null); }} className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-2.5 rounded-xl text-xs font-bold cursor-pointer">Hủy</button>
-                  <button onClick={handleEditDriverSave} className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2.5 rounded-xl text-xs font-bold cursor-pointer">Lưu thay đổi</button>
+                  <button onClick={() => { setEditingDriverId(null); setDriverEditModal(null); }}
+                    className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-2.5 rounded-xl text-xs font-bold cursor-pointer">Hủy</button>
+                  <button onClick={handleEditDriverSave}
+                    className="flex-1 bg-[#E74C3C] hover:bg-[#C0392B] text-white py-2.5 rounded-xl text-xs font-bold cursor-pointer shadow-sm">Lưu thay đổi</button>
                 </div>
               </div>
             </div>
@@ -1639,56 +1830,100 @@ export function AdminDashboard({
         {/* TAB: TOPPINGS - Full CRUD */}
         {adminTab === 'toppings' && (
           <div className="space-y-6">
-            <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#2D241E]">🧂 Quản Lý Topping</h3>
-            <p className="text-xs text-[#8B7E74] dark:text-[#8B7E74]">Các loại topping thêm vào bánh canh</p>
+            <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#2D241E]">🧂 Quản Lý Các Lựa Chọn</h3>
+            <p className="text-xs text-[#8B7E74] dark:text-[#8B7E74]">Topping, Size, Đường, Đá, Loại Cà Phê, Loại Sợi — gắn với từng sản phẩm</p>
 
             <div className="bg-[#F3F0E9] dark:bg-[#FFF0E0] p-5 rounded-3xl border border-[#E5E1D8] dark:border-[#D0C8C0]">
               <h4 className="font-serif font-bold text-sm text-[#2D241E] dark:text-[#2D241E] mb-3">
-                {editingToppingId !== null ? <><Edit3 className="w-4 h-4 inline mr-1 text-[#E74C3C]" /> Sửa Topping</> : <><Plus className="w-4 h-4 inline mr-1 text-emerald-500" /> Thêm Topping Mới</>}
+                {editingToppingId !== null ? <><Edit3 className="w-4 h-4 inline mr-1 text-[#E74C3C]" /> Sửa Tuỳ Chọn</> : <><Plus className="w-4 h-4 inline mr-1 text-emerald-500" /> Thêm Tuỳ Chọn Mới</>}
               </h4>
               <form onSubmit={handleToppingSubmit} className="flex gap-3 items-end flex-wrap">
+                <div className="space-y-1 min-w-[150px]">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#3E2F26] uppercase">Sản Phẩm</label>
+                  <select value={toppingForm.productId}
+                    onChange={(e) => setToppingForm(prev => ({ ...prev, productId: Number(e.target.value) }))}
+                    className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] bg-white dark:bg-[#FFF8F0] text-[#2D241E] dark:text-[#2D241E] focus:outline-[#E74C3C]">
+                    {products.map(p => <option key={p.id} value={Number(p.id)}>{p.name}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1 min-w-[120px]">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#3E2F26] uppercase">Nhóm</label>
+                  {showNewGroupInput ? (
+                    <div className="flex gap-1">
+                      <input type="text" placeholder="Nhập tên nhóm mới..."
+                        value={newGroupName}
+                        onChange={(e) => setNewGroupName(e.target.value)}
+                        className="flex-1 text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] bg-white dark:bg-[#FFF8F0] text-[#2D241E] dark:text-[#2D241E] focus:outline-[#E74C3C]" />
+                      <button type="button" onClick={() => addCustomGroup(newGroupName)}
+                        className="px-2.5 py-2 rounded-lg bg-[#E74C3C] text-white text-xs font-bold hover:opacity-90 cursor-pointer">+</button>
+                      <button type="button" onClick={() => { setShowNewGroupInput(false); setNewGroupName(''); }}
+                        className="px-2 py-2 rounded-lg border border-[#E5E1D8] text-xs font-bold cursor-pointer hover:bg-gray-100">✕</button>
+                    </div>
+                  ) : (
+                    <select value={toppingForm.optionGroup}
+                      onChange={(e) => {
+                        if (e.target.value === '__add_new__') { setShowNewGroupInput(true); return; }
+                        setToppingForm(prev => ({ ...prev, optionGroup: e.target.value }));
+                      }}
+                      className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] bg-white dark:bg-[#FFF8F0] text-[#2D241E] dark:text-[#2D241E] focus:outline-[#E74C3C]">
+                      <option value="topping">Topping</option>
+                      <option value="size">Size</option>
+                      <option value="sugar">Đường</option>
+                      <option value="ice">Đá</option>
+                      <option value="coffee_type">Loại Cà Phê</option>
+                      <option value="noodle">Loại Sợi</option>
+                      {customOptionGroups.map(g => (
+                        <option key={g} value={g}>{optionGroupLabels[g] || g.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</option>
+                      ))}
+                      <option value="__add_new__" className="text-[#E74C3C] font-bold">+ Thêm nhóm mới...</option>
+                    </select>
+                  )}
+                </div>
                 <div className="space-y-1 flex-1 min-w-[150px]">
-                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#3E2F26] uppercase">Tên Topping</label>
-                  <input type="text" required placeholder="Bánh phở"
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#3E2F26] uppercase">Tên Tuỳ Chọn</label>
+                  <input type="text" required placeholder="Thêm Trứng Cút"
                     value={toppingForm.name}
                     onChange={(e) => setToppingForm(prev => ({ ...prev, name: e.target.value }))}
                     className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] bg-white dark:bg-[#FFF8F0] text-[#2D241E] dark:text-[#2D241E] focus:outline-[#E74C3C]" />
                 </div>
-                <div className="space-y-1 min-w-[120px]">
-                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#3E2F26] uppercase">Giá</label>
-                  <input type="number" required min={0} placeholder="5000"
-                    value={toppingForm.price || ''}
-                    onChange={(e) => setToppingForm(prev => ({ ...prev, price: Number(e.target.value) }))}
+                <div className="space-y-1 min-w-[100px]">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#3E2F26] uppercase">Giá <span className="text-gray-400 font-normal">(0 = miễn phí)</span></label>
+                  <input type="number" min={0} placeholder="15000"
+                    value={toppingForm.price ?? ''}
+                    onChange={(e) => setToppingForm(prev => ({ ...prev, price: e.target.value === '' ? 0 : Number(e.target.value) }))}
                     className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] bg-white dark:bg-[#FFF8F0] text-[#2D241E] dark:text-[#2D241E] focus:outline-[#E74C3C]" />
                 </div>
-                <div className="space-y-1 min-w-[150px]">
-                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#3E2F26] uppercase">Danh Mục</label>
-                  <select value={toppingForm.category}
-                    onChange={(e) => setToppingForm(prev => ({ ...prev, category: e.target.value }))}
-                    className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] bg-white dark:bg-[#FFF8F0] text-[#2D241E] dark:text-[#2D241E] focus:outline-[#E74C3C]">
-                    <option value="Đồ Ăn Kèm">Đồ Ăn Kèm</option>
-                    <option value="Đồ Uống">Đồ Uống</option>
-                    <option value="Tráng Miệng">Tráng Miệng</option>
-                  </select>
+                <div className="space-y-1 min-w-[80px]">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#3E2F26] uppercase">Thứ Tự</label>
+                  <input type="number" min={0} placeholder="1"
+                    value={toppingForm.displayOrder}
+                    onChange={(e) => setToppingForm(prev => ({ ...prev, displayOrder: Number(e.target.value) }))}
+                    className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] bg-white dark:bg-[#FFF8F0] text-[#2D241E] dark:text-[#2D241E] focus:outline-[#E74C3C]" />
                 </div>
-                <div className="flex items-center gap-2 pb-1">
+                <div className="flex items-center gap-3 pb-1">
                   <label className="flex items-center gap-1.5 cursor-pointer">
-                    <input type="checkbox" checked={toppingForm.isAvailable}
-                      onChange={(e) => setToppingForm(prev => ({ ...prev, isAvailable: e.target.checked }))}
+                    <input type="checkbox" checked={toppingForm.isRequired}
+                      onChange={(e) => setToppingForm(prev => ({ ...prev, isRequired: e.target.checked }))}
                       className="w-4 h-4 accent-[#E74C3C]" />
-                    <span className="text-[10px] font-bold text-[#3E2F26] dark:text-[#3E2F26]">Khả dụng</span>
+                    <span className="text-[10px] font-bold text-[#3E2F26] dark:text-[#3E2F26]">Bắt buộc</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input type="checkbox" checked={toppingForm.isActive}
+                      onChange={(e) => setToppingForm(prev => ({ ...prev, isActive: e.target.checked }))}
+                      className="w-4 h-4 accent-[#E74C3C]" />
+                    <span className="text-[10px] font-bold text-[#3E2F26] dark:text-[#3E2F26]">Hoạt động</span>
                   </label>
                 </div>
                 <div className="flex gap-2">
                   {editingToppingId !== null && (
-                    <button type="button" onClick={() => { setEditingToppingId(null); setToppingForm({ name: '', price: 0, category: 'Đồ Ăn Kèm', isAvailable: true }); }}
+                    <button type="button" onClick={() => { setEditingToppingId(null); setToppingForm({ productId: 1, name: '', optionGroup: 'topping', price: 0, isRequired: false, displayOrder: 1, isActive: true }); }}
                       className="px-4 py-2.5 rounded-xl border border-[#E5E1D8] dark:border-[#D0C8C0] text-xs font-bold text-[#3E2F26] dark:text-[#3E2F26] hover:bg-[#E5E1D8] dark:hover:bg-[#E8E0D8] cursor-pointer">
                       <X className="w-3.5 h-3.5 inline mr-1" />Hủy
                     </button>
                   )}
                   <button type="submit"
                     className="px-6 py-2.5 rounded-xl bg-[#E74C3C] dark:bg-[#E74C3C] text-white dark:text-white text-xs font-bold hover:opacity-90 cursor-pointer">
-                    {editingToppingId !== null ? 'Cập Nhật' : 'Thêm Topping'}
+                    {editingToppingId !== null ? 'Cập Nhật' : 'Thêm Tuỳ Chọn'}
                   </button>
                 </div>
               </form>
@@ -1698,22 +1933,30 @@ export function AdminDashboard({
               <table className="w-full text-left text-xs text-[#3E2F26] dark:text-[#3E2F26]">
                 <thead className="bg-[#F3F0E9] dark:bg-[#FFF0E0] uppercase font-bold text-[#2D241E] dark:text-[#2D241E] border-b border-[#E5E1D8] dark:border-[#E0D8D0]">
                   <tr>
+                    <th className="p-3">Sản Phẩm</th>
                     <th className="p-3">Tên</th>
+                    <th className="p-3">Nhóm</th>
                     <th className="p-3 text-right">Giá</th>
-                    <th className="p-3">Danh Mục</th>
-                    <th className="p-3 text-center">Khả Dụng</th>
+                    <th className="p-3 text-center">Thứ Tự</th>
+                    <th className="p-3 text-center">Bắt Buộc</th>
+                    <th className="p-3 text-center">Kích Hoạt</th>
                     <th className="p-3 text-center">Thao Tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E5E1D8] dark:divide-[#E0D8D0] bg-white dark:bg-[#FFF8F0]">
                   {toppings.map(t => (
                     <tr key={t.id} className="hover:bg-[#FAF8F5]/80 dark:hover:bg-[#E5DDD5]/50 transition-colors">
+                      <td className="p-3 text-[#2D241E] dark:text-[#2D241E] font-medium">{t.productName}</td>
                       <td className="p-3 font-bold text-[#2D241E] dark:text-[#2D241E]">{t.name}</td>
-                      <td className="p-3 text-right font-extrabold text-[#E74C3C]">{t.price.toLocaleString('vi-VN')}đ</td>
                       <td className="p-3">
-                        <span className="text-[10px] px-2 py-0.5 rounded-full border bg-gray-50 dark:bg-gray-100 border-gray-200 dark:border-gray-200">{t.category}</span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${optionGroupColors[t.optionGroup] || 'bg-gray-100 text-gray-700'}`}>
+                          {optionGroupLabels[t.optionGroup] || t.optionGroup.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                        </span>
                       </td>
-                      <td className="p-3 text-center">{t.isAvailable ? <span className="text-emerald-500 font-bold text-[11px]">✓</span> : <span className="text-red-400">✗</span>}</td>
+                      <td className="p-3 text-right font-extrabold text-[#E74C3C]">{t.price.toLocaleString('vi-VN')}đ</td>
+                      <td className="p-3 text-center text-[#3E2F26]">{t.displayOrder}</td>
+                      <td className="p-3 text-center">{t.isRequired ? <span className="text-emerald-500 font-bold">✓</span> : <span className="text-gray-400">—</span>}</td>
+                      <td className="p-3 text-center">{t.isActive ? <span className="text-emerald-500 font-bold text-[11px]">✓</span> : <span className="text-red-400">✗</span>}</td>
                       <td className="p-3">
                         <div className="flex gap-1.5 justify-center">
                           <button onClick={() => handleEditTopping(t)}
@@ -1816,14 +2059,14 @@ export function AdminDashboard({
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#3E2F26] uppercase">Từ ngày</label>
-                      <input type="date" value={promoForm.start_date}
+                      <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#3E2F26] uppercase">Từ ngày (giờ)</label>
+                      <input type="datetime-local" value={promoForm.start_date}
                         onChange={(e) => setPromoForm(prev => ({ ...prev, start_date: e.target.value }))}
                         className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] bg-white dark:bg-[#FFF8F0] text-[#2D241E] dark:text-[#2D241E] focus:outline-[#E74C3C]" />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#3E2F26] uppercase">Đến ngày</label>
-                      <input type="date" value={promoForm.end_date}
+                      <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#3E2F26] uppercase">Đến ngày (giờ)</label>
+                      <input type="datetime-local" value={promoForm.end_date}
                         onChange={(e) => setPromoForm(prev => ({ ...prev, end_date: e.target.value }))}
                         className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] bg-white dark:bg-[#FFF8F0] text-[#2D241E] dark:text-[#2D241E] focus:outline-[#E74C3C]" />
                     </div>
@@ -1831,7 +2074,7 @@ export function AdminDashboard({
                 </div>
                 <div className="flex gap-2 pt-1">
                   {editingPromoId !== null && (
-                    <button type="button" onClick={() => { setEditingPromoId(null); setPromoForm({ code: '', name: '', description: '', discount_type: 'percentage', discount_value: 0, min_order_amount: 0, max_discount: 0, usage_limit: 100, start_date: new Date().toISOString().split('T')[0], end_date: new Date(Date.now() + 365 * 86400000).toISOString().split('T')[0], isActive: true }); }}
+                    <button type="button" onClick={() => { setEditingPromoId(null); setPromoForm({ code: '', name: '', description: '', discount_type: 'percentage', discount_value: 0, min_order_amount: 0, max_discount: 0, usage_limit: 100, start_date: defaultPromoDate().start, end_date: defaultPromoDate().end, isActive: true }); }}
                       className="px-4 py-2.5 rounded-xl border border-[#E5E1D8] dark:border-[#D0C8C0] text-xs font-bold text-[#3E2F26] dark:text-[#3E2F26] hover:bg-[#E5E1D8] dark:hover:bg-[#E8E0D8] cursor-pointer">
                       <X className="w-3.5 h-3.5 inline mr-1" />Hủy
                     </button>
@@ -1863,8 +2106,8 @@ export function AdminDashboard({
                         {p.max_discount ? ` (tối đa ${p.max_discount.toLocaleString('vi-VN')}đ)` : ''} • Đơn từ {p.min_order_amount.toLocaleString('vi-VN')}đ
                       </p>
                       <p className="text-[8px] text-[#8B7E74] mt-1">
-                        {p.start_date ? `📅 ${new Date(p.start_date).toLocaleDateString('vi-VN')}` : ''}
-                        {p.end_date ? ` → ${new Date(p.end_date).toLocaleDateString('vi-VN')}` : ''}
+                        {p.start_date ? `📅 ${new Date(p.start_date).toLocaleString('vi-VN')}` : ''}
+                        {p.end_date ? ` → ${new Date(p.end_date).toLocaleString('vi-VN')}` : ''}
                         {p.usage_limit ? ` • Đã dùng ${p.used_count || 0}/${p.usage_limit}` : ''}
                       </p>
                     </div>
@@ -1881,6 +2124,66 @@ export function AdminDashboard({
                   </div>
                 </div>
               ))}
+            </div>
+
+            <div className="overflow-x-auto border border-[#E5E1D8] dark:border-[#E0D8D0] rounded-2xl bg-[#FAF8F5] dark:bg-[#FFF5EB]">
+              <table className="w-full text-left text-xs text-[#3E2F26] dark:text-[#3E2F26]">
+                <thead className="bg-[#F3F0E9] dark:bg-[#FFF0E0] uppercase font-bold text-[#2D241E] dark:text-[#2D241E] border-b border-[#E5E1D8] dark:border-[#E0D8D0]">
+                  <tr>
+                    <th className="p-3">Mã</th>
+                    <th className="p-3">Tên</th>
+                    <th className="p-3 text-center">Trạng Thái</th>
+                    <th className="p-3 text-center">Đã Dùng</th>
+                    <th className="p-3 text-center">Hiệu Lực</th>
+                    <th className="p-3 text-center">Thao Tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E5E1D8] dark:divide-[#E0D8D0] bg-white dark:bg-[#FFF8F0]">
+                  {promotions.length === 0 ? (
+                    <tr><td colSpan={6} className="p-6 text-center text-[#8B7E74] italic">Chưa có khuyến mãi nào.</td></tr>
+                  ) : (promotions.map(p => {
+                    const now = new Date();
+                    const end = p.end_date ? new Date(p.end_date) : null;
+                    const expired = end && end < now;
+                    const full = p.usage_limit ? (p.used_count || 0) >= p.usage_limit : false;
+                    let statusLabel: string, statusColor: string;
+                    if (expired) { statusLabel = 'Hết hạn'; statusColor = 'bg-gray-200 text-gray-600'; }
+                    else if (full) { statusLabel = 'Hết lượt'; statusColor = 'bg-red-100 text-red-700'; }
+                    else if (p.isActive === false) { statusLabel = 'Tạm dừng'; statusColor = 'bg-yellow-100 text-yellow-700'; }
+                    else { statusLabel = 'Đang chạy'; statusColor = 'bg-emerald-100 text-emerald-700'; }
+                    return (
+                      <tr key={p.id} className="hover:bg-[#FAF8F5]/80 dark:hover:bg-[#E5DDD5]/50 transition-colors">
+                        <td className="p-3 font-mono font-bold text-[#E74C3C]">{p.code}</td>
+                        <td className="p-3 font-bold text-[#2D241E] dark:text-[#2D241E]">{p.name}</td>
+                        <td className="p-3 text-center">
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${statusColor}`}>{statusLabel}</span>
+                        </td>
+                        <td className="p-3 text-center text-[#3E2F26]">
+                          {p.usage_limit
+                            ? `${p.used_count || 0} / ${p.usage_limit}`
+                            : `${p.used_count || 0}`}
+                        </td>
+                        <td className="p-3 text-center text-[#8B7E74] text-[10px]">
+                          {p.start_date ? new Date(p.start_date).toLocaleString('vi-VN') : '—'}
+                          {p.end_date ? ` → ${new Date(p.end_date).toLocaleString('vi-VN')}` : ''}
+                        </td>
+                        <td className="p-3 text-center">
+                          <div className="flex gap-1.5 justify-center">
+                            <button onClick={() => handleEditPromo(p)}
+                              className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-950/50 cursor-pointer">
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={() => handleDeletePromo(p.id)}
+                              className="p-1.5 rounded-lg bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-950/50 cursor-pointer">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  }))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}

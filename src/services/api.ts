@@ -34,6 +34,7 @@ function mapDriver(d: any): Driver {
     vehicleType: d.vehicleType || 'Xe máy',
     vehiclePlate: d.vehiclePlate || '',
     vehicleColor: d.vehicleColor || '',
+    avatarUrl: d.avatarUrl || '',
     status: d.status || 'offline',
     isActive: d.isActive !== undefined ? !!d.isActive : (d.is_active !== undefined ? !!d.is_active : true),
     currentLat: d.currentLat,
@@ -693,6 +694,12 @@ export const ApiService = {
   async deletePromotion(id: number): Promise<void> {
     const res = await fetch(`${BASE_URL}/promotions/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('Không thể xóa khuyến mãi');
+  },
+
+  async validatePromotion(code: string, orderAmount: number): Promise<{ valid: boolean; promo?: Promotion; error?: string }> {
+    const res = await fetch(`${BASE_URL}/promotions/${encodeURIComponent(code)}/validate?orderAmount=${orderAmount}`);
+    const data = await res.json();
+    return data;
   },
 
   // 20. PRODUCT OPTIONS (TOPPINGS) API

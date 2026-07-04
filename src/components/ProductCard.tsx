@@ -1,22 +1,19 @@
-import React, { useState } from 'react';
-import { Product, ProductReview } from '../types';
+import React, { useState, useMemo } from 'react';
+import { Product, ProductReview, ProductOption } from '../types';
 import { Plus, ShoppingCart, Star, MessageSquare, Check } from 'lucide-react';
-
-const TOPPING_OPTIONS: Product[] = [];
 
 interface ProductCardProps {
   key?: string;
   product: Product;
-  onAddToCart: (product: Product, noodleType?: 'Bột gạo' | 'Bột lọc', notes?: string, toppings?: Product[]) => void;
+  onAddToCart: (product: Product, noodleType?: string, notes?: string, toppings?: Product[], selectedOptions?: { optionId: number; name: string; optionGroup: string; price: number }[]) => void;
   reviews?: ProductReview[];
+  productOptions?: ProductOption[];
 }
 
-export function ProductCard({ product, onAddToCart, reviews = [] }: ProductCardProps) {
+export function ProductCard({ product, onAddToCart, reviews = [], productOptions = [] }: ProductCardProps) {
   const [showOptions, setShowOptions] = useState(false);
   const [showReviewsPanel, setShowReviewsPanel] = useState(false);
-  const [selectedNoodle, setSelectedNoodle] = useState<'Bột gạo' | 'Bột lọc'>('Bột gạo');
   const [notes, setNotes] = useState('');
-  const [selectedToppings, setSelectedToppings] = useState<Product[]>([]);
 
   const productReviews = reviews.filter(r => r.productName === product.name);
   const avgRating = productReviews.length > 0 
@@ -27,24 +24,106 @@ export function ProductCard({ product, onAddToCart, reviews = [] }: ProductCardP
     return price.toLocaleString('vi-VN') + ' đ';
   };
 
+  const thisOptions = useMemo(() =>
+    productOptions.filter(o => o.productId === Number(product.id) && o.isActive).sort((a, b) => a.displayOrder - b.displayOrder),
+    [productOptions, product.id]
+  );
+
+  const groupedOptions = useMemo(() => {
+    const groups: Record<string, ProductOption[]> = {};
+    thisOptions.forEach(o => {
+      if (!groups[o.optionGroup]) groups[o.optionGroup] = [];
+      groups[o.optionGroup].push(o);
+    });
+    const preferredOrder = ['noodle', 'size', 'topping', 'sugar', 'ice', 'coffee_type'];
+    return Object.entries(groups).sort(([a], [b]) => {
+      const ia = preferredOrder.indexOf(a);
+      const ib = preferredOrder.indexOf(b);
+      return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+    });
+  }, [thisOptions]);
+
+  const [selectedOptions, setSelectedOptions] = useState<Record<string, number[]>>({});
+
+  const toggleOption = (groupId: string, optionId: number) => {
+    setSelectedOptions(prev => {
+      const current = prev[groupId] || [];
+      if (current.includes(optionId)) {
+        return { ...prev, [groupId]: current.filter(id => id !== optionId) };
+      }
+      return { ...prev, [groupId]: [...current, optionId] };
+    });
+  };
+
+  const toggleSingleOption = (groupId: string, optionId: number) => {
+    setSelectedOptions(prev => ({ ...prev, [groupId]: [optionId] }));
+  };
+
+  const getSelectedPrice = () => {
+    let extra = 0;
+    Object.entries(selectedOptions).forEach(([, ids]) => {
+      ids.forEach(id => {
+        const opt = thisOptions.find(o => o.id === id);
+        if (opt) extra += opt.price;
+      });
+    });
+    return extra;
+  };
+
+  const getSelectedDetails = () => {
+    const details: { optionId: number; name: string; optionGroup: string; price: number }[] = [];
+    Object.entries(selectedOptions).forEach(([, ids]) => {
+      ids.forEach(id => {
+        const opt = thisOptions.find(o => o.id === id);
+        if (opt) details.push({ optionId: opt.id, name: opt.name, optionGroup: opt.optionGroup, price: opt.price });
+      });
+    });
+    return details;
+  };
+
   const isMain = product.categoryName === 'Bánh Canh Cá Lóc' || product.categoryId === 1;
   const isOutOfStock = !product.isAvailable;
+  const hasOptions = thisOptions.length > 0;
 
   const handleQuickAdd = () => {
     if (!product.isAvailable) return;
-    if (isMain) {
+    if (isMain || hasOptions) {
       setShowOptions(true);
     } else {
-      onAddToCart(product, 'Bột gạo', '');
+      onAddToCart(product, '', '');
     }
   };
 
   const handleConfirmAdd = () => {
     if (!product.isAvailable) return;
-    onAddToCart(product, selectedNoodle, notes, selectedToppings);
+
+    const missingRequired: string[] = [];
+    groupedOptions.forEach(([group, opts]) => {
+      if (opts.some(o => o.isRequired)) {
+        const groupSelected = selectedOptions[group] || [];
+        if (groupSelected.length === 0) {
+          missingRequired.push(optionGroupLabels[group] || group.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()));
+        }
+      }
+    });
+    if (missingRequired.length > 0) {
+      alert(`Vui lòng chọn: ${missingRequired.join(', ')}`);
+      return;
+    }
+
+    onAddToCart(product, '', notes, [], getSelectedDetails());
     setShowOptions(false);
-    setSelectedToppings([]);
+    setSelectedOptions({});
     setNotes('');
+  };
+
+  const optionGroupLabels: Record<string, string> = {
+    noodle: 'Loại Sợi',
+    topping: 'Topping',
+    size: 'Chọn Size',
+    sugar: 'Đường',
+    ice: 'Đá',
+    coffee_type: 'Loại Cà Phê'
   };
 
   const getCategoryLabel = (p: Product): string => {
@@ -147,96 +226,58 @@ export function ProductCard({ product, onAddToCart, reviews = [] }: ProductCardP
         <div className="absolute inset-0 bg-white/95 dark:bg-[#1C1311]/95 backdrop-blur-md p-4 flex flex-col justify-between z-20 transition-all duration-300 overflow-y-auto">
           <div>
             <div className="flex justify-between items-start mb-2">
-              <h5 className="font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5]">Tùy chọn Bánh Canh</h5>
+              <h5 className="font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5]">Tùy chọn {product.name}</h5>
               <button 
                 onClick={() => {
                   setShowOptions(false);
-                  setSelectedToppings([]);
+                  setSelectedOptions({});
                 }}
                 className="text-xs font-bold text-[#8B7E74] hover:text-[#2D241E] dark:hover:text-[#FAF8F5]"
               >
                 Hủy
               </button>
             </div>
-            <p className="text-[10px] text-[#8B7E74] dark:text-[#B2A496] mb-3">{product.name}</p>
 
-            <div className="mb-3">
-              <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase block mb-1">Chọn Sợi Bánh Canh:</label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => setSelectedNoodle('Bột gạo')}
-                  className={`py-1.5 px-2 rounded-lg text-xs font-semibold border transition-all ${
-                    selectedNoodle === 'Bột gạo'
-                      ? 'bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] border-[#2D241E] dark:border-[#FAF8F5]'
-                      : 'bg-white dark:bg-[#1C1311] text-[#3E2F26] dark:text-[#EAE3D2] border border-[#E5E1D8] dark:border-[#2D2321] hover:bg-[#F3F0E9] dark:hover:bg-[#251A18]'
-                  }`}
-                >
-                  Bột gạo (Mềm mượt)
-                </button>
-                <button
-                  onClick={() => setSelectedNoodle('Bột lọc')}
-                  className={`py-1.5 px-2 rounded-lg text-xs font-semibold border transition-all ${
-                    selectedNoodle === 'Bột lọc'
-                      ? 'bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] border-[#2D241E] dark:border-[#FAF8F5]'
-                      : 'bg-white dark:bg-[#1C1311] text-[#3E2F26] dark:text-[#EAE3D2] border-[#E5E1D8] dark:border-[#2D2321] hover:bg-[#F3F0E9] dark:hover:bg-[#251A18]'
-                  }`}
-                >
-                  Bột lọc (Dai dẻo)
-                </button>
+            {groupedOptions.map(([group, opts]) => (
+              <div key={group} className="mb-3">
+                <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase block mb-1.5">
+                  {optionGroupLabels[group] || group.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                  {opts.some(o => o.isRequired) && <span className="text-red-500 ml-1">* (bắt buộc)</span>}
+                </label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {opts.map(opt => {
+                    const groupSelected = selectedOptions[group] || [];
+                    const isSelected = groupSelected.includes(opt.id);
+                    return (
+                      <button
+                        key={opt.id}
+                        onClick={() => group === 'topping' ? toggleOption(group, opt.id) : toggleSingleOption(group, opt.id)}
+                        className={`flex items-center gap-1.5 p-1.5 rounded-lg border text-left transition-all text-[10px] ${
+                          isSelected
+                            ? 'bg-amber-50 dark:bg-amber-950/20 text-[#D97706] border-[#D97706]'
+                            : 'bg-[#FAF8F5] dark:bg-[#231A18] text-[#3E2F26] dark:text-[#EAE3D2] border-[#E5E1D8] dark:border-[#2D2321] hover:bg-amber-50/40 dark:hover:bg-amber-950/10'
+                        }`}
+                      >
+                        <div className="truncate flex-1 min-w-0">
+                          <p className="font-bold leading-normal truncate">{opt.name}</p>
+                          {opt.price > 0 && <p className="text-[9px] text-[#8B7E74] dark:text-[#B2A496] mt-0.5 leading-none">+{formatPrice(opt.price)}</p>}
+                        </div>
+                        <div className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ${
+                          isSelected 
+                            ? 'bg-[#D97706] border-[#D97706] text-white' 
+                            : 'border-gray-300 dark:border-gray-700'
+                        }`}>
+                          {isSelected && <Check className="w-2 h-2 stroke-[3]" />}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-
-            <div className="mb-3">
-              <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase block mb-1.5">Gợi ý Topping ăn kèm:</label>
-              <div className="grid grid-cols-2 gap-1.5">
-                {TOPPING_OPTIONS.map((topping) => {
-                  const isSelected = selectedToppings.some(t => t.id === topping.id);
-                  const toppingImage = topping.imageUrl || '';
-                  return (
-                    <button
-                      key={topping.id}
-                      onClick={() => {
-                        if (isSelected) {
-                          setSelectedToppings(prev => prev.filter(t => t.id !== topping.id));
-                        } else {
-                          setSelectedToppings(prev => [...prev, topping]);
-                        }
-                      }}
-                      className={`flex items-center gap-1.5 p-1.5 rounded-lg border text-left transition-all text-[10px] ${
-                        isSelected
-                          ? 'bg-amber-50 dark:bg-amber-950/20 text-[#D97706] border-[#D97706]'
-                          : 'bg-[#FAF8F5] dark:bg-[#231A18] text-[#3E2F26] dark:text-[#EAE3D2] border-[#E5E1D8] dark:border-[#2D2321] hover:bg-amber-50/40 dark:hover:bg-amber-950/10'
-                      }`}
-                    >
-                      {toppingImage.startsWith('http') ? (
-                        <img 
-                          src={toppingImage}
-                          alt={topping.name} 
-                          className="w-5 h-5 rounded-md object-cover shrink-0" 
-                          referrerPolicy="no-referrer"
-                        />
-                      ) : (
-                        <span className="text-xs shrink-0">{toppingImage || '🍲'}</span>
-                      )}
-                      <div className="truncate flex-1 min-w-0">
-                        <p className="font-bold leading-normal truncate">{topping.name.replace(' thêm', '').replace(' Thêm', '')}</p>
-                        <p className="text-[9px] text-[#8B7E74] dark:text-[#B2A496] mt-0.5 leading-none">+{formatPrice(topping.price)}</p>
-                      </div>
-                      <div className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ${
-                        isSelected 
-                          ? 'bg-[#D97706] border-[#D97706] text-white' 
-                          : 'border-gray-300 dark:border-gray-700'
-                      }`}>
-                        {isSelected && <Check className="w-2 h-2 stroke-[3]" />}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            ))}
 
             <div>
-              <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase block mb-1">Ghi chú (bỏ ớt, hành...):</label>
+              <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase block mb-1">Ghi chú:</label>
               <input
                 type="text"
                 placeholder="Ví dụ: Ít cay, không lấy đầu cá..."
@@ -247,13 +288,18 @@ export function ProductCard({ product, onAddToCart, reviews = [] }: ProductCardP
             </div>
           </div>
 
-          <button
-            onClick={handleConfirmAdd}
-            className="w-full bg-[#D97706] hover:bg-[#D97706]/90 text-white font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm mt-3"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Xác Nhận Thêm ({formatPrice(product.price + selectedToppings.reduce((s, t) => s + t.price, 0))})
-          </button>
+          <div className="space-y-1.5 mt-3">
+            {groupedOptions.some(([, opts]) => opts.some(o => o.isRequired)) && (
+              <p className="text-[9px] text-red-500 font-medium italic">* Vui lòng chọn đầy đủ các mục bắt buộc</p>
+            )}
+            <button
+              onClick={handleConfirmAdd}
+              className="w-full bg-[#D97706] hover:bg-[#D97706]/90 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Xác Nhận Thêm ({formatPrice(product.price + getSelectedPrice())})
+            </button>
+          </div>
         </div>
       )}
 
