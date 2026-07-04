@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Order, Driver, OrderStatus, Product, MembershipTier } from '../types';
+import { Order, Driver, OrderStatus, Product, MembershipTier, DeliveryTrip, PaymentTransaction } from '../types';
 import { JAVA_BACKEND_FILES, MYSQL_DATABASE_SQL, FRONTEND_INTEGRATION_FILES } from '../data';
 import { FileCode, Check, Copy, AlertTriangle, Plus, Edit3, Trash2, X, FileText } from 'lucide-react';
 import { ApiService } from '../services/api';
@@ -47,6 +47,25 @@ const PERMISSION_MODULES = [
   { module: 'stats', label: 'Thống kê', permissions: [{ code: 'stats:view', name: 'Xem' }] },
 ];
 
+function getUserOnlineStatus(): 'online' | 'away' | 'offline' {
+  const stored = localStorage.getItem('user_last_active');
+  if (!stored) return 'offline';
+  const lastActive = parseInt(stored, 10);
+  if (isNaN(lastActive)) return 'offline';
+  const now = Date.now();
+  const diffMs = now - lastActive;
+  const diffMinutes = diffMs / 60000;
+  if (diffMinutes <= 5) return 'online';
+  if (diffMinutes <= 30) return 'away';
+  return 'offline';
+}
+
+const statusLabel: Record<string, { icon: string; label: string }> = {
+  online: { icon: '🟢', label: 'Online' },
+  away: { icon: '🟡', label: 'Away' },
+  offline: { icon: '⚫', label: 'Offline' }
+};
+
 export function AdminDashboard({
   orders,
   drivers,
@@ -63,7 +82,7 @@ export function AdminDashboard({
   onDeleteProduct
 }: AdminDashboardProps) {
   const isSuperAdmin = userRole === 'super_admin';
-  const [adminTab, setAdminTab] = useState<'stats' | 'orders' | 'products' | 'categories' | 'toppings' | 'promotions' | 'reviews' | 'invoices' | 'drivers' | 'users' | 'permissions' | 'delivery-areas' | 'membership-tiers' | 'delivery-trips' | 'payment-transactions' | 'order-history'>('stats');
+  const [adminTab, setAdminTab] = useState<'stats' | 'orders' | 'products' | 'categories' | 'toppings' | 'promotions' | 'reviews' | 'invoices' | 'drivers' | 'users' | 'permissions' | 'role-manager' | 'delivery-areas' | 'membership-tiers' | 'delivery-trips' | 'payment-transactions' | 'order-history'>('stats');
   const tabsRef = useRef<HTMLDivElement>(null);
   const [selectedFEFile, setSelectedFEFile] = useState(0);
 
@@ -80,7 +99,25 @@ export function AdminDashboard({
     if (adminTab === 'toppings') {
       loadProductOptions();
     }
+    if (adminTab === 'role-manager') {
+      loadRoles();
+    }
+    if (adminTab === 'delivery-trips') {
+      loadDeliveryTrips();
+    }
+    if (adminTab === 'payment-transactions') {
+      loadPaymentTransactions();
+    }
   }, [adminTab]);
+
+  // Online status refresh
+  const [onlineStatus, setOnlineStatus] = useState<string>(getUserOnlineStatus());
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setOnlineStatus(getUserOnlineStatus());
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   // API Users state (fetched from backend)
   const [apiUsers, setApiUsers] = useState<any[]>([]);
@@ -125,6 +162,108 @@ export function AdminDashboard({
     if (window.confirm("Bạn có chắc chắn muốn xóa hết danh sách Tài khoản Khách hàng đã huấn luyện trong bộ nhớ tạm LocalStorage không?")) {
       localStorage.removeItem('banhcanh_registered_users');
       setLocalUsers([]);
+    }
+  };
+
+  // Selected user for operations
+  const [selectedUser, setSelectedUser] = useState<any | null>(null);
+  const [showUserEditForm, setShowUserEditForm] = useState(false);
+  const [showUserRoleForm, setShowUserRoleForm] = useState(false);
+  const [showUserPasswordForm, setShowUserPasswordForm] = useState(false);
+  const [userEditForm, setUserEditForm] = useState({ fullName: '', phone: '', address: '', email: '' });
+  const [userNewRole, setUserNewRole] = useState('customer');
+  const [userNewPassword, setUserNewPassword] = useState('');
+  const [userActionMsg, setUserActionMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [userActionLoading, setUserActionLoading] = useState(false);
+
+  const handleSelectUser = (u: any) => {
+    setSelectedUser(prev => prev?.id === u.id ? null : u);
+    setShowUserEditForm(false);
+    setShowUserRoleForm(false);
+    setShowUserPasswordForm(false);
+    setUserActionMsg(null);
+  };
+
+  const handleSaveUserEdit = async () => {
+    if (!selectedUser) return;
+    setUserActionLoading(true);
+    setUserActionMsg(null);
+    try {
+      const updated = await ApiService.updateUser(String(selectedUser.id), userEditForm);
+      setApiUsers(prev => prev.map(u => u.id === selectedUser.id ? { ...u, ...updated } : u));
+      setSelectedUser((prev: any) => ({ ...prev, ...updated }));
+      setUserActionMsg({ type: 'success', text: 'Đã cập nhật thông tin!' });
+      setShowUserEditForm(false);
+    } catch (err: any) {
+      setUserActionMsg({ type: 'error', text: err.message || 'Lỗi cập nhật' });
+    } finally {
+      setUserActionLoading(false);
+    }
+  };
+
+  const handleChangeUserRole = async () => {
+    if (!selectedUser) return;
+    setUserActionLoading(true);
+    setUserActionMsg(null);
+    try {
+      await ApiService.adminChangeUserRole(selectedUser.id, userNewRole);
+      setApiUsers(prev => prev.map(u => u.id === selectedUser.id ? { ...u, role: userNewRole } : u));
+      setSelectedUser((prev: any) => ({ ...prev, role: userNewRole }));
+      setUserActionMsg({ type: 'success', text: `Đã đổi vai trò thành "${userNewRole}"` });
+      setShowUserRoleForm(false);
+    } catch (err: any) {
+      setUserActionMsg({ type: 'error', text: err.message || 'Lỗi đổi vai trò' });
+    } finally {
+      setUserActionLoading(false);
+    }
+  };
+
+  const handleToggleUserActive = async () => {
+    if (!selectedUser) return;
+    setUserActionLoading(true);
+    setUserActionMsg(null);
+    try {
+      const res = await ApiService.adminToggleUserActive(selectedUser.id);
+      setApiUsers(prev => prev.map(u => u.id === selectedUser.id ? { ...u, isActive: res.isActive } : u));
+      setSelectedUser((prev: any) => ({ ...prev, isActive: res.isActive }));
+      setUserActionMsg({ type: 'success', text: res.isActive ? 'Đã mở khoá tài khoản' : 'Đã khoá tài khoản' });
+    } catch (err: any) {
+      setUserActionMsg({ type: 'error', text: err.message || 'Lỗi thay đổi trạng thái' });
+    } finally {
+      setUserActionLoading(false);
+    }
+  };
+
+  const handleResetUserPassword = async () => {
+    if (!selectedUser || userNewPassword.length < 6) return;
+    setUserActionLoading(true);
+    setUserActionMsg(null);
+    try {
+      await ApiService.adminResetUserPassword(selectedUser.id, userNewPassword);
+      setUserActionMsg({ type: 'success', text: 'Đã đặt lại mật khẩu!' });
+      setShowUserPasswordForm(false);
+      setUserNewPassword('');
+    } catch (err: any) {
+      setUserActionMsg({ type: 'error', text: err.message || 'Lỗi đặt lại mật khẩu' });
+    } finally {
+      setUserActionLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!selectedUser) return;
+    if (!window.confirm(`Bạn có chắc muốn xoá tài khoản "${selectedUser.username}"?`)) return;
+    setUserActionLoading(true);
+    setUserActionMsg(null);
+    try {
+      await ApiService.adminDeleteUser(selectedUser.id);
+      setApiUsers(prev => prev.filter(u => u.id !== selectedUser.id));
+      setUserActionMsg({ type: 'success', text: `Đã xoá tài khoản "${selectedUser.username}"` });
+      setSelectedUser(null);
+    } catch (err: any) {
+      setUserActionMsg({ type: 'error', text: err.message || 'Lỗi xoá tài khoản' });
+    } finally {
+      setUserActionLoading(false);
     }
   };
 
@@ -269,6 +408,36 @@ export function AdminDashboard({
   const [invoiceSuccess, setInvoiceSuccess] = useState('');
   const [invoiceError, setInvoiceError] = useState('');
 
+  // Delivery Trips
+  const [deliveryTrips, setDeliveryTrips] = useState<DeliveryTrip[]>([]);
+
+  const loadDeliveryTrips = async () => {
+    try {
+      if (isBackendConnected) {
+        const data = await ApiService.getDeliveryTrips();
+        setDeliveryTrips(data);
+      }
+    } catch (err) {
+      console.warn('Failed to load delivery trips:', err);
+      setDeliveryTrips([]);
+    }
+  };
+
+  // Payment Transactions
+  const [paymentTransactions, setPaymentTransactions] = useState<PaymentTransaction[]>([]);
+
+  const loadPaymentTransactions = async () => {
+    try {
+      if (isBackendConnected) {
+        const data = await ApiService.getPaymentTransactions(0);
+        setPaymentTransactions(data || []);
+      }
+    } catch (err) {
+      console.warn('Failed to load payment transactions:', err);
+      setPaymentTransactions([]);
+    }
+  };
+
   // Delivery Areas CRUD
   const [deliveryAreas, setDeliveryAreas] = useState<any[]>([]);
   const [deliveryAreaForm, setDeliveryAreaForm] = useState({ name: '', centerLat: 10.8231, centerLng: 106.6297, radiusKm: 5, baseFee: 15000, feePerKm: 5000, maxDistanceKm: 15 });
@@ -391,6 +560,7 @@ export function AdminDashboard({
   const [checkPermissions, setCheckPermissions] = useState<Record<string, boolean>>({});
   const [roleForm, setRoleForm] = useState({ name: '', display: '', desc: '' });
   const [editingRoleId, setEditingRoleId] = useState<number | null>(null);
+  const [allDbPermissions, setAllDbPermissions] = useState<any[]>([]);
 
   const handleCopySource = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -917,22 +1087,63 @@ export function AdminDashboard({
   };
 
   // Role Manager handlers
-  const handleRoleSelect = (role: RoleItem) => {
+  const [roleManagerLoading, setRoleManagerLoading] = useState(false);
+  const [roleManagerMsg, setRoleManagerMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const loadRoles = async () => {
+    if (!isBackendConnected) return;
+    setRoleManagerLoading(true);
+    try {
+      const [roles, permissions] = await Promise.all([
+        ApiService.getRoles(),
+        ApiService.getPermissions()
+      ]);
+      setRoleList(roles.map((r: any) => ({ id: r.id, name: r.name, display: r.displayName || r.name, desc: r.description || '' })));
+      // Also store all permission codes from DB
+      const dbPermCodes = new Set(permissions.map((p: any) => p.code));
+      setAllDbPermissions(permissions);
+    } catch (err) {
+      console.error('Failed to load roles:', err);
+    } finally {
+      setRoleManagerLoading(false);
+    }
+  };
+
+  const loadRolePermissions = async (roleId: number) => {
+    if (!isBackendConnected) return;
+    try {
+      return await ApiService.getRolePermissions(roleId);
+    } catch {
+      return [];
+    }
+  };
+
+  const handleRoleSelect = async (role: RoleItem) => {
     setSelectedRoleForPerms(role);
     const perms: Record<string, boolean> = {};
     PERMISSION_MODULES.forEach(mod => {
       mod.permissions.forEach(p => {
-        perms[p.code] = role.name === 'ROLE_SUPER_ADMIN';
+        perms[p.code] = false;
       });
     });
-    if (role.name === 'ROLE_ADMIN') {
-      ['product:create', 'product:read', 'product:update', 'product:delete', 'order:create', 'order:read', 'order:update', 'order:delete', 'driver:create', 'driver:read', 'driver:update', 'driver:delete', 'category:create', 'category:read', 'category:update', 'category:delete', 'user:read', 'stats:view'].forEach(c => { if (perms[c] !== undefined) perms[c] = true; });
-    }
-    if (role.name === 'ROLE_STAFF') {
-      ['order:read', 'order:update'].forEach(c => { if (perms[c] !== undefined) perms[c] = true; });
-    }
-    if (role.name === 'ROLE_CUSTOMER') {
-      ['order:create', 'order:read'].forEach(c => { if (perms[c] !== undefined) perms[c] = true; });
+    if (isBackendConnected) {
+      const rolePerms = await loadRolePermissions(role.id);
+      rolePerms.forEach((p: any) => {
+        if (perms[p.code] !== undefined) perms[p.code] = true;
+      });
+    } else {
+      if (role.name === 'ROLE_SUPER_ADMIN') {
+        Object.keys(perms).forEach(c => { perms[c] = true; });
+      }
+      if (role.name === 'ROLE_ADMIN') {
+        ['product:create', 'product:read', 'product:update', 'product:delete', 'order:create', 'order:read', 'order:update', 'order:delete', 'driver:create', 'driver:read', 'driver:update', 'driver:delete', 'category:create', 'category:read', 'category:update', 'category:delete', 'user:read', 'stats:view'].forEach(c => { if (perms[c] !== undefined) perms[c] = true; });
+      }
+      if (role.name === 'ROLE_STAFF') {
+        ['order:read', 'order:update'].forEach(c => { if (perms[c] !== undefined) perms[c] = true; });
+      }
+      if (role.name === 'ROLE_CUSTOMER') {
+        ['order:create', 'order:read'].forEach(c => { if (perms[c] !== undefined) perms[c] = true; });
+      }
     }
     setCheckPermissions(perms);
   };
@@ -941,21 +1152,75 @@ export function AdminDashboard({
     setCheckPermissions(prev => ({ ...prev, [code]: !prev[code] }));
   };
 
-  const handleSavePermissions = () => {
-    alert('Đã lưu phân quyền cho vai trò ' + selectedRoleForPerms?.name);
+  const handleSavePermissions = async () => {
+    if (!selectedRoleForPerms) return;
+    setRoleManagerLoading(true);
+    setRoleManagerMsg(null);
+    try {
+      // Get currently assigned permissions from API
+      if (isBackendConnected) {
+        const currentPerms = await loadRolePermissions(selectedRoleForPerms.id);
+        const currentCodes = new Set(currentPerms.map((p: any) => p.code));
+        const allPerms = allDbPermissions;
+
+        for (const mod of PERMISSION_MODULES) {
+          for (const perm of mod.permissions) {
+            const isChecked = !!checkPermissions[perm.code];
+            const isCurrentlyAssigned = currentCodes.has(perm.code);
+            if (isChecked && !isCurrentlyAssigned) {
+              const dbPerm = allPerms.find((p: any) => p.code === perm.code);
+              if (dbPerm) {
+                await ApiService.assignPermissionToRole(selectedRoleForPerms.id, dbPerm.id);
+              }
+            } else if (!isChecked && isCurrentlyAssigned) {
+              const dbPerm = allPerms.find((p: any) => p.code === perm.code);
+              if (dbPerm) {
+                await ApiService.removePermissionFromRole(selectedRoleForPerms.id, dbPerm.id);
+              }
+            }
+          }
+        }
+      }
+      setRoleManagerMsg({ type: 'success', text: 'Đã lưu phân quyền!' });
+      setTimeout(() => setRoleManagerMsg(null), 3000);
+    } catch (err: any) {
+      setRoleManagerMsg({ type: 'error', text: err.message || 'Lỗi lưu phân quyền' });
+    } finally {
+      setRoleManagerLoading(false);
+    }
   };
 
-  const handleRoleFormSubmit = (e: React.FormEvent) => {
+  const handleRoleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!roleForm.name || !roleForm.display) return;
-    if (editingRoleId !== null) {
-      setRoleList(roleList.map(r => r.id === editingRoleId ? { ...r, ...roleForm } : r));
-    } else {
-      const newId = Math.max(...roleList.map(r => r.id), 0) + 1;
-      setRoleList([...roleList, { id: newId, ...roleForm }]);
+    setRoleManagerMsg(null);
+    try {
+      if (editingRoleId !== null) {
+        if (isBackendConnected) {
+          const updated = await ApiService.updateRole(editingRoleId, { name: roleForm.name, displayName: roleForm.display, description: roleForm.desc });
+          setRoleList(roleList.map(r => r.id === editingRoleId ? { id: updated.id, name: updated.name, display: updated.displayName, desc: updated.description || '' } : r));
+        } else {
+          setRoleList(roleList.map(r => r.id === editingRoleId ? { ...r, ...roleForm } : r));
+        }
+        setRoleManagerMsg({ type: 'success', text: 'Đã cập nhật vai trò!' });
+      } else {
+        let newRole: any;
+        if (isBackendConnected) {
+          newRole = await ApiService.createRole({ name: roleForm.name, displayName: roleForm.display, description: roleForm.desc });
+          newRole = { id: newRole.id, name: newRole.name, display: newRole.displayName, desc: newRole.description || '' };
+        } else {
+          const newId = Math.max(...roleList.map(r => r.id), 0) + 1;
+          newRole = { id: newId, ...roleForm };
+        }
+        setRoleList([...roleList, newRole]);
+        setRoleManagerMsg({ type: 'success', text: `Đã tạo vai trò "${roleForm.name}"! Vai trò mới chưa có quyền, hãy chọn để phân quyền.` });
+      }
+      setTimeout(() => setRoleManagerMsg(null), 3000);
+      setRoleForm({ name: '', display: '', desc: '' });
+      setEditingRoleId(null);
+    } catch (err: any) {
+      setRoleManagerMsg({ type: 'error', text: err.message || 'Lỗi khi lưu vai trò' });
     }
-    setRoleForm({ name: '', display: '', desc: '' });
-    setEditingRoleId(null);
   };
 
   const handleEditRole = (r: RoleItem) => {
@@ -963,23 +1228,32 @@ export function AdminDashboard({
     setEditingRoleId(r.id);
   };
 
-  const handleDeleteRole = (id: number) => {
+  const handleDeleteRole = async (id: number) => {
     if (!window.confirm('Bạn có chắc chắn muốn xóa vai trò này?')) return;
-    setRoleList(roleList.filter(r => r.id !== id));
-    if (selectedRoleForPerms?.id === id) {
-      setSelectedRoleForPerms(null);
-      setCheckPermissions({});
-    }
-    if (editingRoleId === id) {
-      setEditingRoleId(null);
-      setRoleForm({ name: '', display: '', desc: '' });
+    try {
+      if (isBackendConnected) {
+        await ApiService.deleteRole(id);
+      }
+      setRoleList(roleList.filter(r => r.id !== id));
+      if (selectedRoleForPerms?.id === id) {
+        setSelectedRoleForPerms(null);
+        setCheckPermissions({});
+      }
+      if (editingRoleId === id) {
+        setEditingRoleId(null);
+        setRoleForm({ name: '', display: '', desc: '' });
+      }
+      setRoleManagerMsg({ type: 'success', text: 'Đã xoá vai trò!' });
+      setTimeout(() => setRoleManagerMsg(null), 3000);
+    } catch (err: any) {
+      setRoleManagerMsg({ type: 'error', text: err.message || 'Lỗi xoá vai trò' });
     }
   };
 
-  const tabClass = (tab: string) =>
+   const tabClass = (tab: string) =>
     `px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
       adminTab === tab
-        ? tab === 'stats' || tab === 'users' || tab === 'permissions'
+        ? tab === 'stats' || tab === 'users' || tab === 'permissions' || tab === 'role-manager'
           ? 'bg-[#E74C3C] text-white shadow-xs'
           : 'bg-[#E74C3C] dark:bg-[#E74C3C] text-white dark:text-white shadow-xs'
         : 'text-[#3E2F26] dark:text-[#3E2F26] hover:bg-[#E5E1D8] dark:hover:bg-[#E8E0D8]'
@@ -1015,6 +1289,7 @@ export function AdminDashboard({
             <button onClick={() => setAdminTab('delivery-areas')} className={`shrink-0 ${tabClass('delivery-areas')}`}>🗺️ Khu Vực GH</button>
             <button onClick={() => { handleRefreshUsers(); setAdminTab('users'); }} className={`shrink-0 ${tabClass('users')}`}>👥 Người dùng</button>
             {isSuperAdmin && <button onClick={() => setAdminTab('permissions')} className={`shrink-0 ${tabClass('permissions')}`}>🔐 Phân quyền & Vai trò</button>}
+            <button onClick={() => setAdminTab('role-manager')} className={`shrink-0 ${tabClass('role-manager')}`}>🎭 Vai trò - Phân quyền</button>
             {isSuperAdmin && <button onClick={() => setAdminTab('membership-tiers')} className={`shrink-0 ${tabClass('membership-tiers')}`}>🏅 Hạng TV</button>}
             <button onClick={() => setAdminTab('delivery-trips')} className={`shrink-0 ${tabClass('delivery-trips')}`}>🚚 Chuyến GH</button>
             <button onClick={() => setAdminTab('payment-transactions')} className={`shrink-0 ${tabClass('payment-transactions')}`}>💳 GD Thanh Toán</button>
@@ -1079,7 +1354,7 @@ export function AdminDashboard({
                             order.orderType === 'takeaway' ? '🛍️ Mang đi' :
                             order.orderType === 'delivery' ? '🛵 Giao hàng' :
                             order.orderType || '🛵 Giao hàng'}
-                          {(order as any).tableNumber && <span className="block text-[9px] text-[#8B7E74]">Bàn {(order as any).tableNumber}</span>}
+                          {order.tableNumber && <span className="block text-[9px] text-[#8B7E74]">Bàn {order.tableNumber}</span>}
                         </td>
                         <td className="p-3.5 text-right font-mono text-[10px] text-[#8B7E74]">
                           {order.subtotal ? order.subtotal.toLocaleString('vi-VN') + 'đ' : '—'}
@@ -1111,7 +1386,7 @@ export function AdminDashboard({
                           </span>
                           <span className="block text-[9px] text-[#8B7E74] mt-0.5">
                             {order.paymentMethod === 'momo' ? '🎀 MoMo' :
-                             order.paymentMethod === 'cash' ? '💵 Tiền mặt' :
+                             order.paymentMethod === 'cod' ? '💵 Tiền mặt (COD)' :
                              order.paymentMethod || '-'}
                           </span>
                         </td>
@@ -2311,7 +2586,7 @@ export function AdminDashboard({
                       <td className="p-3 font-mono font-bold text-[#2D241E] dark:text-[#2D241E]">{inv.totalAmount.toLocaleString('vi-VN')}đ</td>
                       <td className="p-3">
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-900/50 capitalize">
-                          {inv.paymentMethod === 'cash' ? 'Tiền mặt' : inv.paymentMethod === 'banking' ? 'Chuyển khoản' : inv.paymentMethod}
+                          {inv.paymentMethod === 'cod' ? 'Tiền mặt (COD)' : inv.paymentMethod === 'banking' ? 'Chuyển khoản' : inv.paymentMethod}
                         </span>
                       </td>
                       <td className="p-3 text-center">
@@ -2407,7 +2682,7 @@ export function AdminDashboard({
                       <div>
                         <p className="text-[9px] text-[#8B7E74]">Thanh toán</p>
                         <p className="font-bold text-[#2D241E] dark:text-[#2D241E] capitalize">
-                          {viewingInvoice.paymentMethod === 'cash' ? 'Tiền mặt' : viewingInvoice.paymentMethod === 'banking' ? 'Chuyển khoản' : viewingInvoice.paymentMethod}
+                          {viewingInvoice.paymentMethod === 'cod' ? 'Tiền mặt (COD)' : viewingInvoice.paymentMethod === 'banking' ? 'Chuyển khoản' : viewingInvoice.paymentMethod}
                         </p>
                       </div>
                       <div>
@@ -2869,6 +3144,143 @@ export function AdminDashboard({
           </div>
         )}
 
+        {/* TAB: ROLE MANAGER */}
+        {adminTab === 'role-manager' && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center border-b border-[#F3F0E9] dark:border-[#E0D8D0] pb-3">
+              <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#2D241E]">🎭 Vai trò - Phân quyền</h3>
+              <span className="text-xs text-[#8B7E74] dark:text-[#8B7E74]">Quản lý vai trò và phân quyền chi tiết theo module</span>
+            </div>
+
+            {roleManagerMsg && (
+              <div className={`text-xs font-bold px-4 py-3 rounded-2xl border ${
+                roleManagerMsg.type === 'success'
+                  ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/40'
+                  : 'bg-red-50 dark:bg-red-950/20 text-red-800 dark:text-red-400 border-red-200 dark:border-red-900/40'
+              }`}>
+                {roleManagerMsg.text}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Left Panel: Role List + CRUD */}
+              <div className="lg:col-span-4 space-y-4">
+                <div className="bg-[#F3F0E9] dark:bg-[#FFF0E0] p-4 rounded-2xl border border-[#E5E1D8] dark:border-[#D0C8C0]">
+                  <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#2D241E] mb-3">
+                    {editingRoleId !== null ? <><Edit3 className="w-4 h-4 inline mr-1 text-[#E74C3C]" /> Sửa Vai Trò</> : <><Plus className="w-4 h-4 inline mr-1 text-emerald-500" /> Thêm Vai Trò</>}
+                  </h4>
+                  <form onSubmit={handleRoleFormSubmit} className="space-y-2">
+                    <input type="text" required placeholder="ROLE_NAME (vd: MANAGER)"
+                      value={roleForm.name}
+                      onChange={(e) => setRoleForm(prev => ({ ...prev, name: e.target.value }))}
+                      className="w-full text-xs p-2 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] bg-white dark:bg-[#FFF8F0] text-[#2D241E] dark:text-[#2D241E] focus:outline-[#E74C3C]" />
+                    <input type="text" required placeholder="Tên hiển thị"
+                      value={roleForm.display}
+                      onChange={(e) => setRoleForm(prev => ({ ...prev, display: e.target.value }))}
+                      className="w-full text-xs p-2 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] bg-white dark:bg-[#FFF8F0] text-[#2D241E] dark:text-[#2D241E] focus:outline-[#E74C3C]" />
+                    <input type="text" placeholder="Mô tả"
+                      value={roleForm.desc}
+                      onChange={(e) => setRoleForm(prev => ({ ...prev, desc: e.target.value }))}
+                      className="w-full text-xs p-2 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] bg-white dark:bg-[#FFF8F0] text-[#2D241E] dark:text-[#2D241E] focus:outline-[#E74C3C]" />
+                    <div className="flex gap-2">
+                      {editingRoleId !== null && (
+                        <button type="button" onClick={() => { setEditingRoleId(null); setRoleForm({ name: '', display: '', desc: '' }); }}
+                          className="px-3 py-1.5 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] text-xs font-bold text-[#3E2F26] dark:text-[#3E2F26] hover:bg-[#E5E1D8] dark:hover:bg-[#E8E0D8] cursor-pointer">
+                          <X className="w-3 h-3 inline mr-1" />Hủy
+                        </button>
+                      )}
+                      <button type="submit"
+                        className="px-4 py-1.5 rounded-lg bg-[#E74C3C] dark:bg-[#E74C3C] text-white dark:text-white text-xs font-bold hover:opacity-90 cursor-pointer">
+                        {editingRoleId !== null ? 'Cập Nhật' : 'Thêm'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
+                  {roleManagerLoading && roleList.length === 0 && (
+                    <div className="p-4 text-center text-[10px] text-[#8B7E74] italic">Đang tải danh sách vai trò...</div>
+                  )}
+                  {roleList.map(r => (
+                    <div
+                      key={r.id}
+                      onClick={() => handleRoleSelect(r)}
+                      className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                        selectedRoleForPerms?.id === r.id
+                          ? 'bg-red-50 dark:bg-red-950/20 border-[#E74C3C] dark:border-red-700'
+                          : 'bg-[#FAF8F5] dark:bg-[#FFFAF3] border-[#E5E1D8] dark:border-[#E0D8D0] hover:border-red-300'
+                      }`}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-bold text-xs text-[#E74C3C] font-mono">{r.name}</p>
+                          <p className="text-xs text-[#2D241E] dark:text-[#2D241E]">{r.display}</p>
+                          <p className="text-[9px] text-[#8B7E74]">{r.desc}</p>
+                        </div>
+                        <div className="flex gap-1">
+                          <button onClick={(e) => { e.stopPropagation(); handleEditRole(r); }}
+                            className="p-1 rounded bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-950/50 cursor-pointer">
+                            <Edit3 className="w-3 h-3" />
+                          </button>
+                          <button onClick={(e) => { e.stopPropagation(); handleDeleteRole(r.id); }}
+                            className="p-1 rounded bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-950/50 cursor-pointer">
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Right Panel: Permission checkboxes */}
+              <div className="lg:col-span-8">
+                {selectedRoleForPerms ? (
+                  <div className="bg-[#FAF8F5] dark:bg-[#FFFAF3] p-5 rounded-2xl border border-[#E5E1D8] dark:border-[#E0D8D0]">
+                    <div className="flex justify-between items-center mb-4">
+                      <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#2D241E]">
+                        Quyền hạn cho <span className="text-[#E74C3C] font-mono">{selectedRoleForPerms.name}</span>
+                      </h4>
+                      <button
+                        onClick={handleSavePermissions}
+                        className="px-4 py-1.5 rounded-lg bg-[#E74C3C] hover:bg-[#E74C3C]/90 text-white text-xs font-bold cursor-pointer"
+                      >
+                        {roleManagerLoading ? 'Đang lưu...' : 'Lưu Phân Quyền'}
+                      </button>
+                    </div>
+
+                    {roleManagerLoading && (
+                      <div className="text-center text-[10px] text-amber-500 animate-pulse py-2">⏳ Đang đồng bộ quyền...</div>
+                    )}
+
+                    <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
+                      {PERMISSION_MODULES.map(mod => (
+                        <div key={mod.module} className="bg-white dark:bg-[#FFF8F0] p-3 rounded-xl border border-[#E5E1D8] dark:border-[#E0D8D0]">
+                          <h5 className="font-bold text-xs text-[#E74C3C] uppercase mb-2">{mod.label}</h5>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                            {mod.permissions.map(perm => (
+                              <label key={perm.code} className="flex items-center gap-2 p-1.5 rounded hover:bg-[#F3F0E9] dark:hover:bg-[#E5DDD5] cursor-pointer">
+                                <input type="checkbox" checked={!!checkPermissions[perm.code]}
+                                  onChange={() => handlePermissionToggle(perm.code)}
+                                  className="w-4 h-4 accent-[#E74C3C] cursor-pointer" />
+                                <span className="text-[10px] text-[#3E2F26] dark:text-[#3E2F26]">{perm.name}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-[#FAF8F5] dark:bg-[#FFFAF3] p-8 rounded-2xl border border-[#E5E1D8] dark:border-[#E0D8D0] flex items-center justify-center">
+                    <p className="text-xs text-[#8B7E74] italic">Chọn một vai trò ở bên trái để xem và chỉnh sửa quyền hạn</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* TAB: USER MANAGEMENT */}
         {adminTab === 'users' && (
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 pb-2">
@@ -2885,121 +3297,182 @@ export function AdminDashboard({
                 </div>
               </div>
 
-              <div className="bg-[#1C1311] border border-[#2D2321] rounded-2xl overflow-hidden shadow-sm">
-                <div className="bg-[#241A18] px-4 py-3 flex justify-between items-center border-b border-[#2D2321]">
-                  <div className="flex items-center gap-2">
-                    <span className="text-emerald-500">📀</span>
-                    <span className="text-xs font-serif font-bold text-[#FAF8F5]">Bước 1: Tạo Bảng `users` Lên phpMyAdmin</span>
-                  </div>
-                  <button
-                    onClick={() => handleCopySource(`-- SCRIPT TẠO BẢNG USER TRÊN phpMyAdmin XAMPP
-CREATE TABLE IF NOT EXISTS \`users\` (
-  \`id\` INT(11) NOT NULL AUTO_INCREMENT,
-  \`username\` VARCHAR(255) COLLATE utf8mb4_unicode_ci NOT NULL UNIQUE,
-  \`password\` VARCHAR(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  \`email\` VARCHAR(255) COLLATE utf8mb4_unicode_ci NOT NULL UNIQUE,
-  \`role\` VARCHAR(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'customer',
-  PRIMARY KEY (\`id\`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+              {/* Function Panel */}
+              <div className={`rounded-2xl border p-5 space-y-4 transition-all duration-300 ${
+                selectedUser
+                  ? 'bg-[#1C1311] border-amber-500/40 shadow-lg shadow-amber-900/20'
+                  : 'bg-[#140D0C] border-[#2D2321] opacity-50'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <h4 className="font-serif font-bold text-sm text-[#FAF8F5]">
+                    {selectedUser ? (
+                      <span>🔧 Thao Tác: <span className="text-amber-400">{selectedUser.username}</span></span>
+                    ) : '🔧 Bảng Chức Năng'}
+                  </h4>
+                  {selectedUser && (
+                    <button onClick={() => setSelectedUser(null)}
+                      className="text-[10px] text-[#8B7E74] hover:text-red-400 cursor-pointer transition-colors">
+                      ✕ Bỏ chọn
+                    </button>
+                  )}
+                </div>
 
--- SEED TÀI KHOẢN CHỦ QUÁN MẶC ĐỊNH SỬ DỤNG
-INSERT INTO \`users\` (\`username\`, \`password\`, \`email\`, \`role\`)
-VALUES ('admin', 'admin', 'chuan@banhcanhcaloc.com', 'admin');`)}
-                    className="bg-white/10 hover:bg-white/15 text-white text-[9px] font-mono px-2 py-1 rounded cursor-pointer transition-all"
-                  >
-                    {copiedText ? 'Đã sao chép!' : 'Sao chép SQL'}
+                {!selectedUser && (
+                  <p className="text-[10px] text-[#8B7E74] italic">Nhấp vào một người dùng ở bảng bên phải để kích hoạt các thao tác.</p>
+                )}
+
+                {userActionMsg && (
+                  <div className={`text-[10px] font-bold px-3 py-2 rounded-lg ${
+                    userActionMsg.type === 'success'
+                      ? 'bg-emerald-950/30 text-emerald-400 border border-emerald-900/40'
+                      : 'bg-red-950/30 text-red-400 border border-red-900/40'
+                  }`}>
+                    {userActionMsg.text}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3">
+                  <button disabled={!selectedUser}
+                    onClick={() => { setShowUserEditForm(true); setShowUserRoleForm(false); setShowUserPasswordForm(false); }}
+                    className={`p-3 rounded-xl text-[10px] font-bold text-left transition-all border ${
+                      selectedUser
+                        ? 'bg-[#241A18] border-amber-700/40 text-[#FAF8F5] hover:bg-amber-900/30 hover:border-amber-500/60 cursor-pointer'
+                        : 'bg-[#1A1412] border-[#2D2321] text-[#5A4A40] cursor-not-allowed'
+                    }`}>
+                    <div className="text-lg mb-1">✏️</div>
+                    <div>Chỉnh sửa thông tin</div>
+                    <div className="text-[8px] text-[#8B7E74] mt-0.5">Họ tên, SĐT, địa chỉ, email</div>
+                  </button>
+
+                  <button disabled={!selectedUser}
+                    onClick={() => { setShowUserRoleForm(true); setShowUserEditForm(false); setShowUserPasswordForm(false); }}
+                    className={`p-3 rounded-xl text-[10px] font-bold text-left transition-all border ${
+                      selectedUser
+                        ? 'bg-[#241A18] border-amber-700/40 text-[#FAF8F5] hover:bg-amber-900/30 hover:border-amber-500/60 cursor-pointer'
+                        : 'bg-[#1A1412] border-[#2D2321] text-[#5A4A40] cursor-not-allowed'
+                    }`}>
+                    <div className="text-lg mb-1">🔄</div>
+                    <div>Đổi vai trò</div>
+                    <div className="text-[8px] text-[#8B7E74] mt-0.5">customer / driver / admin</div>
+                  </button>
+
+                  <button disabled={!selectedUser}
+                    onClick={handleToggleUserActive}
+                    className={`p-3 rounded-xl text-[10px] font-bold text-left transition-all border ${
+                      selectedUser
+                        ? 'bg-[#241A18] border-amber-700/40 text-[#FAF8F5] hover:bg-amber-900/30 hover:border-amber-500/60 cursor-pointer'
+                        : 'bg-[#1A1412] border-[#2D2321] text-[#5A4A40] cursor-not-allowed'
+                    }`}>
+                    <div className="text-lg mb-1">{selectedUser?.isActive === false ? '🔓' : '🔒'}</div>
+                    <div>{selectedUser?.isActive === false ? 'Mở khoá' : 'Khoá tài khoản'}</div>
+                    <div className="text-[8px] text-[#8B7E74] mt-0.5">{selectedUser?.isActive === false ? 'Đang bị khoá' : 'Đang hoạt động'}</div>
+                  </button>
+
+                  <button disabled={!selectedUser}
+                    onClick={() => { setShowUserPasswordForm(true); setShowUserEditForm(false); setShowUserRoleForm(false); }}
+                    className={`p-3 rounded-xl text-[10px] font-bold text-left transition-all border ${
+                      selectedUser
+                        ? 'bg-[#241A18] border-amber-700/40 text-[#FAF8F5] hover:bg-amber-900/30 hover:border-amber-500/60 cursor-pointer'
+                        : 'bg-[#1A1412] border-[#2D2321] text-[#5A4A40] cursor-not-allowed'
+                    }`}>
+                    <div className="text-lg mb-1">🔑</div>
+                    <div>Đặt lại mật khẩu</div>
+                    <div className="text-[8px] text-[#8B7E74] mt-0.5">Admin cấp mật khẩu mới</div>
                   </button>
                 </div>
-                <div className="p-4 bg-[#140D0C] text-xs space-y-3 font-sans">
-                  <p className="text-xs text-[#B2A496] leading-relaxed">
-                    Mở phpMyAdmin, chọn database <code className="bg-black/30 text-red-400 px-1 rounded font-mono">banhcanh_db</code>, chạy lệnh SQL sau để khởi tạo bảng quản lý người dùng:
-                  </p>
-                  <pre className="p-3 bg-black/40 rounded-xl text-red-100/90 font-mono text-[10px] overflow-x-auto leading-relaxed max-h-[160px] select-all">
-{`CREATE TABLE IF NOT EXISTS \`users\` (
-  \`id\` INT(11) NOT NULL AUTO_INCREMENT,
-  \`username\` VARCHAR(255) COLLATE utf8mb4_unicode_ci NOT NULL UNIQUE,
-  \`password\` VARCHAR(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  \`email\` VARCHAR(255) COLLATE utf8mb4_unicode_ci NOT NULL UNIQUE,
-  \`role\` VARCHAR(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'customer',
-  PRIMARY KEY (\`id\`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Thêm admin (chủ quán) bảo mật
-INSERT INTO \`users\` (\`username\`, \`password\`, \`email\`, \`role\`)
-VALUES ('admin', 'admin', 'admin@banhcanhcaloc.com', 'admin');`}
-                  </pre>
-                </div>
-              </div>
+                <button disabled={!selectedUser}
+                  onClick={handleDeleteUser}
+                  className={`w-full p-3 rounded-xl text-[10px] font-bold text-center transition-all border ${
+                    selectedUser
+                      ? 'bg-red-950/30 border-red-800/50 text-red-400 hover:bg-red-950/50 hover:border-red-600 cursor-pointer'
+                      : 'bg-[#1A1412] border-[#2D2321] text-[#5A4A40] cursor-not-allowed'
+                  }`}>
+                  🗑️ Xoá tài khoản "{selectedUser?.username || '...'}"
+                </button>
 
-              <div className="bg-[#1C1311] border border-[#2D2321] rounded-2xl overflow-hidden shadow-sm">
-                <div className="bg-[#241A18] px-4 py-3 flex justify-between items-center border-b border-[#2D2321]">
-                  <div className="flex items-center gap-2">
-                    <span className="text-red-400">☕</span>
-                    <span className="text-xs font-serif font-bold text-[#FAF8F5]">Bước 2: Cập Nhật Java Spring Boot Entity</span>
+                {/* Edit Info Form */}
+                {showUserEditForm && selectedUser && (
+                  <div className="p-4 bg-[#241A18] rounded-xl border border-amber-700/40 space-y-3">
+                    <h5 className="text-xs font-bold text-amber-400">✏️ Chỉnh sửa thông tin</h5>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[9px] text-[#8B7E74] font-bold uppercase">Họ tên</label>
+                        <input type="text" value={userEditForm.fullName} onChange={e => setUserEditForm(p => ({ ...p, fullName: e.target.value }))}
+                          className="w-full mt-1 p-2 rounded-lg bg-[#1C1311] border border-[#2D2321] text-[11px] text-[#FAF8F5] focus:outline-none focus:border-amber-500" />
+                      </div>
+                      <div>
+                        <label className="text-[9px] text-[#8B7E74] font-bold uppercase">Email</label>
+                        <input type="email" value={userEditForm.email} onChange={e => setUserEditForm(p => ({ ...p, email: e.target.value }))}
+                          className="w-full mt-1 p-2 rounded-lg bg-[#1C1311] border border-[#2D2321] text-[11px] text-[#FAF8F5] focus:outline-none focus:border-amber-500" />
+                      </div>
+                      <div>
+                        <label className="text-[9px] text-[#8B7E74] font-bold uppercase">SĐT</label>
+                        <input type="text" value={userEditForm.phone} onChange={e => setUserEditForm(p => ({ ...p, phone: e.target.value }))}
+                          className="w-full mt-1 p-2 rounded-lg bg-[#1C1311] border border-[#2D2321] text-[11px] text-[#FAF8F5] focus:outline-none focus:border-amber-500" />
+                      </div>
+                      <div>
+                        <label className="text-[9px] text-[#8B7E74] font-bold uppercase">Địa chỉ</label>
+                        <input type="text" value={userEditForm.address} onChange={e => setUserEditForm(p => ({ ...p, address: e.target.value }))}
+                          className="w-full mt-1 p-2 rounded-lg bg-[#1C1311] border border-[#2D2321] text-[11px] text-[#FAF8F5] focus:outline-none focus:border-amber-500" />
+                      </div>
+                    </div>
+                    <div className="flex gap-2 pt-1">
+                      <button onClick={() => setShowUserEditForm(false)}
+                        className="px-4 py-2 rounded-lg border border-[#2D2321] text-[10px] font-bold text-[#8B7E74] hover:text-[#FAF8F5] cursor-pointer transition-all">Huỷ</button>
+                      <button onClick={handleSaveUserEdit} disabled={userActionLoading}
+                        className="px-4 py-2 rounded-lg bg-amber-600 text-white text-[10px] font-bold hover:bg-amber-500 disabled:opacity-50 cursor-pointer transition-all">
+                        {userActionLoading ? 'Đang lưu...' : 'Lưu thay đổi'}
+                      </button>
+                    </div>
                   </div>
-                  <button
-                    onClick={() => handleCopySource(`package com.example.banhcanh.model;
+                )}
 
-import jakarta.persistence.*;
-import lombok.Data;
+                {/* Change Role Form */}
+                {showUserRoleForm && selectedUser && (
+                  <div className="p-4 bg-[#241A18] rounded-xl border border-amber-700/40 space-y-3">
+                    <h5 className="text-xs font-bold text-amber-400">🔄 Đổi vai trò</h5>
+                    <select value={userNewRole} onChange={e => setUserNewRole(e.target.value)}
+                      className="w-full p-2 rounded-lg bg-[#1C1311] border border-[#2D2321] text-[11px] text-[#FAF8F5] focus:outline-none focus:border-amber-500">
+                      <option value="customer">Khách hàng</option>
+                      <option value="driver">Tài xế</option>
+                      <option value="admin">Quản trị</option>
+                    </select>
+                    <div className="flex gap-2 pt-1">
+                      <button onClick={() => setShowUserRoleForm(false)}
+                        className="px-4 py-2 rounded-lg border border-[#2D2321] text-[10px] font-bold text-[#8B7E74] hover:text-[#FAF8F5] cursor-pointer transition-all">Huỷ</button>
+                      <button onClick={handleChangeUserRole} disabled={userActionLoading}
+                        className="px-4 py-2 rounded-lg bg-amber-600 text-white text-[10px] font-bold hover:bg-amber-500 disabled:opacity-50 cursor-pointer transition-all">
+                        {userActionLoading ? 'Đang xử lý...' : 'Xác nhận đổi'}
+                      </button>
+                    </div>
+                  </div>
+                )}
 
-@Entity
-@Table(name = "users")
-@Data
-public class User {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+                {/* Reset Password Form */}
+                {showUserPasswordForm && selectedUser && (
+                  <div className="p-4 bg-[#241A18] rounded-xl border border-amber-700/40 space-y-3">
+                    <h5 className="text-xs font-bold text-amber-400">🔑 Đặt lại mật khẩu</h5>
+                    <input type="text" value={userNewPassword} onChange={e => setUserNewPassword(e.target.value)}
+                      placeholder="Nhập mật khẩu mới (tối thiểu 6 ký tự)"
+                      className="w-full p-2 rounded-lg bg-[#1C1311] border border-[#2D2321] text-[11px] text-[#FAF8F5] focus:outline-none focus:border-amber-500 placeholder:text-[#5A4A40]" />
+                    {userNewPassword.length > 0 && userNewPassword.length < 6 && (
+                      <p className="text-[9px] text-red-400">Mật khẩu phải có ít nhất 6 ký tự</p>
+                    )}
+                    <div className="flex gap-2 pt-1">
+                      <button onClick={() => { setShowUserPasswordForm(false); setUserNewPassword(''); }}
+                        className="px-4 py-2 rounded-lg border border-[#2D2321] text-[10px] font-bold text-[#8B7E74] hover:text-[#FAF8F5] cursor-pointer transition-all">Huỷ</button>
+                      <button onClick={handleResetUserPassword} disabled={userActionLoading || userNewPassword.length < 6}
+                        className="px-4 py-2 rounded-lg bg-amber-600 text-white text-[10px] font-bold hover:bg-amber-500 disabled:opacity-50 cursor-pointer transition-all">
+                        {userActionLoading ? 'Đang xử lý...' : 'Đặt lại'}
+                      </button>
+                    </div>
+                  </div>
+                )}
 
-    @Column(nullable = false, unique = true)
-    private String username;
-
-    @Column(nullable = false)
-    private String password;
-
-    @Column(nullable = false, unique = true)
-    private String email;
-
-    @Column(nullable = false)
-    private String role = "customer";
-}`)}
-                    className="bg-white/10 hover:bg-white/15 text-white text-[9px] font-mono px-2 py-1 rounded cursor-pointer transition-all"
-                  >
-                    {copiedText ? 'Đã sao chép!' : 'Sao chép Entity'}
-                  </button>
-                </div>
-                <div className="p-4 bg-[#140D0C] text-xs space-y-2">
-                  <p className="text-[#B2A496] leading-normal">
-                    Tạo file <strong className="font-mono text-red-500">User.java</strong> trong thư mục model của Spring Boot:
-                  </p>
-                  <pre className="p-3 bg-black/40 rounded-xl text-slate-300 font-mono text-[10px] overflow-x-auto leading-relaxed max-h-[160px] select-all">
-{`package com.example.banhcanh.model;
-
-import jakarta.persistence.*;
-import lombok.Data;
-
-@Entity
-@Table(name = "users")
-@Data
-public class User {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-
-    @Column(nullable = false, unique = true)
-    private String username;
-
-    @Column(nullable = false)
-    private String password;
-
-    @Column(nullable = false, unique = true)
-    private String email;
-
-    @Column(nullable = false)
-    private String role = "customer";
-}`}
-                  </pre>
-                </div>
+                {userActionLoading && (
+                  <div className="text-center text-[10px] text-amber-400 animate-pulse py-2">⏳ Đang xử lý...</div>
+                )}
               </div>
 
             </div>
@@ -3015,11 +3488,17 @@ public class User {
                       </h4>
                       <p className="text-[10px] text-[#8B7E74]">Spring Boot + MySQL — {apiUsers.length} tài khoản</p>
                     </div>
-                    {apiStats && (
-                      <span className="text-[10px] text-emerald-400 font-mono bg-emerald-950/30 px-2 py-1 rounded border border-emerald-900/40">
-                        {apiStats.totalUsers} users
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2">
+                    <span className="text-[9px] font-mono px-2 py-1 rounded border bg-[#241A18] border-[#2D2321] text-[#B2A496]">
+                      {statusLabel[onlineStatus]?.icon} {statusLabel[onlineStatus]?.label}
+                    </span>
+                    <p className="text-[8px] text-[#B2A496] mt-1">Trạng thái hoạt động cập nhật mỗi 30s</p>
+                      {apiStats && (
+                        <span className="text-[10px] text-emerald-400 font-mono bg-emerald-950/30 px-2 py-1 rounded border border-emerald-900/40">
+                          {apiStats.totalUsers} users
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {apiUsers.length === 0 ? (
@@ -3034,11 +3513,22 @@ public class User {
                             <th className="p-2">Username</th>
                             <th className="p-2">Email</th>
                             <th className="p-2">Vai trò</th>
+                            <th className="p-2">Trạng thái</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-[#2D2321]">
                           {apiUsers.map((u: any) => (
-                            <tr key={u.id} className="hover:bg-[#241A18]/50">
+                            <tr key={u.id}
+                              onClick={() => {
+                                setUserEditForm({ fullName: u.fullName || '', phone: u.phone || '', address: u.address || '', email: u.email || '' });
+                                setUserNewRole(u.role);
+                                handleSelectUser(u);
+                              }}
+                              className={`cursor-pointer transition-all ${
+                                selectedUser?.id === u.id
+                                  ? 'bg-amber-900/20 outline outline-1 outline-amber-500/50'
+                                  : 'hover:bg-[#241A18]/50'
+                              }`}>
                               <td className="p-2 font-bold text-red-500">{u.username}</td>
                               <td className="p-2 text-[#B2A496]">{u.email}</td>
                               <td className="p-2">
@@ -3048,6 +3538,14 @@ public class User {
                                   'bg-emerald-950/30 text-emerald-400 border-emerald-900/40'
                                 }`}>
                                   {u.role === 'admin' ? 'Quản trị' : u.role === 'driver' ? 'Tài xế' : 'Khách hàng'}
+                                </span>
+                                {u.isActive === false && (
+                                  <span className="ml-1 text-[8px] bg-red-950/50 text-red-300 px-1 rounded">khoá</span>
+                                )}
+                              </td>
+                              <td className="p-2 text-center text-[10px]">
+                                <span title={statusLabel[onlineStatus]?.label}>
+                                  {statusLabel[onlineStatus]?.icon}
                                 </span>
                               </td>
                             </tr>
@@ -3059,70 +3557,74 @@ public class User {
                 </div>
               )}
 
-              {isBackendConnected && apiStats && (
-                <div className="p-4 bg-[#1C1311] border border-[#2D2321] rounded-2xl shadow-xs">
-                  <h5 className="font-serif font-bold text-xs text-[#FAF8F5] mb-3">📊 Thống Kê Hệ Thống</h5>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-[#241A18] p-2.5 rounded-xl border border-[#2D2321]">
-                      <p className="text-[9px] text-[#8B7E74] font-mono">Đơn hàng</p>
-                      <p className="text-sm font-bold text-[#E74C3C]">{apiStats.totalOrders}</p>
-                    </div>
-                    <div className="bg-[#241A18] p-2.5 rounded-xl border border-[#2D2321]">
-                      <p className="text-[9px] text-[#8B7E74] font-mono">Hoàn thành</p>
-                      <p className="text-sm font-bold text-emerald-400">{apiStats.completedOrders}</p>
-                    </div>
-                    <div className="bg-[#241A18] p-2.5 rounded-xl border border-[#2D2321]">
-                      <p className="text-[9px] text-[#8B7E74] font-mono">Doanh thu</p>
-                      <p className="text-sm font-bold text-red-500">{apiStats.totalRevenue.toLocaleString('vi-VN')}đ</p>
-                    </div>
-                    <div className="bg-[#241A18] p-2.5 rounded-xl border border-[#2D2321]">
-                      <p className="text-[9px] text-[#8B7E74] font-mono">Tài xế bận</p>
-                      <p className="text-sm font-bold text-blue-400">{apiStats.busyDrivers}/{apiStats.totalDrivers}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
 
-              <div className="p-4.5 bg-[#1C1311] border border-[#2D2321] rounded-2xl shadow-xs space-y-4">
+
+              <div className="p-4.5 bg-[#1C1311] border border-[#2D2321] rounded-2xl shadow-xs space-y-3">
                 <div className="flex justify-between items-center">
-                  <div>
-                    <h4 className="font-serif font-bold text-sm text-[#FAF8F5]">Tài Khoản Local</h4>
-                    <p className="text-[10px] text-[#8B7E74]">Lưu trữ mô phỏng khách hàng offline</p>
+                  <h4 className="font-serif font-bold text-sm text-[#FAF8F5]">
+                    👥 Người Dùng Đã Đăng Ký (LocalStorage)
+                  </h4>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] font-mono px-2 py-1 rounded border bg-[#241A18] border-[#2D2321] text-[#B2A496]">
+                      {statusLabel[onlineStatus]?.icon} {statusLabel[onlineStatus]?.label}
+                    </span>
+                    <button onClick={handleRefreshUsers} className="text-[9px] text-amber-400 hover:underline cursor-pointer">⟳ Làm mới</button>
+                    <button onClick={handleResetSimulatedUsers} className="text-[9px] text-red-400 hover:underline cursor-pointer">🗑️ Xoá tất cả</button>
                   </div>
-                  <button
-                    onClick={handleResetSimulatedUsers}
-                    className="bg-red-950/20 hover:bg-red-950/40 text-red-100 border border-red-900/50 text-[9px] font-bold px-2.5 py-1.5 rounded-lg cursor-pointer transition-all"
-                  >
-                    Reset
-                  </button>
                 </div>
-
                 {localUsers.length === 0 ? (
                   <div className="py-6 text-center text-xs text-[#8B7E74] italic border border-dashed border-[#2D2321] rounded-xl">
-                    Chưa có khách hàng offline đăng ký.
+                    Chưa có người dùng nào đăng ký trên trình duyệt này.
                   </div>
                 ) : (
-                  <div className="space-y-1.5 max-h-[200px] overflow-y-auto pr-1">
-                    {localUsers.map((u, index) => (
-                      <div key={index} className="p-2.5 rounded-xl bg-[#241A18] border border-[#3E2E2A] flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-red-500 font-mono text-[11px]">{u.username}</span>
-                          <span className="bg-[#FAF8F5]/10 text-[8px] font-black uppercase text-[#FAF8F5]/80 px-1 rounded">{u.role}</span>
-                        </div>
-                        <p className="text-[9px] text-[#8B7E74] truncate max-w-[140px]">{u.email}</p>
-                      </div>
-                    ))}
+                  <div className="overflow-x-auto border border-[#2D2321] rounded-xl">
+                    <table className="w-full text-left text-[10px]">
+                      <thead className="bg-[#241A18] text-[#B2A496] uppercase font-bold border-b border-[#2D2321]">
+                        <tr>
+                          <th className="p-2">Username</th>
+                          <th className="p-2">Họ tên</th>
+                          <th className="p-2">Vai trò</th>
+                          <th className="p-2">Trạng thái</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#2D2321]">
+                        {localUsers.map((u: any) => (
+                          <tr key={u.id}
+                            onClick={() => {
+                              setUserEditForm({ fullName: u.fullName || u.name || '', phone: u.phone || '', address: u.address || '', email: u.email || '' });
+                              setUserNewRole(u.role || 'customer');
+                              handleSelectUser(u);
+                            }}
+                            className={`cursor-pointer transition-all ${
+                              selectedUser?.id === u.id
+                                ? 'bg-amber-900/20 outline outline-1 outline-amber-500/50'
+                                : 'hover:bg-[#241A18]/50'
+                            }`}>
+                            <td className="p-2 font-bold text-red-500">{u.username || u.email}</td>
+                            <td className="p-2 text-[#B2A496]">{u.fullName || u.name || '—'}</td>
+                            <td className="p-2">
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
+                                u.role === 'admin' ? 'bg-red-950/30 text-red-400 border-red-900/40' :
+                                u.role === 'driver' ? 'bg-blue-950/30 text-blue-400 border-blue-900/40' :
+                                'bg-emerald-950/30 text-emerald-400 border-emerald-900/40'
+                              }`}>
+                                {u.role === 'admin' ? 'Quản trị' : u.role === 'driver' ? 'Tài xế' : 'Khách hàng'}
+                              </span>
+                            </td>
+                            <td className="p-2 text-center text-[10px]">
+                              <span title={statusLabel[onlineStatus]?.label}>
+                                {statusLabel[onlineStatus]?.icon}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <div className="p-2 text-[8px] text-[#5A4A40] text-center border-t border-[#2D2321]">
+                      Tổng số: {localUsers.length} tài khoản
+                    </div>
                   </div>
                 )}
-              </div>
-
-              <div className="p-4 bg-[#1C1311] border border-[#2D2321] rounded-2xl text-xs space-y-3 shadow-xs">
-                <h5 className="font-serif font-bold text-red-500">🔑 Tài Khoản Quản Trị</h5>
-                <div className="bg-[#140D0C] p-3 rounded-xl font-mono text-[11px] text-red-200/90 border border-[#2D2321] space-y-1">
-                  <p>• <strong>Username:</strong> <span className="text-white">admin</span></p>
-                  <p>• <strong>Password:</strong> <span className="text-white">admin</span></p>
-                  <p>• <strong>Vai trò:</strong> <span className="text-emerald-400 font-black">Chủ quán (Admin)</span></p>
-                </div>
               </div>
 
             </div>
@@ -3137,8 +3639,45 @@ public class User {
               <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#2D241E]">🚚 Chuyến Giao Hàng</h3>
               <span className="text-xs text-[#8B7E74] dark:text-[#8B7E74]">Theo dõi các chuyến giao hàng</span>
             </div>
-            <div className="bg-[#F3F0E9] dark:bg-[#FFF0E0] p-8 rounded-3xl text-center">
-              <p className="text-xs text-[#8B7E74] italic">Tính năng đang phát triển — sẽ cập nhật sau.</p>
+            <div className="overflow-x-auto border border-[#E5E1D8] dark:border-[#E0D8D0] rounded-2xl bg-[#FAF8F5] dark:bg-[#FFF5EB]">
+              <table className="w-full text-left text-xs text-[#3E2F26] dark:text-[#3E2F26]">
+                <thead className="bg-[#F3F0E9] dark:bg-[#FFF0E0] uppercase font-bold text-[#2D241E] dark:text-[#2D241E] border-b border-[#E5E1D8] dark:border-[#E0D8D0]">
+                  <tr>
+                    <th className="p-3.5">Mã Chuyến</th>
+                    <th className="p-3.5">Mã Đơn Hàng</th>
+                    <th className="p-3.5">Mã Tài Xế</th>
+                    <th className="p-3.5">Trạng Thái</th>
+                    <th className="p-3.5">Ngày Tạo</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E5E1D8] dark:divide-[#E0D8D0] bg-white dark:bg-[#FFF8F0]">
+                  {deliveryTrips.length === 0 ? (
+                    <tr><td colSpan={5} className="p-6 text-center text-[#8B7E74] dark:text-[#8B7E74] italic">Chưa có chuyến giao hàng nào.</td></tr>
+                  ) : (deliveryTrips.map(trip => (
+                    <tr key={trip.id} className="hover:bg-[#FAF8F5]/80 dark:hover:bg-[#E5DDD5]/50 transition-colors">
+                      <td className="p-3.5 font-mono font-black text-[#2D241E] dark:text-[#2D241E]">{trip.id}</td>
+                      <td className="p-3.5 font-mono font-bold text-[#E74C3C] dark:text-red-400">{trip.orderId}</td>
+                      <td className="p-3.5 font-mono text-[#2D241E] dark:text-[#2D241E]">{trip.driverId}</td>
+                      <td className="p-3.5">
+                        <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded border ${
+                          trip.status === 'delivered' ? 'bg-emerald-100 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/50' :
+                          trip.status === 'cancelled' ? 'bg-red-100 dark:bg-red-950/30 text-red-800 dark:text-red-400 border-red-200 dark:border-red-900/50' :
+                          trip.status === 'accepted' ? 'bg-blue-100 dark:bg-blue-950/30 text-blue-800 dark:text-blue-400 border-blue-200 dark:border-blue-900/50' :
+                          'bg-purple-100 dark:bg-purple-950/30 text-purple-800 dark:text-purple-400 border-purple-200 dark:border-purple-900/50'
+                        }`}>
+                          {trip.status === 'assigned' ? 'Đã phân công' :
+                           trip.status === 'accepted' ? 'Đã nhận' :
+                           trip.status === 'picked_up' ? 'Đã lấy hàng' :
+                           trip.status === 'delivered' ? 'Đã giao' : 'Đã hủy'}
+                        </span>
+                      </td>
+                      <td className="p-3.5 text-[10px] text-[#8B7E74] dark:text-[#8B7E74] font-mono">
+                        {trip.createdAt ? new Date(trip.createdAt).toLocaleDateString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                      </td>
+                    </tr>
+                  )))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
@@ -3150,8 +3689,55 @@ public class User {
               <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#2D241E]">💳 Giao Dịch Thanh Toán</h3>
               <span className="text-xs text-[#8B7E74] dark:text-[#8B7E74]">Lịch sử giao dịch thanh toán</span>
             </div>
-            <div className="bg-[#F3F0E9] dark:bg-[#FFF0E0] p-8 rounded-3xl text-center">
-              <p className="text-xs text-[#8B7E74] italic">Tính năng đang phát triển — sẽ cập nhật sau.</p>
+            <div className="overflow-x-auto border border-[#E5E1D8] dark:border-[#E0D8D0] rounded-2xl bg-[#FAF8F5] dark:bg-[#FFF5EB]">
+              <table className="w-full text-left text-xs text-[#3E2F26] dark:text-[#3E2F26]">
+                <thead className="bg-[#F3F0E9] dark:bg-[#FFF0E0] uppercase font-bold text-[#2D241E] dark:text-[#2D241E] border-b border-[#E5E1D8] dark:border-[#E0D8D0]">
+                  <tr>
+                    <th className="p-3.5">Mã GD</th>
+                    <th className="p-3.5">Mã Đơn Hàng</th>
+                    <th className="p-3.5">Mã Giao Dịch</th>
+                    <th className="p-3.5 text-right">Số Tiền</th>
+                    <th className="p-3.5">Phương Thức</th>
+                    <th className="p-3.5">Trạng Thái</th>
+                    <th className="p-3.5">Ngày Tạo</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E5E1D8] dark:divide-[#E0D8D0] bg-white dark:bg-[#FFF8F0]">
+                  {paymentTransactions.length === 0 ? (
+                    <tr><td colSpan={7} className="p-6 text-center text-[#8B7E74] dark:text-[#8B7E74] italic">Chưa có giao dịch thanh toán nào.</td></tr>
+                  ) : (paymentTransactions.map(tx => (
+                    <tr key={tx.id} className="hover:bg-[#FAF8F5]/80 dark:hover:bg-[#E5DDD5]/50 transition-colors">
+                      <td className="p-3.5 font-mono font-black text-[#2D241E] dark:text-[#2D241E]">{tx.id}</td>
+                      <td className="p-3.5 font-mono font-bold text-[#E74C3C] dark:text-red-400">{tx.orderId}</td>
+                      <td className="p-3.5 font-mono text-[10px] text-[#8B7E74] dark:text-[#8B7E74]">{tx.transactionCode || '—'}</td>
+                      <td className="p-3.5 text-right font-mono font-bold text-[#2D241E] dark:text-[#2D241E]">{tx.amount.toLocaleString('vi-VN')}đ</td>
+                      <td className="p-3.5">
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-900/50 capitalize">
+                          {tx.paymentMethod === 'momo' ? 'MoMo' :
+                           tx.paymentMethod === 'cash' ? 'Tiền mặt' :
+                           tx.paymentMethod === 'banking' ? 'Chuyển khoản' :
+                           tx.paymentMethod || '-'}
+                        </span>
+                      </td>
+                      <td className="p-3.5">
+                        <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded border ${
+                          tx.status === 'success' ? 'bg-emerald-100 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/50' :
+                          tx.status === 'failed' ? 'bg-red-100 dark:bg-red-950/30 text-red-800 dark:text-red-400 border-red-200 dark:border-red-900/50' :
+                          tx.status === 'refunded' ? 'bg-orange-100 dark:bg-orange-950/30 text-orange-800 dark:text-orange-400 border-orange-200 dark:border-orange-900/50' :
+                          'bg-gray-100 dark:bg-gray-100/30 text-gray-700 dark:text-gray-600 border-gray-200 dark:border-gray-200/50'
+                        }`}>
+                          {tx.status === 'success' ? 'Thành công' :
+                           tx.status === 'failed' ? 'Thất bại' :
+                           tx.status === 'refunded' ? 'Hoàn tiền' : 'Chờ'}
+                        </span>
+                      </td>
+                      <td className="p-3.5 text-[10px] text-[#8B7E74] dark:text-[#8B7E74] font-mono">
+                        {tx.createdAt ? new Date(tx.createdAt).toLocaleDateString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                      </td>
+                    </tr>
+                  )))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
@@ -3163,9 +3749,60 @@ public class User {
               <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#2D241E]">📜 Lịch Sử Đơn Hàng</h3>
               <span className="text-xs text-[#8B7E74] dark:text-[#8B7E74]">Tra cứu lịch sử đơn hàng</span>
             </div>
-            <div className="bg-[#F3F0E9] dark:bg-[#FFF0E0] p-8 rounded-3xl text-center">
-              <p className="text-xs text-[#8B7E74] italic">Tính năng đang phát triển — sẽ cập nhật sau.</p>
-            </div>
+            {orders.filter(o => o.status === 'completed' || o.status === 'cancelled').length === 0 ? (
+              <p className="text-center py-12 text-xs text-[#8B7E74] dark:text-[#8B7E74] italic">Chưa có đơn hàng hoàn thành hoặc đã hủy.</p>
+            ) : (
+              <div className="overflow-x-auto border border-[#E5E1D8] dark:border-[#E0D8D0] rounded-2xl bg-[#FAF8F5] dark:bg-[#FFF5EB]">
+                <table className="w-full text-left text-xs text-[#3E2F26] dark:text-[#3E2F26]">
+                  <thead className="bg-[#F3F0E9] dark:bg-[#FFF0E0] uppercase font-bold text-[#2D241E] dark:text-[#2D241E] border-b border-[#E5E1D8] dark:border-[#E0D8D0]">
+                    <tr>
+                      <th className="p-3.5">Mã Đơn</th>
+                      <th className="p-3.5">Khách Hàng</th>
+                      <th className="p-3.5 text-right">Tổng Tiền</th>
+                      <th className="p-3.5">Trạng Thái</th>
+                      <th className="p-3.5">Thanh Toán</th>
+                      <th className="p-3.5">Ngày Đặt</th>
+                      <th className="p-3.5">Ghi chú</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#E5E1D8] dark:divide-[#E0D8D0] bg-white dark:bg-[#FFF8F0]">
+                    {orders.filter(o => o.status === 'completed' || o.status === 'cancelled').map(order => (
+                      <tr key={order.id} className="hover:bg-[#FAF8F5]/80 dark:hover:bg-[#E5DDD5]/50 transition-colors">
+                        <td className="p-3.5 font-mono font-black text-[#2D241E] dark:text-[#2D241E]">{order.id}</td>
+                        <td className="p-3.5">
+                          <p className="font-bold text-[#2D241E] dark:text-[#2D241E]">{order.customerName}</p>
+                          <p className="text-[10px] text-[#8B7E74] dark:text-[#8B7E74]">{order.phone}</p>
+                        </td>
+                        <td className="p-3.5 text-right font-extrabold text-[#E74C3C] dark:text-red-400 whitespace-nowrap">
+                          {order.totalAmount.toLocaleString('vi-VN')} đ
+                        </td>
+                        <td className="p-3.5">
+                          <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded border ${getOrderStatusBadge(order.status)}`}>
+                            {order.status === 'completed' ? 'Thành công' : 'Đã hủy'}
+                          </span>
+                        </td>
+                        <td className="p-3.5 text-[10px]">
+                          <span className={`font-bold ${order.paymentStatus === 'paid' ? 'text-emerald-600' : 'text-red-600'}`}>
+                            {order.paymentStatus === 'paid' ? '✅ Đã TT' : '⏳ Chưa TT'}
+                          </span>
+                          <span className="block text-[9px] text-[#8B7E74] dark:text-[#8B7E74] mt-0.5">
+                            {order.paymentMethod === 'momo' ? '🎀 MoMo' :
+                             order.paymentMethod === 'cod' ? '💵 Tiền mặt (COD)' :
+                             order.paymentMethod || '-'}
+                          </span>
+                        </td>
+                        <td className="p-3.5 text-[10px] text-[#8B7E74] dark:text-[#8B7E74] font-mono">
+                          {order.createdAt ? new Date(order.createdAt).toLocaleDateString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                        </td>
+                        <td className="p-3.5 text-[10px] text-[#8B7E74] dark:text-[#8B7E74] max-w-[120px] truncate" title={order.notes || ''}>
+                          {order.notes || '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
@@ -3213,3 +3850,4 @@ public class User {
     </div>
   );
 }
+

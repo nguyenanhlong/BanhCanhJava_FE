@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Order, OrderStatus, ProductReview, User, Driver } from '../types';
 import { Clock, Phone, MapPin, Navigation, MessageCircle, Send, Check, Star } from 'lucide-react';
+import { MapComponent } from './MapComponent';
 
 interface TrackingSectionProps {
   activeOrders: Order[];
@@ -235,9 +236,9 @@ export function TrackingSection({
                   <div className="text-right">
                     <span className="text-xs text-[#8B7E74] dark:text-[#B2A496] font-medium">Hình thức thanh toán:</span>
                     <p className="text-xs text-[#D97706] font-bold mt-0.5 capitalize font-sans">
-                      {selectedOrder.paymentMethod === 'cash' ? '💵 Tiền mặt khi nhận' : 
+                      {selectedOrder.paymentMethod === 'cod' ? '💵 Tiền mặt khi nhận (COD)' : 
                        selectedOrder.paymentMethod === 'momo' ? '🎀 Ví MoMo' : 
-                       selectedOrder.paymentMethod === 'transfer' ? '🏛️ Chuyển khoản' : selectedOrder.paymentMethod}
+                       selectedOrder.paymentMethod}
                     </p>
                   </div>
                 </div>
@@ -390,7 +391,7 @@ export function TrackingSection({
                     <div className="flex justify-between mt-1">
                       <span className="text-[#8B7E74]">Thanh toán:</span>
                       <span className="font-bold capitalize">
-                        {selectedOrder.paymentMethod === 'cash' ? '💵 Tiền mặt (COD)' :
+                        {selectedOrder.paymentMethod === 'cod' ? '💵 Tiền mặt (COD)' :
                          selectedOrder.paymentMethod === 'momo' ? '🎀 MoMo' :
                          selectedOrder.paymentMethod || 'Chưa xác định'}
                       </span>
@@ -404,26 +405,13 @@ export function TrackingSection({
                   </div>
                 </div>
 
-                {/* VISUAL SIMULATED MAP — hidden after completed */}
+                {/* LEAFLET MAP — hidden after completed */}
                 {selectedOrder.status !== 'completed' && (
-                <div className="bg-[#F3F0E9] dark:bg-[#1E1311] rounded-2xl h-56 border border-[#E5E1D8] dark:border-[#2D2321] relative overflow-hidden flex items-center justify-center">
-                  
-                  {/* Grid Lines mockup representing maps */}
-                  <div className="absolute inset-0 grid grid-cols-6 grid-rows-4 pointer-events-none opacity-30">
-                    {Array.from({ length: 24 }).map((_, i) => (
-                      <div key={i} className="border-r border-b border-[#3E2F26] dark:border-[#EAE3D2]/10" />
-                    ))}
-                  </div>
-
-                  {/* River Mockup visually looking like Song Huong/TP Hue */}
-                  <div className="absolute inset-x-0 top-1/3 h-10 bg-sky-200/50 dark:bg-sky-950/20 -rotate-6 transform scale-y-125 pointer-events-none" />
-
-                  {/* Roads / Paths */}
-                  <div className="absolute left-1/4 top-0 bottom-0 w-4 bg-white/70 dark:bg-[#2A1E1C]/70 shadow-xs rotate-12 transform pointer-events-none" />
-                  <div className="absolute left-0 right-0 top-1/2 h-4 bg-white/70 dark:bg-[#2A1E1C]/70 shadow-xs -rotate-12 transform pointer-events-none" />
+                <div className="rounded-2xl h-56 border border-[#E5E1D8] dark:border-[#2D2321] relative overflow-hidden">
+                  <MapComponent lat={10.85} lng={106.7719} zoom={15} />
 
                   {/* Shop Pin Point */}
-                  <div className="absolute left-1/3 top-1/2 hover:scale-105 transition-transform flex flex-col items-center">
+                  <div className="absolute left-[30%] top-[45%] hover:scale-105 transition-transform flex flex-col items-center z-[999] pointer-events-none">
                     <span className="bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] text-[8px] font-extrabold px-1.5 py-0.5 rounded shadow-xs mb-1">Quán Bánh Canh Miền Trung</span>
                     <div className="w-4 h-4 rounded-full bg-red-600 flex items-center justify-center border-2 border-white dark:border-[#1E1513] shadow-md animate-pulse">
                       <div className="w-1.5 h-1.5 bg-white rounded-full" />
@@ -431,7 +419,7 @@ export function TrackingSection({
                   </div>
 
                   {/* Customer Pin Point */}
-                  <div className="absolute right-1/4 top-1/4 hover:scale-105 transition-transform flex flex-col items-center">
+                  <div className="absolute right-[20%] top-[25%] hover:scale-105 transition-transform flex flex-col items-center z-[999] pointer-events-none">
                     <span className="bg-white dark:bg-[#150F0D] text-[#2D241E] dark:text-[#FAF8F5] text-[8px] font-extrabold px-1.5 py-0.5 rounded shadow-xs mb-1 border border-[#E5E1D8] dark:border-[#332522] flex items-center gap-0.5">
                       🏠 Tôi ở đây
                     </span>
@@ -443,11 +431,11 @@ export function TrackingSection({
                   {/* Shipper live tracking icon container */}
                   {selectedOrder.status === 'shipping' && (() => {
                     const progress = selectedOrder.deliveryProgress || 0;
-                    const bikeLeft = 33.33 + (progress / 100) * (75 - 33.33);
-                    const bikeTop = 50 - (progress / 100) * (50 - 25);
+                    const bikeLeft = 30 + (progress / 100) * (80 - 30);
+                    const bikeTop = 45 - (progress / 100) * (45 - 25);
                     return (
                       <div 
-                        className="absolute flex flex-col items-center animate-bounce transition-all duration-500 ease-out z-20"
+                        className="absolute flex flex-col items-center animate-bounce transition-all duration-500 ease-out z-[999] pointer-events-none"
                         style={{ left: `${bikeLeft}%`, top: `${bikeTop}%` }}
                       >
                         <span className="bg-sky-600 text-white text-[8px] px-1.5 py-0.5 rounded font-black shadow-lg">Shipper 🏍️ ({progress}%)</span>
@@ -459,7 +447,7 @@ export function TrackingSection({
                   })()}
 
                   {/* MAP OVERLAY STATS */}
-                  <div className="absolute bottom-3 left-3 bg-white/90 dark:bg-[#150F0D]/90 backdrop-blur px-3 py-2 rounded-xl text-[10px] font-mono border border-[#E5E1D8] dark:border-[#2D2321] shadow-xs">
+                  <div className="absolute bottom-3 left-3 bg-white/90 dark:bg-[#150F0D]/90 backdrop-blur px-3 py-2 rounded-xl text-[10px] font-mono border border-[#E5E1D8] dark:border-[#2D2321] shadow-xs z-[999]">
                     <p className="font-bold flex items-center gap-1.5 uppercase tracking-wider text-[#2D241E] dark:text-[#FAF8F5]">
                       <Clock className="w-3 h-3 text-[#D97706]" /> Thời gian nhận dự kiến
                     </p>

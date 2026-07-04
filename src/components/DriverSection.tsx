@@ -276,13 +276,13 @@ export function DriverSection({
             <p className="text-xs font-bold text-[#8B7E74] uppercase">Cập nhật trạng thái</p>
             <div className="grid grid-cols-2 gap-2">
               {selectedDelivery.status === 'preparing' && (
-                <button onClick={() => { onUpdateOrderStatus(selectedDelivery.id, 'picked_up'); setSelectedDelivery(prev => prev ? { ...prev, status: 'picked_up' as any } : null); }}
+                <button onClick={() => { onUpdateOrderStatus(selectedDelivery.id, 'picked_up'); setSelectedDelivery(prev => prev ? { ...prev, status: 'picked_up' as const } : null); }}
                   className="col-span-2 p-4 rounded-2xl bg-amber-100 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 text-amber-700 dark:text-amber-400 font-bold text-sm hover:bg-amber-200 dark:hover:bg-amber-950/50 cursor-pointer flex items-center justify-center gap-2">
                   <CheckCircle className="w-5 h-5" /> Đã lấy hàng
                 </button>
               )}
               {selectedDelivery.status === 'picked_up' && (
-                <button onClick={() => { onUpdateOrderStatus(selectedDelivery.id, 'shipping'); setSelectedDelivery(prev => prev ? { ...prev, status: 'shipping' as any } : null); }}
+                <button onClick={() => { onUpdateOrderStatus(selectedDelivery.id, 'shipping'); setSelectedDelivery(prev => prev ? { ...prev, status: 'shipping' as const } : null); }}
                   className="col-span-2 p-4 rounded-2xl bg-sky-100 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-900/50 text-sky-700 dark:text-sky-400 font-bold text-sm hover:bg-sky-200 dark:hover:bg-sky-950/50 cursor-pointer flex items-center justify-center gap-2">
                   <Navigation className="w-5 h-5" /> Đang giao hàng
                 </button>

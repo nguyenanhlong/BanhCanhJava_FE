@@ -105,6 +105,7 @@ export default function App() {
     membershipDiscount?: number;
     voucherDiscount?: number;
     discountAmount?: number;
+    orderId?: number;
   } | null>(null);
 
   // Auth Modal State
@@ -143,6 +144,20 @@ export default function App() {
       localStorage.setItem('banhcanh_theme', 'light');
     }
   }, [isDarkMode]);
+
+  // Track user activity for online/offline status
+  useEffect(() => {
+    const updateLastActive = () => {
+      localStorage.setItem('user_last_active', Date.now().toString());
+    };
+    updateLastActive();
+    window.addEventListener('mousemove', updateLastActive);
+    window.addEventListener('keydown', updateLastActive);
+    return () => {
+      window.removeEventListener('mousemove', updateLastActive);
+      window.removeEventListener('keydown', updateLastActive);
+    };
+  }, []);
 
   const showToast = (message: string, type: 'success' | 'info' | 'warning' | 'error' = 'success', title?: string) => {
     const id = 'toast-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
@@ -378,7 +393,64 @@ export default function App() {
     if (details.paymentMethod === 'cod') {
       handleCompleteOrderFinalization(checkDetails, 'cod');
     } else {
+      if (isBackendConnected) {
+        createMoMoOrder(checkDetails);
+      } else {
+        setPaymentOpen(true);
+      }
+    }
+  };
+
+  const createMoMoOrder = async (details: any) => {
+    const mappedItems: OrderItem[] = cartItems.flatMap((it: any) => {
+      const list: OrderItem[] = [{
+        productName: it.product.name,
+        quantity: it.quantity,
+        price: it.product.price,
+        subtotal: it.product.price * it.quantity,
+        noodleType: it.noodleType,
+        notes: it.notes
+      }];
+      if (it.selectedOptions && it.selectedOptions.length > 0) {
+        it.selectedOptions.forEach((opt: any) => {
+          list.push({
+            productName: `${opt.name} (${it.product.name})`,
+            quantity: it.quantity,
+            price: opt.price,
+            subtotal: opt.price * it.quantity,
+            optionsText: opt.optionGroup,
+            notes: undefined
+          });
+        });
+      }
+      return list;
+    });
+    const orderPayload = {
+      customerName: details.customerName,
+      phone: details.phone,
+      address: details.address,
+      items: mappedItems,
+      totalAmount: details.totalAmount,
+      orderType: 'delivery' as const,
+      subtotal: details.totalAmount,
+      discountAmount: details.discountAmount || 0,
+      shippingFee: details.shippingFee || 0,
+      deliveryAreaId: details.deliveryAreaId || null,
+      deliveryFee: details.shippingFee || 0,
+      membershipDiscount: details.membershipDiscount || 0,
+      paymentMethod: 'momo' as const,
+      paymentStatus: 'pending' as const,
+      status: 'pending' as const,
+      createdAt: new Date().toISOString()
+    };
+    try {
+      const savedOrder = await ApiService.createOrder(orderPayload);
+      const updatedOrders = [savedOrder, ...orders];
+      setOrders(updatedOrders);
+      setPendingCheckoutDetails({ ...details, orderId: Number(savedOrder.id) });
       setPaymentOpen(true);
+    } catch (err: any) {
+      showToast('Không thể tạo đơn hàng: ' + err.message, 'error', 'Lỗi MoMo');
     }
   };
 
@@ -425,8 +497,8 @@ export default function App() {
       return list;
     });
 
-    const paymentMethodMap: Record<string, 'cash' | 'momo'> = {
-      cod: 'cash',
+    const paymentMethodMap: Record<string, 'cod' | 'momo'> = {
+      cod: 'cod',
       momo: 'momo'
     };
     const orderPayload = {
@@ -442,7 +514,7 @@ export default function App() {
       deliveryAreaId: details.deliveryAreaId || null,
       deliveryFee: details.shippingFee || 0,
       membershipDiscount: details.membershipDiscount || 0,
-      paymentMethod: paymentMethodMap[method] || 'cash',
+      paymentMethod: paymentMethodMap[method] || 'cod',
       paymentStatus: (method === 'cod' ? 'pending' : 'paid') as 'pending' | 'paid',
       status: 'pending' as const,
       createdAt: new Date().toISOString()
@@ -694,7 +766,7 @@ export default function App() {
       <DriverDashboard
         orders={orders}
         drivers={drivers}
-        currentUser={user as any}
+        currentUser={user}
         onUpdateOrderStatus={handleUpdateOrderStatus}
         onUpdateDriverStatus={handleUpdateDriverStatus}
         onLogout={handleLogout}
@@ -926,7 +998,7 @@ export default function App() {
               ].map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => setSelectedCategory(tab.id as any)}
+                  onClick={() => setSelectedCategory(tab.id)}
                   className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
                     selectedCategory === tab.id
                       ? 'bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] border-[#2D241E] dark:border-[#FAF8F5]'
@@ -1072,13 +1144,20 @@ export default function App() {
         onOpenConfirmation={handleOpenConfirmation}
       />
 
-      {/* POPUP: INTERACTIVE BANK PAYMENT SCAN OVERLAY */}
+      {/* POPUP: MOMO PAYMENT MODAL */}
       {paymentOpen && pendingCheckoutDetails && (
         <PaymentModal 
           isOpen={paymentOpen}
           onClose={() => setPaymentOpen(false)}
           onPaymentSuccess={() => handleCompleteOrderFinalization(pendingCheckoutDetails, pendingCheckoutDetails.paymentMethod)}
-          orderDetails={pendingCheckoutDetails}
+          orderDetails={{
+            orderId: pendingCheckoutDetails.orderId || 0,
+            customerName: pendingCheckoutDetails.customerName,
+            phone: pendingCheckoutDetails.phone,
+            address: pendingCheckoutDetails.address,
+            paymentMethod: pendingCheckoutDetails.paymentMethod,
+            totalAmount: pendingCheckoutDetails.totalAmount,
+          }}
         />
       )}
 

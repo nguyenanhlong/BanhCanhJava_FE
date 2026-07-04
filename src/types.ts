@@ -48,6 +48,8 @@ export interface User {
   address?: string;
   avatarUrl?: string;
   isActive: boolean;
+  total_spent?: number;
+  total_orders?: number;
 }
 
 export type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'picked_up' | 'shipping' | 'completed' | 'cancelled';
@@ -70,13 +72,14 @@ export interface Order {
   phone: string;
   address: string;
   tableId?: number;
+  tableNumber?: string;
   orderType: 'delivery' | 'dine-in' | 'takeaway';
   subtotal: number;
   discountId?: number;
   discountAmount: number;
   shippingFee: number;
   totalAmount: number;
-  paymentMethod: 'cash' | 'transfer' | 'momo';
+  paymentMethod: 'cod' | 'momo';
   paymentStatus: 'pending' | 'paid' | 'refunded';
   status: OrderStatus;
   driverId?: string;

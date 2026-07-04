@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Driver, DeliveryTrip, Order } from '../types';
 import { ApiService } from '../services/api';
-import { X, MapPin, Phone, User, ChevronRight, Award, Clock, CheckCircle, AlertTriangle, Navigation, Bike, RefreshCw, DollarSign, Flag, Home, Star, Car, TrendingUp, Calendar, LogOut, Settings, Wifi, WifiOff, Target, ChevronLeft, ChevronDown, ChevronUp, Package, Search, AlertCircle, Info } from 'lucide-react';
+import { X, MapPin, Phone, User, Award, Clock, CheckCircle, AlertTriangle, Navigation, Bike, RefreshCw, DollarSign, Flag, Home, Star, Car, TrendingUp, Calendar, LogOut, Settings, Wifi, WifiOff, Target, ChevronLeft, ChevronDown, ChevronUp, Package, Search, AlertCircle, Info } from 'lucide-react';
 
 interface DriverDashboardProps {
   orders: Order[];
@@ -13,7 +13,7 @@ interface DriverDashboardProps {
   isBackendConnected?: boolean;
 }
 
-type TabType = 'home' | 'orders' | 'history' | 'profile';
+type TabType = 'new' | 'delivering' | 'history' | 'profile';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   assigned: { label: 'Đã phân công', color: 'bg-amber-100 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-900/50', icon: <Clock className="w-3 h-3" /> },
@@ -59,21 +59,17 @@ export function DriverDashboard({
   onLogout,
   isBackendConnected: _isBackendConnected
 }: DriverDashboardProps) {
-  const [activeTab, setActiveTab] = useState<TabType>('home');
+  const [activeTab, setActiveTab] = useState<TabType>('new');
   const [myDriver, setMyDriver] = useState<Driver | null>(null);
   const [myTrips, setMyTrips] = useState<DeliveryTrip[]>([]);
   const [stats, setStats] = useState<{ totalTrips: number; activeTrips: number; completedTrips: number; totalEarnings: number; rating: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [driverStatus, setDriverStatus] = useState<Driver['status']>('offline');
   const [selectedTrip, setSelectedTrip] = useState<DeliveryTrip | null>(null);
-  const [expandedTripId, setExpandedTripId] = useState<number | null>(null);
   const [locationEnabled, setLocationEnabled] = useState(false);
   const [locationWatchId, setLocationWatchId] = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [newOrderAlert, setNewOrderAlert] = useState(false);
 
   const prevTripCount = useRef(myTrips.filter(t => t.status === 'assigned').length);
 
@@ -107,7 +103,7 @@ export function DriverDashboard({
       ]);
       setMyTrips(trips);
       setStats(statsData);
-    } catch (err: any) {
+    } catch {
       setError('Không thể tải dữ liệu. Vui lòng thử lại.');
     } finally {
       setLoading(false);
@@ -119,17 +115,14 @@ export function DriverDashboard({
     fetchData();
   }, [fetchData]);
 
-  // New order alert
   useEffect(() => {
     const currentAssigned = myTrips.filter(t => t.status === 'assigned').length;
     if (currentAssigned > prevTripCount.current) {
-      setNewOrderAlert(true);
-      setTimeout(() => setNewOrderAlert(false), 6000);
+      setTimeout(() => {}, 0);
     }
     prevTripCount.current = currentAssigned;
   }, [myTrips]);
 
-  // Start/stop geolocation
   const toggleLocation = () => {
     if (locationWatchId !== null) {
       navigator.geolocation.clearWatch(locationWatchId);
@@ -171,9 +164,6 @@ export function DriverDashboard({
       const updated = await ApiService.updateDeliveryTripStatus(tripId, newStatus);
       setMyTrips(prev => prev.map(t => t.id === tripId ? updated : t));
 
-      if (newStatus === 'accepted' || newStatus === 'picked_up') {
-        setSelectedTrip(updated);
-      }
       if (newStatus === 'delivered') {
         setSelectedTrip(null);
         if (stats) {
@@ -208,20 +198,10 @@ export function DriverDashboard({
     }
   };
 
-  const activeTrips = myTrips.filter(t => t.status !== 'delivered' && t.status !== 'cancelled');
+  const newTrips = myTrips.filter(t => t.status === 'assigned');
+  const deliveringTrips = myTrips.filter(t => t.status === 'accepted' || t.status === 'picked_up');
   const completedTrips = myTrips.filter(t => t.status === 'delivered');
-  const filteredTrips = myTrips.filter(t => {
-    if (statusFilter !== 'all' && t.status !== statusFilter) return false;
-    if (searchQuery) {
-      const order = getOrderForTrip(t);
-      const search = searchQuery.toLowerCase();
-      if (order?.customerName.toLowerCase().includes(search)) return true;
-      if (order?.phone?.includes(search)) return true;
-      if (String(t.id).includes(search)) return true;
-      return false;
-    }
-    return true;
-  });
+  const cancelledTrips = myTrips.filter(t => t.status === 'cancelled');
 
   if (loading) {
     return (
@@ -256,26 +236,8 @@ export function DriverDashboard({
     );
   }
 
-  const driverId = parseInt(myDriver.id);
-
   return (
     <div className="min-h-screen bg-[#FAF8F5] dark:bg-[#150F0D] font-sans pb-20">
-      {/* New order alert */}
-      {newOrderAlert && (
-        <div className="fixed top-4 left-4 right-4 z-50 bg-emerald-100 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 text-emerald-800 dark:text-emerald-400 p-4 rounded-2xl shadow-lg animate-fade-in flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center shrink-0 animate-bounce">
-            <Bike className="w-5 h-5 text-white" />
-          </div>
-          <div className="flex-1">
-            <p className="font-bold text-sm">🛵 Đơn hàng mới!</p>
-            <p className="text-xs opacity-80">Bạn có đơn hàng mới được phân công</p>
-          </div>
-          <button onClick={() => setNewOrderAlert(false)} className="p-1 rounded-lg hover:bg-emerald-200/50 cursor-pointer shrink-0">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
       {/* Error banner */}
       {error && (
         <div className="fixed top-4 left-4 right-4 z-50 bg-red-100 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-400 p-3 rounded-2xl shadow-lg flex items-center gap-2 text-xs font-bold">
@@ -298,173 +260,127 @@ export function DriverDashboard({
         />
       )}
 
-      {/* ===== TAB: HOME ===== */}
-      {activeTab === 'home' && (
+      {/* ===== TAB: ĐƠN MỚI ===== */}
+      {activeTab === 'new' && (
         <div className="animate-fade-in">
-          {/* Header */}
-          <div className="bg-gradient-to-br from-[#D97706] to-[#B85A00] text-white px-5 pt-12 pb-8 rounded-b-3xl shadow-lg">
-            <div className="flex justify-between items-start">
+          <div className="bg-gradient-to-br from-[#D97706] to-[#B85A00] text-white px-5 pt-12 pb-6 rounded-b-3xl shadow-lg">
+            <div className="flex items-center justify-between mb-4">
               <div>
                 <h1 className="font-bold text-lg">Xin chào, {currentUser.fullName || currentUser.username}!</h1>
                 <p className="text-sm text-white/80 mt-0.5 flex items-center gap-1.5">
                   <Car className="w-3.5 h-3.5" /> {myDriver.vehicleType || myDriver.vehicle} {myDriver.vehiclePlate ? `• ${myDriver.vehiclePlate}` : ''}
                 </p>
               </div>
-              <div className="flex gap-2">
-                <button onClick={handleRefresh} className={`bg-white/20 hover:bg-white/30 text-white p-2 rounded-xl backdrop-blur cursor-pointer transition-all ${refreshing ? 'animate-spin' : ''}`}>
-                  <RefreshCw className="w-4 h-4" />
-                </button>
-                <button onClick={onLogout} className="bg-white/20 hover:bg-white/30 text-white px-3 py-1.5 rounded-xl text-xs font-bold backdrop-blur cursor-pointer transition-all">
-                  Đăng xuất
-                </button>
-              </div>
-            </div>
-
-            {/* Status toggle */}
-            <div className="mt-4 bg-white/10 backdrop-blur rounded-2xl p-3">
-              <div className="flex items-center gap-3">
-                <div className={`w-3 h-3 rounded-full ${driverStatus === 'available' ? 'bg-emerald-400 animate-pulse' : driverStatus === 'busy' ? 'bg-amber-400' : 'bg-gray-400'}`} />
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold text-sm">
-                    {driverStatus === 'available' ? 'Đang rảnh - Sẵn sàng nhận đơn' :
-                     driverStatus === 'busy' ? 'Đang giao hàng' : 'Ngoại tuyến'}
-                  </p>
-                </div>
-                <div className="flex gap-1">
-                  <button onClick={() => handleStatusToggle('available')}
-                    className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
-                      driverStatus === 'available' ? 'bg-emerald-400 text-white shadow-lg' : 'bg-white/10 text-white/70 hover:bg-white/20'
-                    }`}>
-                    Rảnh
-                  </button>
-                  <button onClick={() => handleStatusToggle('offline')}
-                    className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
-                      driverStatus === 'offline' ? 'bg-gray-400 text-white shadow-lg' : 'bg-white/10 text-white/70 hover:bg-white/20'
-                    }`}>
-                    Off
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Stats cards */}
-          <div className="px-4 -mt-4">
-            <div className="grid grid-cols-4 gap-2">
-              <div className="bg-white dark:bg-[#1C1311] p-3 rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] shadow-sm text-center">
-                <div className="w-8 h-8 rounded-full bg-sky-100 dark:bg-sky-950/30 flex items-center justify-center mx-auto mb-1.5">
-                  <Navigation className="w-4 h-4 text-sky-500" />
-                </div>
-                <p className="font-black text-lg text-[#2D241E] dark:text-[#FAF8F5]">{activeTrips.length}</p>
-                <p className="text-[8px] text-[#8B7E74]">Đang giao</p>
-              </div>
-              <div className="bg-white dark:bg-[#1C1311] p-3 rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] shadow-sm text-center">
-                <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-950/30 flex items-center justify-center mx-auto mb-1.5">
-                  <CheckCircle className="w-4 h-4 text-emerald-500" />
-                </div>
-                <p className="font-black text-lg text-[#2D241E] dark:text-[#FAF8F5]">{stats?.completedTrips ?? completedTrips.length}</p>
-                <p className="text-[8px] text-[#8B7E74]">Hoàn thành</p>
-              </div>
-              <div className="bg-white dark:bg-[#1C1311] p-3 rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] shadow-sm text-center">
-                <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-950/30 flex items-center justify-center mx-auto mb-1.5">
-                  <DollarSign className="w-4 h-4 text-[#D97706]" />
-                </div>
-                <p className="font-black text-sm text-[#D97706]">{(stats?.totalEarnings ?? 0).toLocaleString('vi-VN')}đ</p>
-                <p className="text-[8px] text-[#8B7E74]">Doanh thu</p>
-              </div>
-              <div className="bg-white dark:bg-[#1C1311] p-3 rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] shadow-sm text-center">
-                <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-950/30 flex items-center justify-center mx-auto mb-1.5">
-                  <Star className="w-4 h-4 text-purple-500" />
-                </div>
-                <p className="font-black text-lg text-[#2D241E] dark:text-[#FAF8F5]">{(stats?.rating ?? myDriver.rating ?? 5).toFixed(1)}</p>
-                <p className="text-[8px] text-[#8B7E74]">Đánh giá</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Location toggle */}
-          <div className="px-4 mt-4">
-            <button onClick={toggleLocation}
-              className={`w-full p-3 rounded-2xl border text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-all ${
-                locationEnabled
-                  ? 'bg-emerald-100 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/50 text-emerald-700 dark:text-emerald-400'
-                  : 'bg-white dark:bg-[#1C1311] border-[#E5E1D8] dark:border-[#2D2321] text-[#8B7E74] hover:border-[#D97706]/40'
-              }`}>
-              {locationEnabled ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
-              {locationEnabled ? 'Đang chia sẻ vị trí thời gian thực' : 'Bật chia sẻ vị trí'}
-            </button>
-          </div>
-
-          {/* Active deliveries */}
-          <div className="px-4 mt-5">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5] flex items-center gap-2">
-                <Bike className="w-4 h-4 text-[#D97706]" /> Đơn đang giao
-                {activeTrips.length > 0 && (
-                  <span className="bg-[#D97706] text-white text-[9px] px-1.5 py-0.5 rounded-full font-black">{activeTrips.length}</span>
-                )}
-              </h2>
-              <button onClick={() => setActiveTab('orders')} className="text-[10px] text-[#D97706] font-bold cursor-pointer">
-                Xem tất cả →
+              <button onClick={handleRefresh} className={`bg-white/20 hover:bg-white/30 text-white p-2.5 rounded-xl backdrop-blur cursor-pointer transition-all ${refreshing ? 'animate-spin' : ''}`}>
+                <RefreshCw className="w-4 h-4" />
               </button>
             </div>
 
-            {activeTrips.length === 0 ? (
-              <div className="text-center py-12 bg-white dark:bg-[#1C1311] rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321]">
-                <div className="w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-950/30 flex items-center justify-center mx-auto mb-3">
-                  <Bike className="w-8 h-8 text-[#D97706]" />
+            <div className="flex items-center gap-3 bg-white/10 backdrop-blur rounded-2xl p-3">
+              <div className={`w-3 h-3 rounded-full shrink-0 ${driverStatus === 'available' ? 'bg-emerald-400 animate-pulse' : driverStatus === 'busy' ? 'bg-amber-400' : 'bg-gray-400'}`} />
+              <span className="flex-1 font-bold text-sm">
+                {driverStatus === 'available' ? 'Đang rảnh - Sẵn sàng nhận đơn' :
+                 driverStatus === 'busy' ? 'Đang giao hàng' : 'Ngoại tuyến'}
+              </span>
+              <div className="flex gap-1">
+                <button onClick={() => handleStatusToggle('available')}
+                  className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
+                    driverStatus === 'available' ? 'bg-emerald-400 text-white shadow-lg' : 'bg-white/10 text-white/70 hover:bg-white/20'
+                  }`}>
+                  Rảnh
+                </button>
+                <button onClick={() => handleStatusToggle('offline')}
+                  className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
+                    driverStatus === 'offline' ? 'bg-gray-400 text-white shadow-lg' : 'bg-white/10 text-white/70 hover:bg-white/20'
+                  }`}>
+                  Off
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="px-4 -mt-3">
+            <div className="flex gap-2">
+              {[
+                { label: 'Đơn mới', count: newTrips.length, icon: <Package className="w-5 h-5" />, color: 'text-amber-500', bg: 'bg-amber-100 dark:bg-amber-950/30' },
+                { label: 'Đang giao', count: deliveringTrips.length, icon: <Bike className="w-5 h-5" />, color: 'text-sky-500', bg: 'bg-sky-100 dark:bg-sky-950/30' },
+                { label: 'Đã giao', count: completedTrips.length, icon: <Flag className="w-5 h-5" />, color: 'text-emerald-500', bg: 'bg-emerald-100 dark:bg-emerald-950/30' },
+              ].map((stat, i) => (
+                <div key={i} className="flex-1 bg-white dark:bg-[#1C1311] rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] p-3 text-center shadow-sm">
+                  <div className={`w-9 h-9 rounded-full ${stat.bg} flex items-center justify-center mx-auto mb-1.5`}>
+                    <div className={stat.color}>{stat.icon}</div>
+                  </div>
+                  <p className="font-black text-lg text-[#2D241E] dark:text-[#FAF8F5]">{stat.count}</p>
+                  <p className="text-[9px] text-[#8B7E74] font-bold">{stat.label}</p>
                 </div>
-                <p className="font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5]">Chưa có đơn hàng</p>
+              ))}
+            </div>
+          </div>
+
+          <div className="px-4 mt-5">
+            <h2 className="font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5] flex items-center gap-2 mb-3">
+              <Package className="w-4 h-4 text-[#D97706]" /> Đơn hàng mới
+              {newTrips.length > 0 && (
+                <span className="bg-[#D97706] text-white text-[9px] px-1.5 py-0.5 rounded-full font-black">{newTrips.length}</span>
+              )}
+            </h2>
+
+            {newTrips.length === 0 ? (
+              <div className="text-center py-16 bg-white dark:bg-[#1C1311] rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321]">
+                <div className="w-20 h-20 rounded-full bg-amber-100 dark:bg-amber-950/30 flex items-center justify-center mx-auto mb-4">
+                  <Package className="w-10 h-10 text-[#D97706]" />
+                </div>
+                <p className="font-bold text-base text-[#2D241E] dark:text-[#FAF8F5]">Không có đơn hàng mới</p>
                 <p className="text-xs text-[#8B7E74] mt-1">Bật trạng thái "Rảnh" để nhận đơn mới</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {activeTrips.slice(0, 5).map(trip => {
+                {newTrips.map(trip => {
                   const order = getOrderForTrip(trip);
                   const statusConf = STATUS_CONFIG[trip.status] || STATUS_CONFIG.assigned;
                   const nextAction = getNextAction(trip);
                   return (
-                    <div key={trip.id}
-                      className="bg-white dark:bg-[#1C1311] rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] shadow-sm overflow-hidden cursor-pointer hover:border-[#D97706]/40 transition-all"
-                      onClick={() => setSelectedTrip(trip)}>
+                    <div key={trip.id} className="bg-white dark:bg-[#1C1311] rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] shadow-sm overflow-hidden">
                       <div className="p-4">
-                        <div className="flex justify-between items-start mb-2">
-                          <div>
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1 min-w-0">
                             <p className="font-mono text-[11px] font-bold text-[#2D241E] dark:text-[#FAF8F5]">
                               Đơn #{trip.orderId}
                             </p>
                             {order && (
-                              <p className="text-xs text-[#3E2F26] dark:text-[#EAE3D2] mt-0.5">
-                                {order.customerName}
-                              </p>
+                              <p className="text-sm font-bold text-[#3E2F26] dark:text-[#EAE3D2] mt-0.5">{order.customerName}</p>
                             )}
                           </div>
-                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${statusConf.color}`}>
+                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 shrink-0 ${statusConf.color}`}>
                             {statusConf.icon} {statusConf.label}
                           </span>
                         </div>
-                        {order?.address && (
-                          <div className="flex items-start gap-1.5 text-[10px] text-[#8B7E74] mt-2">
-                            <MapPin className="w-3 h-3 shrink-0 mt-0.5" />
-                            <span className="line-clamp-1">{order.address}</span>
-                          </div>
+                        {order && (
+                          <>
+                            {order.address && (
+                              <div className="flex items-start gap-1.5 text-[11px] text-[#8B7E74] mb-1">
+                                <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                                <span className="line-clamp-1">{order.address}</span>
+                              </div>
+                            )}
+                            <div className="flex items-center gap-3 text-[11px] text-[#8B7E74]">
+                              <span className="flex items-center gap-1">
+                                <DollarSign className="w-3 h-3" />
+                                <span className="font-bold text-[#2D241E] dark:text-[#FAF8F5]">{formatCurrency(order.totalAmount)}</span>
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                {timeAgo(trip.createdAt)}
+                              </span>
+                            </div>
+                          </>
                         )}
-                        <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#E5E1D8] dark:border-[#2D2321]">
-                          <span className="text-[10px] text-[#8B7E74]">
-                            {timeAgo(trip.createdAt)}
-                          </span>
-                          {nextAction && (
-                            <span className="text-[10px] text-[#D97706] font-bold flex items-center gap-1">
-                              {nextAction.label} <ChevronRight className="w-3 h-3" />
-                            </span>
-                          )}
-                        </div>
                       </div>
                       {nextAction && (
                         <button
                           onClick={(e) => { e.stopPropagation(); handleTripStatusUpdate(trip.id, nextAction.status); }}
-                          className={`w-full py-2.5 text-xs font-bold text-white ${nextAction.color} cursor-pointer transition-all flex items-center justify-center gap-1.5`}>
-                          {nextAction.label} → {trip.status === 'assigned' ? 'Nhận chuyến' : trip.status === 'accepted' ? 'Xác nhận lấy hàng' : 'Hoàn thành'}
+                          className={`w-full py-3 text-sm font-bold text-white ${nextAction.color} cursor-pointer transition-all flex items-center justify-center gap-2`}>
+                          {nextAction.label} →
                         </button>
                       )}
                     </div>
@@ -473,199 +389,83 @@ export function DriverDashboard({
               </div>
             )}
           </div>
-
-          {/* Recent completed */}
-          {completedTrips.length > 0 && (
-            <div className="px-4 mt-6">
-              <h2 className="font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5] mb-3 flex items-center gap-2">
-                <Clock className="w-4 h-4 text-[#8B7E74]" /> Đã giao gần đây
-              </h2>
-              <div className="space-y-2">
-                {completedTrips.slice(-5).reverse().map(trip => {
-                  const order = getOrderForTrip(trip);
-                  return (
-                    <div key={trip.id} className="bg-white dark:bg-[#1C1311] p-3 rounded-xl border border-[#E5E1D8] dark:border-[#2D2321] flex justify-between items-center">
-                      <div>
-                        <p className="font-bold text-xs text-[#2D241E] dark:text-[#FAF8F5]">
-                          #{trip.orderId} {order ? `— ${order.customerName}` : ''}
-                        </p>
-                        <p className="text-[9px] text-[#8B7E74]">{formatDate(trip.deliveredAt || trip.updatedAt)}</p>
-                      </div>
-                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">+15,000đ</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
         </div>
       )}
 
-      {/* ===== TAB: ORDERS ===== */}
-      {activeTab === 'orders' && (
+      {/* ===== TAB: ĐANG GIAO ===== */}
+      {activeTab === 'delivering' && (
         <div className="animate-fade-in">
           <div className="bg-white dark:bg-[#1C1311] px-5 pt-12 pb-4 border-b border-[#E5E1D8] dark:border-[#2D2321]">
-            <div className="flex items-center justify-between mb-4">
-              <h1 className="font-bold text-lg text-[#2D241E] dark:text-[#FAF8F5]">📦 Đơn giao hàng</h1>
+            <div className="flex items-center justify-between mb-1">
+              <h1 className="font-bold text-lg text-[#2D241E] dark:text-[#FAF8F5] flex items-center gap-2">
+                <Bike className="w-5 h-5 text-[#D97706]" /> Đang giao
+              </h1>
               <button onClick={handleRefresh} className={`p-2 rounded-xl hover:bg-[#F3F0E9] dark:hover:bg-[#2D2321] cursor-pointer ${refreshing ? 'animate-spin' : ''}`}>
                 <RefreshCw className="w-4 h-4 text-[#8B7E74]" />
               </button>
             </div>
-
-            {/* Search */}
-            <div className="relative mb-3">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8B7E74]" />
-              <input
-                type="text"
-                placeholder="Tìm theo tên khách, số ĐT, mã đơn..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 bg-[#FAF8F5] dark:bg-[#150F0D] border border-[#E5E1D8] dark:border-[#2D2321] rounded-xl text-xs text-[#2D241E] dark:text-[#FAF8F5] placeholder-[#8B7E74] outline-none focus:border-[#D97706] transition-colors"
-              />
-            </div>
-
-            {/* Status filter */}
-            <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
-              {[
-                { key: 'all', label: 'Tất cả' },
-                { key: 'assigned', label: 'Mới' },
-                { key: 'accepted', label: 'Đã nhận' },
-                { key: 'picked_up', label: 'Đã lấy' },
-                { key: 'delivered', label: 'Đã giao' },
-                { key: 'cancelled', label: 'Đã hủy' },
-              ].map(f => (
-                <button key={f.key} onClick={() => setStatusFilter(f.key)}
-                  className={`px-3 py-1.5 rounded-xl text-[10px] font-bold whitespace-nowrap cursor-pointer transition-all ${
-                    statusFilter === f.key
-                      ? 'bg-[#D97706] text-white'
-                      : 'bg-[#F3F0E9] dark:bg-[#2D2321] text-[#8B7E74] hover:bg-[#E5E1D8] dark:hover:bg-[#3D3331]'
-                  }`}>
-                  {f.label}
-                </button>
-              ))}
-            </div>
+            <p className="text-xs text-[#8B7E74]">{deliveringTrips.length} chuyến đang thực hiện</p>
           </div>
 
           <div className="px-4 pt-4 pb-8 space-y-3">
-            {filteredTrips.length === 0 ? (
-              <div className="text-center py-16">
-                <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-900/50 flex items-center justify-center mx-auto mb-3">
-                  <Search className="w-8 h-8 text-[#8B7E74]" />
+            {deliveringTrips.length === 0 ? (
+              <div className="text-center py-20 bg-white dark:bg-[#1C1311] rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321]">
+                <div className="w-20 h-20 rounded-full bg-sky-100 dark:bg-sky-950/30 flex items-center justify-center mx-auto mb-4">
+                  <Bike className="w-10 h-10 text-sky-500" />
                 </div>
-                <p className="font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5]">Không tìm thấy đơn hàng</p>
-                <p className="text-xs text-[#8B7E74] mt-1">Thử thay đổi bộ lọc hoặc tìm kiếm khác</p>
+                <p className="font-bold text-base text-[#2D241E] dark:text-[#FAF8F5]">Không có đơn đang giao</p>
+                <p className="text-xs text-[#8B7E74] mt-1">Các đơn đã nhận sẽ xuất hiện ở đây</p>
               </div>
             ) : (
-              filteredTrips.map(trip => {
+              deliveringTrips.map(trip => {
                 const order = getOrderForTrip(trip);
                 const statusConf = STATUS_CONFIG[trip.status] || STATUS_CONFIG.assigned;
                 const nextAction = getNextAction(trip);
-                const isExpanded = expandedTripId === trip.id;
-
                 return (
-                  <div key={trip.id}
-                    className="bg-white dark:bg-[#1C1311] rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] shadow-sm overflow-hidden">
-                    <div
-                      className="p-4 cursor-pointer hover:bg-[#FAF8F5] dark:hover:bg-[#1A1412] transition-colors"
-                      onClick={() => setExpandedTripId(isExpanded ? null : trip.id)}>
-                      <div className="flex justify-between items-start">
+                  <div key={trip.id} className="bg-white dark:bg-[#1C1311] rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] shadow-sm overflow-hidden">
+                    <div className="p-4">
+                      <div className="flex items-start justify-between mb-2">
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="font-mono text-[11px] font-bold text-[#2D241E] dark:text-[#FAF8F5]">Đơn #{trip.orderId}</p>
-                            <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full border ${statusConf.color}`}>
-                              {statusConf.label}
-                            </span>
-                          </div>
+                          <p className="font-mono text-[11px] font-bold text-[#2D241E] dark:text-[#FAF8F5]">
+                            Đơn #{trip.orderId}
+                          </p>
                           {order && (
-                            <p className="text-xs text-[#3E2F26] dark:text-[#EAE3D2] mt-1">{order.customerName}</p>
+                            <p className="text-sm font-bold text-[#3E2F26] dark:text-[#EAE3D2] mt-0.5">{order.customerName}</p>
                           )}
                         </div>
-                        {isExpanded ? <ChevronUp className="w-4 h-4 text-[#8B7E74]" /> : <ChevronDown className="w-4 h-4 text-[#8B7E74]" />}
-                      </div>
-
-                      <div className="flex items-center gap-3 mt-2 text-[9px] text-[#8B7E74]">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="w-3 h-3" /> {formatDate(trip.createdAt)}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3 h-3" /> {formatTime(trip.createdAt)}
+                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 shrink-0 ${statusConf.color}`}>
+                          {statusConf.icon} {statusConf.label}
                         </span>
                       </div>
-
-                      {order?.address && (
-                        <div className="flex items-start gap-1.5 mt-2 text-[10px] text-[#8B7E74]">
-                          <MapPin className="w-3 h-3 shrink-0 mt-0.5" />
-                          <span className="line-clamp-2">{order.address}</span>
-                        </div>
+                      {order && (
+                        <>
+                          {order.address && (
+                            <div className="flex items-start gap-1.5 text-[11px] text-[#8B7E74] mb-1">
+                              <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                              <span className="line-clamp-1">{order.address}</span>
+                            </div>
+                          )}
+                          <div className="flex items-center gap-3 text-[11px] text-[#8B7E74]">
+                            {order.phone && (
+                              <span className="flex items-center gap-1">
+                                <Phone className="w-3 h-3" />
+                                {order.phone}
+                              </span>
+                            )}
+                            <span className="flex items-center gap-1">
+                              <DollarSign className="w-3 h-3" />
+                              <span className="font-bold text-[#2D241E] dark:text-[#FAF8F5]">{formatCurrency(order.totalAmount)}</span>
+                            </span>
+                          </div>
+                        </>
                       )}
                     </div>
-
-                    {/* Expanded details */}
-                    {isExpanded && (
-                      <div className="px-4 pb-4 border-t border-[#E5E1D8] dark:border-[#2D2321] pt-3 space-y-3">
-                        {order && (
-                          <div className="bg-[#FAF8F5] dark:bg-[#150F0D] rounded-xl p-3 space-y-2">
-                            <div className="flex justify-between text-[10px]">
-                              <span className="text-[#8B7E74]">Khách hàng</span>
-                              <span className="font-bold text-[#2D241E] dark:text-[#FAF8F5]">{order.customerName}</span>
-                            </div>
-                            <div className="flex justify-between text-[10px]">
-                              <span className="text-[#8B7E74]">Số điện thoại</span>
-                              <span className="font-bold text-[#2D241E] dark:text-[#FAF8F5]">{order.phone}</span>
-                            </div>
-                            <div className="flex justify-between text-[10px]">
-                              <span className="text-[#8B7E74]">Phương thức</span>
-                              <span className="font-bold text-[#2D241E] dark:text-[#FAF8F5]">
-                                {order.paymentMethod === 'cash' ? 'Tiền mặt' : order.paymentMethod === 'momo' ? 'Momo' : 'Chuyển khoản'}
-                              </span>
-                            </div>
-                            {order.items && (
-                              <div className="pt-2 border-t border-[#E5E1D8] dark:border-[#2D2321]">
-                                <p className="text-[9px] font-bold text-[#8B7E74] mb-1">Món ăn:</p>
-                                {order.items.map((item, i) => (
-                                  <p key={i} className="text-[10px] text-[#3E2F26] dark:text-[#EAE3D2]">
-                                    {item.quantity}x {item.productName}
-                                  </p>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Trip timeline */}
-                        <div className="space-y-1.5">
-                          <p className="text-[9px] font-bold text-[#8B7E74] uppercase">Dòng thời gian</p>
-                          {[
-                            { label: 'Đã phân công', time: trip.createdAt, done: true },
-                            { label: 'Đã nhận đơn', time: trip.acceptedAt, done: !!trip.acceptedAt },
-                            { label: 'Đã lấy hàng', time: trip.pickedUpAt, done: !!trip.pickedUpAt },
-                            { label: 'Đã giao hàng', time: trip.deliveredAt, done: !!trip.deliveredAt },
-                          ].map((step, i) => (
-                            <div key={i} className="flex items-center gap-2 text-[10px]">
-                              <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 ${
-                                step.done ? 'bg-emerald-500' : 'bg-[#E5E1D8] dark:bg-[#2D2321]'
-                              }`}>
-                                {step.done && <CheckCircle className="w-2.5 h-2.5 text-white" />}
-                              </div>
-                              <span className={step.done ? 'font-bold text-[#2D241E] dark:text-[#FAF8F5]' : 'text-[#8B7E74]'}>
-                                {step.label}
-                              </span>
-                              {step.time && (
-                                <span className="text-[8px] text-[#8B7E74] ml-auto">{formatTime(step.time)}</span>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* Action button */}
-                        {nextAction && (
-                          <button
-                            onClick={() => handleTripStatusUpdate(trip.id, nextAction.status)}
-                            className={`w-full py-3 rounded-xl text-xs font-bold text-white ${nextAction.color} cursor-pointer transition-all flex items-center justify-center gap-2`}>
-                            {nextAction.label}
-                          </button>
-                        )}
-                      </div>
+                    {nextAction && (
+                      <button
+                        onClick={() => handleTripStatusUpdate(trip.id, nextAction.status)}
+                        className={`w-full py-3 text-sm font-bold text-white ${nextAction.color} cursor-pointer transition-all flex items-center justify-center gap-2`}>
+                        {nextAction.label} →
+                      </button>
                     )}
                   </div>
                 );
@@ -675,41 +475,41 @@ export function DriverDashboard({
         </div>
       )}
 
-      {/* ===== TAB: HISTORY ===== */}
+      {/* ===== TAB: LỊCH SỬ ===== */}
       {activeTab === 'history' && (
         <div className="animate-fade-in">
           <div className="bg-white dark:bg-[#1C1311] px-5 pt-12 pb-4 border-b border-[#E5E1D8] dark:border-[#2D2321]">
-            <h1 className="font-bold text-lg text-[#2D241E] dark:text-[#FAF8F5]">📋 Lịch sử giao hàng</h1>
+            <h1 className="font-bold text-lg text-[#2D241E] dark:text-[#FAF8F5] flex items-center gap-2">
+              <Clock className="w-5 h-5 text-[#D97706]" /> Lịch sử giao hàng
+            </h1>
           </div>
 
-          <div className="px-4 pt-4 space-y-4">
-            {/* Earnings summary */}
+          <div className="px-4 pt-4 pb-8 space-y-4">
             <div className="bg-gradient-to-br from-amber-50 to-white dark:from-amber-950/20 dark:to-[#1C1311] rounded-2xl border border-amber-200 dark:border-amber-900/40 p-4">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-bold text-xs text-[#2D241E] dark:text-[#FAF8F5] flex items-center gap-1.5">
                   <DollarSign className="w-4 h-4 text-[#D97706]" /> Tổng doanh thu
                 </h3>
-                <span className="text-lg font-black text-[#D97706]">{(stats?.totalEarnings ?? completedTrips.length * 15000).toLocaleString('vi-VN')}đ</span>
+                <span className="text-lg font-black text-[#D97706]">{formatCurrency(stats?.totalEarnings ?? completedTrips.length * 15000)}</span>
               </div>
-              <div className="grid grid-cols-2 gap-3 text-center">
-                <div className="bg-white dark:bg-[#150F0D] rounded-xl p-2.5">
+              <div className="flex gap-3">
+                <div className="flex-1 bg-white dark:bg-[#150F0D] rounded-xl p-2.5 text-center">
                   <p className="text-lg font-black text-[#2D241E] dark:text-[#FAF8F5]">{stats?.completedTrips ?? completedTrips.length}</p>
                   <p className="text-[8px] text-[#8B7E74]">Chuyến thành công</p>
                 </div>
-                <div className="bg-white dark:bg-[#150F0D] rounded-xl p-2.5">
+                <div className="flex-1 bg-white dark:bg-[#150F0D] rounded-xl p-2.5 text-center">
                   <p className="text-lg font-black text-[#2D241E] dark:text-[#FAF8F5]">{stats?.totalTrips ?? myTrips.length}</p>
                   <p className="text-[8px] text-[#8B7E74]">Tổng chuyến</p>
                 </div>
               </div>
             </div>
 
-            {/* List */}
             {completedTrips.length === 0 ? (
-              <div className="text-center py-16">
-                <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-900/50 flex items-center justify-center mx-auto mb-3">
-                  <Clock className="w-8 h-8 text-[#8B7E74]" />
+              <div className="text-center py-16 bg-white dark:bg-[#1C1311] rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321]">
+                <div className="w-20 h-20 rounded-full bg-gray-100 dark:bg-gray-900/50 flex items-center justify-center mx-auto mb-4">
+                  <Clock className="w-10 h-10 text-[#8B7E74]" />
                 </div>
-                <p className="font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5]">Chưa có lịch sử giao hàng</p>
+                <p className="font-bold text-base text-[#2D241E] dark:text-[#FAF8F5]">Chưa có lịch sử giao hàng</p>
                 <p className="text-xs text-[#8B7E74] mt-1">Các đơn đã giao sẽ xuất hiện ở đây</p>
               </div>
             ) : (
@@ -718,12 +518,12 @@ export function DriverDashboard({
                   const order = getOrderForTrip(trip);
                   return (
                     <div key={trip.id} className="bg-white dark:bg-[#1C1311] p-3.5 rounded-xl border border-[#E5E1D8] dark:border-[#2D2321]">
-                      <div className="flex justify-between items-start">
-                        <div>
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
                           <p className="font-bold text-xs text-[#2D241E] dark:text-[#FAF8F5]">Đơn #{trip.orderId}</p>
                           {order && <p className="text-[10px] text-[#8B7E74] mt-0.5">{order.customerName}</p>}
                         </div>
-                        <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">+15,000đ</span>
+                        <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 shrink-0">+15,000đ</span>
                       </div>
                       <div className="flex items-center gap-2 mt-1.5 text-[9px] text-[#8B7E74]">
                         <Calendar className="w-3 h-3" />
@@ -735,11 +535,37 @@ export function DriverDashboard({
                 })}
               </div>
             )}
+
+            {cancelledTrips.length > 0 && (
+              <>
+                <h3 className="font-bold text-xs text-[#8B7E74] flex items-center gap-1.5 pt-2">
+                  <AlertCircle className="w-3.5 h-3.5" /> Đã hủy ({cancelledTrips.length})
+                </h3>
+                {cancelledTrips.map(trip => {
+                  const order = getOrderForTrip(trip);
+                  return (
+                    <div key={trip.id} className="bg-white dark:bg-[#1C1311] p-3.5 rounded-xl border border-red-200 dark:border-red-900/40">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-xs text-[#2D241E] dark:text-[#FAF8F5]">Đơn #{trip.orderId}</p>
+                          {order && <p className="text-[10px] text-[#8B7E74] mt-0.5">{order.customerName}</p>}
+                        </div>
+                        <span className="text-[10px] font-bold text-red-500 shrink-0">Đã hủy</span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-1.5 text-[9px] text-[#8B7E74]">
+                        <Calendar className="w-3 h-3" />
+                        {formatDate(trip.updatedAt)}
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
+            )}
           </div>
         </div>
       )}
 
-      {/* ===== TAB: PROFILE ===== */}
+      {/* ===== TAB: CÁ NHÂN ===== */}
       {activeTab === 'profile' && (
         <div className="animate-fade-in">
           <div className="bg-gradient-to-br from-[#D97706] to-[#B85A00] text-white px-5 pt-12 pb-16 rounded-b-3xl shadow-lg text-center">
@@ -751,80 +577,95 @@ export function DriverDashboard({
           </div>
 
           <div className="px-4 -mt-10 space-y-3">
-            {/* Info card */}
             <div className="bg-white dark:bg-[#1C1311] rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] shadow-sm p-4 space-y-3">
-              <div className="flex justify-between items-center py-2 border-b border-[#E5E1D8] dark:border-[#2D2321]">
+              <div className="flex items-center justify-between py-2 border-b border-[#E5E1D8] dark:border-[#2D2321]">
+                <span className="text-xs text-[#8B7E74]">Trạng thái</span>
+                <div className="flex gap-1">
+                  <button onClick={() => handleStatusToggle('available')}
+                    className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
+                      driverStatus === 'available' ? 'bg-emerald-500 text-white shadow-lg' : 'bg-[#F3F0E9] dark:bg-[#2D2321] text-[#8B7E74]'
+                    }`}>
+                    Đang rảnh
+                  </button>
+                  <button onClick={() => handleStatusToggle('busy')}
+                    className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
+                      driverStatus === 'busy' ? 'bg-amber-500 text-white shadow-lg' : 'bg-[#F3F0E9] dark:bg-[#2D2321] text-[#8B7E74]'
+                    }`}>
+                    Đang giao
+                  </button>
+                  <button onClick={() => handleStatusToggle('offline')}
+                    className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
+                      driverStatus === 'offline' ? 'bg-gray-500 text-white shadow-lg' : 'bg-[#F3F0E9] dark:bg-[#2D2321] text-[#8B7E74]'
+                    }`}>
+                    Ngoại tuyến
+                  </button>
+                </div>
+              </div>
+              <div className="flex items-center justify-between py-2 border-b border-[#E5E1D8] dark:border-[#2D2321]">
                 <span className="text-xs text-[#8B7E74]">Họ tên</span>
                 <span className="text-xs font-bold text-[#2D241E] dark:text-[#FAF8F5]">{myDriver.name}</span>
               </div>
-              <div className="flex justify-between items-center py-2 border-b border-[#E5E1D8] dark:border-[#2D2321]">
+              <div className="flex items-center justify-between py-2 border-b border-[#E5E1D8] dark:border-[#2D2321]">
                 <span className="text-xs text-[#8B7E74]">Số điện thoại</span>
                 <span className="text-xs font-bold text-[#2D241E] dark:text-[#FAF8F5]">{myDriver.phone}</span>
               </div>
-              <div className="flex justify-between items-center py-2 border-b border-[#E5E1D8] dark:border-[#2D2321]">
+              <div className="flex items-center justify-between py-2 border-b border-[#E5E1D8] dark:border-[#2D2321]">
                 <span className="text-xs text-[#8B7E74]">Email</span>
                 <span className="text-xs font-bold text-[#2D241E] dark:text-[#FAF8F5]">{currentUser.email}</span>
               </div>
-              <div className="flex justify-between items-center py-2 border-b border-[#E5E1D8] dark:border-[#2D2321]">
+              <div className="flex items-center justify-between py-2 border-b border-[#E5E1D8] dark:border-[#2D2321]">
                 <span className="text-xs text-[#8B7E74]">Phương tiện</span>
                 <span className="text-xs font-bold text-[#2D241E] dark:text-[#FAF8F5]">{myDriver.vehicleType || myDriver.vehicle}</span>
               </div>
               {myDriver.vehiclePlate && (
-                <div className="flex justify-between items-center py-2 border-b border-[#E5E1D8] dark:border-[#2D2321]">
+                <div className="flex items-center justify-between py-2 border-b border-[#E5E1D8] dark:border-[#2D2321]">
                   <span className="text-xs text-[#8B7E74]">Biển số</span>
                   <span className="text-xs font-bold font-mono text-[#2D241E] dark:text-[#FAF8F5]">{myDriver.vehiclePlate}</span>
                 </div>
               )}
-              {myDriver.vehicleColor && (
-                <div className="flex justify-between items-center py-2 border-b border-[#E5E1D8] dark:border-[#2D2321]">
-                  <span className="text-xs text-[#8B7E74]">Màu xe</span>
-                  <span className="text-xs font-bold text-[#2D241E] dark:text-[#FAF8F5]">{myDriver.vehicleColor}</span>
-                </div>
-              )}
-              <div className="flex justify-between items-center py-2 border-b border-[#E5E1D8] dark:border-[#2D2321]">
+              <div className="flex items-center justify-between py-2">
                 <span className="text-xs text-[#8B7E74]">Đánh giá</span>
                 <span className="text-xs font-bold text-[#D97706] flex items-center gap-1">
                   <Star className="w-3 h-3 fill-current" /> {(stats?.rating ?? myDriver.rating ?? 5).toFixed(1)}
                 </span>
               </div>
-              <div className="flex justify-between items-center py-2">
-                <span className="text-xs text-[#8B7E74]">Trạng thái</span>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                  driverStatus === 'available' ? 'bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400' :
-                  driverStatus === 'busy' ? 'bg-amber-100 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400' :
-                  'bg-gray-100 dark:bg-gray-950/30 text-gray-700 dark:text-gray-400'
-                }`}>
-                  {driverStatus === 'available' ? 'Đang rảnh' : driverStatus === 'busy' ? 'Đang giao' : 'Ngoại tuyến'}
-                </span>
-              </div>
             </div>
 
-            {/* Stats card */}
             <div className="bg-white dark:bg-[#1C1311] rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] shadow-sm p-4">
               <h3 className="font-bold text-xs text-[#2D241E] dark:text-[#FAF8F5] flex items-center gap-1.5 mb-3">
                 <TrendingUp className="w-4 h-4 text-[#D97706]" /> Thống kê
               </h3>
-              <div className="grid grid-cols-3 gap-3 text-center">
-                <div>
+              <div className="flex gap-3">
+                <div className="flex-1 text-center">
                   <p className="text-lg font-black text-[#2D241E] dark:text-[#FAF8F5]">{stats?.totalTrips ?? myTrips.length}</p>
                   <p className="text-[8px] text-[#8B7E74]">Tổng chuyến</p>
                 </div>
-                <div>
-                  <p className="text-lg font-black text-[#2D241E] dark:text-[#FAF8F5]">{stats?.activeTrips ?? activeTrips.length}</p>
+                <div className="flex-1 text-center">
+                  <p className="text-lg font-black text-[#2D241E] dark:text-[#FAF8F5]">{stats?.activeTrips ?? deliveringTrips.length}</p>
                   <p className="text-[8px] text-[#8B7E74]">Đang giao</p>
                 </div>
-                <div>
-                  <p className="text-lg font-black text-[#D97706]">{((stats?.totalEarnings ?? 0) || completedTrips.length * 15000).toLocaleString('vi-VN')}đ</p>
+                <div className="flex-1 text-center">
+                  <p className="text-lg font-black text-[#D97706]">{formatCurrency((stats?.totalEarnings ?? 0) || completedTrips.length * 15000)}</p>
                   <p className="text-[8px] text-[#8B7E74]">Doanh thu</p>
                 </div>
               </div>
             </div>
 
-            {/* Logout */}
-            <button onClick={onLogout}
-              className="w-full p-4 rounded-2xl bg-red-100 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-400 font-bold text-sm cursor-pointer hover:bg-red-200 dark:hover:bg-red-950/50 transition-all flex items-center justify-center gap-2">
-              <LogOut className="w-4 h-4" /> Đăng xuất
-            </button>
+            <div className="flex gap-2">
+              <button onClick={toggleLocation}
+                className={`flex-1 p-3 rounded-2xl border text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-all ${
+                  locationEnabled
+                    ? 'bg-emerald-100 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/50 text-emerald-700 dark:text-emerald-400'
+                    : 'bg-white dark:bg-[#1C1311] border-[#E5E1D8] dark:border-[#2D2321] text-[#8B7E74] hover:border-[#D97706]/40'
+                }`}>
+                {locationEnabled ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
+                {locationEnabled ? 'Vị trí: Bật' : 'Bật định vị'}
+              </button>
+              <button onClick={onLogout}
+                className="p-3 rounded-2xl bg-red-100 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-400 font-bold text-xs cursor-pointer hover:bg-red-200 dark:hover:bg-red-950/50 transition-all flex items-center justify-center gap-2">
+                <LogOut className="w-4 h-4" /> Đăng xuất
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -833,10 +674,10 @@ export function DriverDashboard({
       <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-[#1C1311] border-t border-[#E5E1D8] dark:border-[#2D2321] z-40 px-2 pb-safe">
         <div className="flex justify-around items-center max-w-lg mx-auto">
           {[
-            { key: 'home' as TabType, icon: <Home className="w-5 h-5" />, label: 'Trang chủ' },
-            { key: 'orders' as TabType, icon: <Package className="w-5 h-5" />, label: 'Đơn hàng', badge: activeTrips.length },
-            { key: 'history' as TabType, icon: <Clock className="w-5 h-5" />, label: 'Lịch sử' },
-            { key: 'profile' as TabType, icon: <User className="w-5 h-5" />, label: 'Cá nhân' },
+            { key: 'new' as TabType, icon: <Package className="w-5 h-5" />, label: 'Đơn Mới', badge: newTrips.length },
+            { key: 'delivering' as TabType, icon: <Bike className="w-5 h-5" />, label: 'Đang Giao', badge: deliveringTrips.length },
+            { key: 'history' as TabType, icon: <Clock className="w-5 h-5" />, label: 'Lịch Sử' },
+            { key: 'profile' as TabType, icon: <User className="w-5 h-5" />, label: 'Cá Nhân' },
           ].map(tab => (
             <button key={tab.key} onClick={() => setActiveTab(tab.key)}
               className={`relative py-2 px-4 flex flex-col items-center min-w-0 transition-all cursor-pointer ${
@@ -867,31 +708,6 @@ function TripDetailModal({
   onClose: () => void;
   onUpdateStatus: (tripId: number, status: string) => void;
 }) {
-  const [journeyProgress, setJourneyProgress] = useState(0);
-  const [journeyPhase, setJourneyPhase] = useState<'waiting' | 'to_shop' | 'at_shop' | 'to_customer' | 'delivered'>('waiting');
-  const journeyTimer = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    if (trip.status === 'picked_up') {
-      setJourneyPhase('to_shop');
-      setJourneyProgress(0);
-      journeyTimer.current = setInterval(() => {
-        setJourneyProgress(prev => {
-          const next = prev + Math.random() * 6 + 2;
-          if (next >= 35) setJourneyPhase('at_shop');
-          if (next >= 45) setJourneyPhase('to_customer');
-          if (next >= 100) {
-            setJourneyPhase('delivered');
-            if (journeyTimer.current) clearInterval(journeyTimer.current);
-            return 100;
-          }
-          return Math.min(next, 100);
-        });
-      }, 2500);
-    }
-    return () => { if (journeyTimer.current) clearInterval(journeyTimer.current); };
-  }, [trip.id, trip.status]);
-
   const statusConf = STATUS_CONFIG[trip.status] || STATUS_CONFIG.assigned;
   const nextAction = (() => {
     switch (trip.status) {
@@ -913,57 +729,8 @@ function TripDetailModal({
       </div>
 
       <div className="p-4 space-y-4 pb-24">
-        {/* Journey map */}
-        {trip.status === 'picked_up' && (
-          <div className="bg-white dark:bg-[#1C1311] rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] p-4 overflow-hidden">
-            <h4 className="font-bold text-xs text-[#2D241E] dark:text-[#FAF8F5] mb-3 flex items-center gap-1.5">
-              <Navigation className="w-4 h-4 text-[#D97706]" /> Hành trình giao hàng
-            </h4>
-            <div className="relative h-36 bg-gradient-to-br from-sky-50 to-sky-100/50 dark:from-sky-950/20 dark:to-sky-950/10 rounded-xl border border-sky-200 dark:border-sky-900/40 mb-3 overflow-hidden">
-              <div className="absolute" style={{ left: '10%', top: '70%' }}>
-                <div className="flex flex-col items-center">
-                  <div className="w-7 h-7 rounded-full bg-[#D97706] flex items-center justify-center shadow-lg border-2 border-white">
-                    <Home className="w-3.5 h-3.5 text-white" />
-                  </div>
-                  <span className="text-[6px] font-bold text-[#8B7E74] mt-0.5 bg-white/80 dark:bg-black/50 px-1 rounded">Quán</span>
-                </div>
-              </div>
-              <div className="absolute transition-all duration-1000 ease-out z-10"
-                style={{ left: `${10 + (journeyProgress / 100) * 65}%`, top: `${70 - (journeyProgress / 100) * 40}%` }}>
-                <div className="flex flex-col items-center">
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center shadow-lg border-2 border-white ${journeyPhase === 'delivered' ? 'bg-emerald-500' : 'bg-sky-500'}`}>
-                    <Bike className={`w-4.5 h-4.5 text-white ${journeyPhase !== 'delivered' ? 'animate-bounce' : ''}`} />
-                  </div>
-                  <span className="text-[6px] font-bold text-white mt-0.5 bg-sky-600/80 px-1 rounded whitespace-nowrap">
-                    {journeyPhase === 'to_shop' ? 'Đến quán' : journeyPhase === 'at_shop' ? 'Nhận hàng' : journeyPhase === 'to_customer' ? 'Đang giao' : 'Đã giao'}
-                  </span>
-                </div>
-              </div>
-              <div className="absolute" style={{ right: '10%', top: '25%' }}>
-                <div className="flex flex-col items-center">
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center shadow-lg border-2 border-white ${journeyPhase === 'delivered' ? 'bg-emerald-500' : 'bg-rose-500'}`}>
-                    <Flag className="w-3.5 h-3.5 text-white" />
-                  </div>
-                  <span className="text-[6px] font-bold text-[#8B7E74] mt-0.5 bg-white/80 dark:bg-black/50 px-1 rounded">Khách</span>
-                </div>
-              </div>
-            </div>
-            <div className="space-y-1">
-              <div className="flex justify-between text-[9px]">
-                <span className="text-[#8B7E74]">Tiến trình</span>
-                <span className="font-bold text-[#D97706]">{Math.round(journeyProgress)}%</span>
-              </div>
-              <div className="h-1.5 bg-[#F3F0E9] dark:bg-[#2D2321] rounded-full overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-[#D97706] to-emerald-500 rounded-full transition-all duration-500 ease-out"
-                  style={{ width: `${journeyProgress}%` }} />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Order info */}
         <div className="bg-white dark:bg-[#1C1311] rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] p-4">
-          <div className="flex justify-between items-start mb-3">
+          <div className="flex items-start justify-between mb-3">
             <div>
               <p className="text-[9px] text-[#8B7E74] font-mono">Đơn hàng</p>
               <p className="font-bold text-[#2D241E] dark:text-[#FAF8F5]">#{trip.orderId}</p>
@@ -978,8 +745,8 @@ function TripDetailModal({
               <div className="flex items-start gap-3">
                 <User className="w-4 h-4 text-[#8B7E74] shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-xs font-bold text-[#2D241E] dark:text-[#FAF8F5]">{order.customerName}</p>
-                  <p className="text-[10px] text-[#8B7E74]">{order.phone}</p>
+                  <p className="text-sm font-bold text-[#2D241E] dark:text-[#FAF8F5]">{order.customerName}</p>
+                  <p className="text-[11px] text-[#8B7E74]">{order.phone}</p>
                 </div>
               </div>
               {order.address && (
@@ -1023,13 +790,12 @@ function TripDetailModal({
             {order && (
               <div className="flex justify-between text-sm font-black pt-1">
                 <span className="text-[#3E2F26] dark:text-[#EAE3D2]">Tổng đơn:</span>
-                <span className="text-[#D97706]">{order.totalAmount.toLocaleString('vi-VN')}đ</span>
+                <span className="text-[#D97706]">{formatCurrency(order.totalAmount)}</span>
               </div>
             )}
           </div>
         </div>
 
-        {/* Timeline */}
         <div className="bg-white dark:bg-[#1C1311] rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] p-4">
           <p className="text-[9px] font-bold text-[#8B7E74] uppercase mb-3">Dòng thời gian</p>
           <div className="space-y-2">
@@ -1054,17 +820,16 @@ function TripDetailModal({
           </div>
         </div>
 
-        {/* Action button */}
         <div className="space-y-2">
           <p className="text-[9px] font-bold text-[#8B7E74] uppercase">Thao tác</p>
           {nextAction ? (
             <button onClick={() => onUpdateStatus(trip.id, nextAction.status)}
               className={`w-full p-4 rounded-2xl text-sm font-bold text-white ${nextAction.color} cursor-pointer transition-all flex items-center justify-center gap-2 shadow-lg`}>
-              {nextAction.label} <ChevronRight className="w-4 h-4" />
+              {nextAction.label} <ChevronLeft className="w-4 h-4" />
             </button>
           ) : (
             <div className="text-center p-4 bg-[#F3F0E9] dark:bg-[#2D2321] rounded-2xl text-xs text-[#8B7E74]">
-              {trip.status === 'delivered' ? '✅ Chuyến giao đã hoàn thành' : '🚫 Chuyến giao đã kết thúc'}
+              {trip.status === 'delivered' ? 'Chuyến giao đã hoàn thành' : 'Chuyến giao đã kết thúc'}
             </div>
           )}
         </div>

@@ -55,7 +55,7 @@ function mapOrder(o: any): Order {
     discountAmount: Number(o.discountAmount || o.discount_amount || 0),
     shippingFee: Number(o.shippingFee || o.shipping_fee || 0),
     totalAmount: Number(o.totalAmount || o.total_amount) || 0,
-    paymentMethod: o.paymentMethod || o.payment_method || 'cash',
+    paymentMethod: (o.paymentMethod || o.payment_method || 'cod') === 'cash' ? 'cod' as const : (o.paymentMethod || o.payment_method || 'cod') as 'cod' | 'momo',
     paymentStatus: o.paymentStatus || o.payment_status || 'pending',
     status: o.status || 'pending',
     driverId: o.driverId || o.driver_id ? String(o.driverId || o.driver_id) : undefined,
@@ -402,7 +402,34 @@ export const ApiService = {
     return resolveImageUrl(data.url);
   },
 
-  // 10. RBAC API
+  // 10. MOMO PAYMENT API
+  async createMoMoPayment(orderId: number, amount: number, orderInfo?: string): Promise<any> {
+    const res = await fetch(`${BASE_URL}/payments/momo/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId, amount, orderInfo: orderInfo || 'Thanh toan don hang' })
+    });
+    if (!res.ok) throw new Error('Không thể tạo yêu cầu thanh toán MoMo');
+    return res.json();
+  },
+
+  async getMoMoPaymentStatus(orderId: number): Promise<any> {
+    const res = await fetch(`${BASE_URL}/payments/momo/status/${orderId}`);
+    if (!res.ok) return { status: 'not_found' };
+    return res.json();
+  },
+
+  async createPaymentTransaction(data: any): Promise<any> {
+    const res = await fetch(`${BASE_URL}/payments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('Không thể tạo giao dịch thanh toán');
+    return res.json();
+  },
+
+  // 11. RBAC API
   async getRoles(): Promise<any[]> {
     const res = await fetch(`${BASE_URL}/roles`);
     if (!res.ok) return [];
@@ -451,6 +478,31 @@ export const ApiService = {
     const res = await fetch(`${BASE_URL}/users/${userId}/roles`);
     if (!res.ok) return [];
     return res.json();
+  },
+
+  async createRole(role: any): Promise<any> {
+    const res = await fetch(`${BASE_URL}/roles`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(role)
+    });
+    if (!res.ok) throw new Error('Không thể tạo vai trò');
+    return res.json();
+  },
+
+  async updateRole(id: number, role: any): Promise<any> {
+    const res = await fetch(`${BASE_URL}/roles/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(role)
+    });
+    if (!res.ok) throw new Error('Không thể cập nhật vai trò');
+    return res.json();
+  },
+
+  async deleteRole(id: number): Promise<void> {
+    const res = await fetch(`${BASE_URL}/roles/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Không thể xoá vai trò');
   },
 
   async getRolePermissions(roleId: number): Promise<any[]> {
@@ -764,5 +816,42 @@ export const ApiService = {
   async deleteMembershipTier(id: number): Promise<void> {
     const res = await fetch(`${BASE_URL}/membership-tiers/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('Không thể xóa hạng thành viên');
+  },
+
+  // === Admin User Operations ===
+
+  async adminDeleteUser(id: number): Promise<any> {
+    const res = await fetch(`${BASE_URL}/users/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Không thể xoá tài khoản');
+    return res.json();
+  },
+
+  async adminChangeUserRole(id: number, role: string): Promise<any> {
+    const res = await fetch(`${BASE_URL}/users/${id}/role`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role })
+    });
+    if (!res.ok) throw new Error('Không thể đổi vai trò');
+    return res.json();
+  },
+
+  async adminToggleUserActive(id: number): Promise<any> {
+    const res = await fetch(`${BASE_URL}/users/${id}/toggle-active`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    if (!res.ok) throw new Error('Không thể thay đổi trạng thái');
+    return res.json();
+  },
+
+  async adminResetUserPassword(id: number, newPassword: string): Promise<any> {
+    const res = await fetch(`${BASE_URL}/users/${id}/admin-reset-password`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ newPassword })
+    });
+    if (!res.ok) throw new Error('Không thể đặt lại mật khẩu');
+    return res.json();
   },
 };
