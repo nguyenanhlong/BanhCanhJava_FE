@@ -3268,11 +3268,11 @@ export function AdminDashboard({
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#3E2F26] uppercase">Vai trò</label>
-                  <select value={accountForm.roleId} onChange={e => setAccountForm(prev => ({ ...prev, roleId: Number(e.target.value) }))}
-                    className="w-full text-xs p-2 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] bg-white dark:bg-[#FFF8F0] text-[#2D241E] dark:text-[#2D241E] focus:outline-[#E74C3C]">
-                    <option value={0}>-- Chọn role --</option>
-                    {roleList.map(r => <option key={r.id} value={r.id}>{r.display} ({r.name})</option>)}
-                  </select>
+                    <select value={accountForm.roleId} onChange={e => setAccountForm(prev => ({ ...prev, roleId: Number(e.target.value) }))}
+                      className="w-full text-xs p-2 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] bg-white dark:bg-[#FFF8F0] text-[#2D241E] dark:[#2D241E] focus:outline-[#E74C3C]">
+                      <option value={0}>-- Chọn role --</option>
+                      {roleList.filter(r => isSuperAdmin || r.name !== 'super_admin').map(r => <option key={r.id} value={r.id}>{r.display} ({r.name})</option>)}
+                    </select>
                 </div>
                 <button type="submit" className="bg-[#E74C3C] hover:bg-[#E74C3C]/90 text-white font-bold px-4 py-2 rounded-lg text-xs cursor-pointer">
                   Tạo TK
@@ -3596,6 +3596,7 @@ export function AdminDashboard({
                       <option value="customer">Khách hàng</option>
                       <option value="driver">Tài xế</option>
                       <option value="admin">Quản trị</option>
+                      {isSuperAdmin && <option value="super_admin">Super Admin</option>}
                     </select>
                     <div className="flex gap-2 pt-1">
                       <button onClick={() => setShowUserRoleForm(false)}
