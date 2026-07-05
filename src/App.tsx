@@ -849,6 +849,7 @@ export default function App() {
             drivers={drivers}
             products={products}
             isBackendConnected={isBackendConnected}
+            userRole={user.role}
             onUpdateOrderStatus={handleUpdateOrderStatus}
             onAssignDriver={handleAssignDriver}
             onCreateDriver={handleCreateDriver}

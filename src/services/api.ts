@@ -669,6 +669,16 @@ export const ApiService = {
     return res.json();
   },
 
+  async adminCreateVouchersBatch(data: { userIds: number[]; tierId: number; discountPercent?: number; maxDiscount?: number; minOrderAmount?: number; code?: string; status?: string; expiresAt?: string }): Promise<{ created: number }> {
+    const res = await fetch(`${BASE_URL}/memberships/admin/vouchers/batch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('Không thể tạo voucher hàng loạt');
+    return res.json();
+  },
+
   // 15. ORDER HISTORY API
   async getOrderHistory(orderId: number): Promise<OrderStatusHistory[]> {
     const res = await fetch(`${BASE_URL}/order-history/order/${orderId}`);
