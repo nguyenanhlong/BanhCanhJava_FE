@@ -15,6 +15,9 @@ export const MEMBERSHIP_TIERS: MembershipTier[] = [
   { id: 3, name: 'vip', displayName: 'VIP', minTotalSpent: 10000000, minTotalOrders: 50, autoDiscountPercent: 7, voucherCount: 4, voucherDiscountPercent: 15 },
 ];
 
+import { ApiService } from './api';
+import { MembershipVoucher } from '../types';
+
 export interface Voucher {
   id: string;
   code: string;
@@ -35,7 +38,23 @@ export function calculateAutoDiscount(tier: MembershipTier, totalAmount: number)
   return Math.round(totalAmount * tier.autoDiscountPercent / 100);
 }
 
-export function getVouchersForTier(tier: MembershipTier): Voucher[] {
+export async function getVouchersForTier(tier: MembershipTier, userId?: number): Promise<Voucher[]> {
+  if (userId) {
+    try {
+      const apiVouchers = await ApiService.getVouchers(userId);
+      return apiVouchers
+        .filter(v => v.tierId === tier.id)
+        .map(v => ({
+          id: String(v.id),
+          code: v.code,
+          discountPercent: v.discountPercent,
+          maxDiscount: v.maxDiscount,
+          claimedAt: v.issuedAt,
+          usedAt: v.usedAt,
+          expiredAt: v.expiresAt,
+        }));
+    } catch {}
+  }
   const key = `banhcanh_vouchers_${tier.name}`;
   try {
     const saved = localStorage.getItem(key);
@@ -44,8 +63,22 @@ export function getVouchersForTier(tier: MembershipTier): Voucher[] {
   return [];
 }
 
-export function claimVoucher(tier: MembershipTier): Voucher | null {
-  const vouchers = getVouchersForTier(tier);
+export async function claimVoucher(tier: MembershipTier, userId?: number): Promise<Voucher | null> {
+  if (userId) {
+    try {
+      const result = await ApiService.claimVoucher(userId, tier.id);
+      return {
+        id: String(result.id),
+        code: result.code,
+        discountPercent: result.discountPercent,
+        maxDiscount: result.maxDiscount,
+        claimedAt: result.issuedAt,
+        usedAt: result.usedAt,
+        expiredAt: result.expiresAt,
+      };
+    } catch {}
+  }
+  const vouchers = await getVouchersForTier(tier, userId);
   const available = tier.voucherCount - vouchers.filter(v => !v.usedAt).length;
   if (available <= 0) return null;
 
@@ -63,8 +96,14 @@ export function claimVoucher(tier: MembershipTier): Voucher | null {
   return voucher;
 }
 
-export function useVoucher(tier: MembershipTier, voucherId: string): boolean {
-  const vouchers = getVouchersForTier(tier);
+export async function useVoucher(tier: MembershipTier, voucherId: string, userId?: number): Promise<boolean> {
+  if (userId) {
+    try {
+      await ApiService.useVoucher(Number(voucherId));
+      return true;
+    } catch {}
+  }
+  const vouchers = await getVouchersForTier(tier, userId);
   const idx = vouchers.findIndex(v => v.id === voucherId && !v.usedAt);
   if (idx === -1) return false;
   vouchers[idx].usedAt = new Date().toISOString();

@@ -31,7 +31,7 @@ export function CartDrawer({
     0
   );
 
-  const membershipDiscount = user ? calculateAutoDiscount(getUserTier((user as any).total_spent || 0, (user as any).total_orders || 0), totalAmount) : 0;
+  const membershipDiscount = user ? calculateAutoDiscount(getUserTier(user.total_spent || 0, user.total_orders || 0), totalAmount) : 0;
 
   const finalTotal = Math.max(0, totalAmount - membershipDiscount);
 
