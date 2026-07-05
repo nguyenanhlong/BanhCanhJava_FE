@@ -645,6 +645,30 @@ export const ApiService = {
     return res.json();
   },
 
+  // --- Admin Membership ---
+  async getAllMemberships(): Promise<UserMembership[]> {
+    const res = await fetch(`${BASE_URL}/memberships/admin/all`);
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async getAllVouchers(tierId?: number): Promise<MembershipVoucher[]> {
+    const url = tierId ? `${BASE_URL}/memberships/admin/vouchers?tierId=${tierId}` : `${BASE_URL}/memberships/admin/vouchers`;
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async adminCreateVoucher(data: { userId: number; tierId: number; discountPercent?: number; maxDiscount?: number; minOrderAmount?: number }): Promise<MembershipVoucher> {
+    const res = await fetch(`${BASE_URL}/memberships/admin/vouchers`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('Không thể tạo voucher');
+    return res.json();
+  },
+
   // 15. ORDER HISTORY API
   async getOrderHistory(orderId: number): Promise<OrderStatusHistory[]> {
     const res = await fetch(`${BASE_URL}/order-history/order/${orderId}`);
@@ -729,7 +753,13 @@ export const ApiService = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(promo)
     });
-    if (!res.ok) throw new Error('Không thể tạo khuyến mãi');
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => '');
+      let msg = 'Không thể tạo khuyến mãi';
+      try { const j = JSON.parse(errBody); if (j.error) msg = j.error; } catch {}
+      msg += ' (' + res.status + ')';
+      throw new Error(msg);
+    }
     return res.json();
   },
 
