@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Order, Driver, OrderStatus, Product, MembershipTier, DeliveryTrip, PaymentTransaction } from '../types';
+import { Order, Driver, OrderStatus, Product, MembershipTier, MembershipVoucher, UserMembership, DeliveryTrip, PaymentTransaction } from '../types';
 import { JAVA_BACKEND_FILES, MYSQL_DATABASE_SQL, FRONTEND_INTEGRATION_FILES } from '../data';
-import { FileCode, Check, Copy, AlertTriangle, Plus, Edit3, Trash2, X, FileText } from 'lucide-react';
+import { FileCode, Check, Copy, AlertTriangle, Plus, Edit3, Trash2, X, FileText, RefreshCw } from 'lucide-react';
 import { ApiService } from '../services/api';
 
 function toSlug(str: string): string {
@@ -95,6 +95,8 @@ export function AdminDashboard({
     }
     if (adminTab === 'membership-tiers') {
       loadMembershipTiers();
+      loadAllMemberships();
+      loadAllVouchers();
     }
     if (adminTab === 'toppings') {
       loadProductOptions();
@@ -520,6 +522,37 @@ export function AdminDashboard({
       setMembershipTiers(prev => prev.filter(t => t.id !== id));
     } catch { setMembershipTierError('Lỗi xóa hạng'); }
   };
+
+  // Membership sub-tab
+  const [membershipSubTab, setMembershipSubTab] = useState<'tiers' | 'members' | 'vouchers'>('tiers');
+  const [allMemberships, setAllMemberships] = useState<UserMembership[]>([]);
+  const [allVouchers, setAllVouchers] = useState<MembershipVoucher[]>([]);
+  const [newVoucherForm, setNewVoucherForm] = useState({ userId: 0, tierId: 1, discountPercent: 10, maxDiscount: 50000, minOrderAmount: 0 });
+  const [membershipMsg, setMembershipMsg] = useState('');
+
+  const loadAllMemberships = async () => {
+    try { const d = await ApiService.getAllMemberships(); setAllMemberships(d); } catch {}
+  };
+  const loadAllVouchers = async (tierId?: number) => {
+    try { const d = await ApiService.getAllVouchers(tierId); setAllVouchers(d); } catch {}
+  };
+
+  const getTierName = (tierId: number | null | undefined): string => {
+    if (!tierId) return 'Chưa xếp hạng';
+    const t = membershipTiers.find(t => t.id === tierId);
+    return t ? t.displayName : 'Hạng #' + tierId;
+  };
+
+  const usersByTier = useMemo(() => {
+    const grouped: Record<number, any[]> = { 0: [] };
+    membershipTiers.forEach(t => { grouped[t.id] = []; });
+    apiUsers.forEach((u: any) => {
+      const tid = u.membershipTierId || 0;
+      if (!grouped[tid]) grouped[tid] = [];
+      grouped[tid].push(u);
+    });
+    return grouped;
+  }, [apiUsers, membershipTiers]);
 
   // Role Manager
   const [roleList, setRoleList] = useState<RoleItem[]>([]);
@@ -951,6 +984,7 @@ export function AdminDashboard({
   const handlePromoSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!promoForm.code || !promoForm.name) return;
+    if (!promoForm.start_date || !promoForm.end_date) { alert('Vui lòng chọn ngày bắt đầu và kết thúc'); return; }
     const promoPayload = {
       code: promoForm.code,
       name: promoForm.name,
@@ -960,8 +994,8 @@ export function AdminDashboard({
       minOrderAmount: promoForm.min_order_amount,
       maxDiscount: promoForm.discount_type === 'percentage' ? promoForm.max_discount : 0,
       usageLimit: promoForm.usage_limit,
-      startDate: promoForm.start_date + ':00',
-      endDate: promoForm.end_date + ':00',
+      startDate: promoForm.start_date.includes('T') ? promoForm.start_date + ':00' : promoForm.start_date + 'T00:00:00',
+      endDate: promoForm.end_date.includes('T') ? promoForm.end_date + ':00' : promoForm.end_date + 'T00:00:00',
       isActive: promoForm.isActive,
     };
     if (isBackendConnected) {
@@ -1861,8 +1895,10 @@ export function AdminDashboard({
                         try {
                           const url = await ApiService.uploadImage(file, 'avatar_Image');
                           setDriverAvatarUrl(url);
-                        } catch (err: any) {
-                          console.error(err);
+                        } catch {
+                          const reader = new FileReader();
+                          reader.onload = () => setDriverAvatarUrl(reader.result as string);
+                          reader.readAsDataURL(file);
                         } finally {
                           setUploadingDriverAvatar(false);
                           e.target.value = '';
@@ -1960,7 +1996,11 @@ export function AdminDashboard({
                           try {
                             const url = await ApiService.uploadImage(file, 'avatar_Image');
                             setDriverEditForm(p => ({ ...p, avatarUrl: url }));
-                          } catch (err: any) { console.error(err); }
+                          } catch {
+                            const reader = new FileReader();
+                            reader.onload = () => setDriverEditForm(p => ({ ...p, avatarUrl: reader.result as string }));
+                            reader.readAsDataURL(file);
+                          }
                           e.target.value = '';
                         }} />
                       <label htmlFor="driverEditAvatarUpload" className="px-3 py-2.5 rounded-lg border border-[#E5E1D8] text-xs font-bold cursor-pointer hover:bg-gray-50">📁</label>
@@ -2890,75 +2930,194 @@ export function AdminDashboard({
           <div className="space-y-4">
             <div className="flex justify-between items-center border-b border-[#F3F0E9] dark:border-[#E0D8D0] pb-3">
               <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#2D241E]">🏅 Hạng Thành Viên</h3>
-              <span className="text-xs text-[#8B7E74] dark:text-[#8B7E74]">{membershipTiers.length} hạng</span>
+              <span className="text-xs text-[#8B7E74] dark:text-[#8B7E74]">{membershipTiers.length} hạng · {apiUsers.length} thành viên</span>
             </div>
 
             {membershipTierError && (
               <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-300 text-xs p-3 rounded-xl">{membershipTierError}</div>
             )}
 
-            <div className="bg-[#F3F0E9] dark:bg-[#FFF9F2] p-4 rounded-2xl border border-[#E5E1D8] dark:border-[#E0D8D0] space-y-3">
-              <h4 className="text-sm font-bold text-[#2D241E] dark:text-[#2D241E]">{editingMembershipTierId ? 'Sửa Hạng' : 'Thêm Hạng Mới'}</h4>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div>
-                  <label className="text-[10px] font-bold text-[#8B7E74] uppercase">Mã hạng</label>
-                  <input type="text" value={membershipTierForm.name} onChange={e => setMembershipTierForm(p => ({ ...p, name: e.target.value }))} placeholder="vip" className="w-full mt-1 bg-white dark:bg-[#FFF8F0] border border-[#E5E1D8] dark:border-[#D0C8C0] rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-red-500" />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-[#8B7E74] uppercase">Tên hiển thị</label>
-                  <input type="text" value={membershipTierForm.displayName} onChange={e => setMembershipTierForm(p => ({ ...p, displayName: e.target.value }))} placeholder="VIP" className="w-full mt-1 bg-white dark:bg-[#FFF8F0] border border-[#E5E1D8] dark:border-[#D0C8C0] rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-red-500" />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-[#8B7E74] uppercase">Chi tiêu tối thiểu</label>
-                  <input type="number" value={membershipTierForm.minTotalSpent} onChange={e => setMembershipTierForm(p => ({ ...p, minTotalSpent: parseFloat(e.target.value) || 0 }))} className="w-full mt-1 bg-white dark:bg-[#FFF8F0] border border-[#E5E1D8] dark:border-[#D0C8C0] rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-red-500" />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-[#8B7E74] uppercase">Số đơn tối thiểu</label>
-                  <input type="number" value={membershipTierForm.minTotalOrders} onChange={e => setMembershipTierForm(p => ({ ...p, minTotalOrders: parseInt(e.target.value) || 0 }))} className="w-full mt-1 bg-white dark:bg-[#FFF8F0] border border-[#E5E1D8] dark:border-[#D0C8C0] rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-red-500" />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-[#8B7E74] uppercase">Giảm tự động (%)</label>
-                  <input type="number" step="0.1" value={membershipTierForm.autoDiscountPercent} onChange={e => setMembershipTierForm(p => ({ ...p, autoDiscountPercent: parseFloat(e.target.value) || 0 }))} className="w-full mt-1 bg-white dark:bg-[#FFF8F0] border border-[#E5E1D8] dark:border-[#D0C8C0] rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-red-500" />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-[#8B7E74] uppercase">Số voucher</label>
-                  <input type="number" value={membershipTierForm.voucherCount} onChange={e => setMembershipTierForm(p => ({ ...p, voucherCount: parseInt(e.target.value) || 0 }))} className="w-full mt-1 bg-white dark:bg-[#FFF8F0] border border-[#E5E1D8] dark:border-[#D0C8C0] rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-red-500" />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-[#8B7E74] uppercase">Giảm voucher (%)</label>
-                  <input type="number" step="0.1" value={membershipTierForm.voucherDiscountPercent} onChange={e => setMembershipTierForm(p => ({ ...p, voucherDiscountPercent: parseFloat(e.target.value) || 0 }))} className="w-full mt-1 bg-white dark:bg-[#FFF8F0] border border-[#E5E1D8] dark:border-[#D0C8C0] rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-red-500" />
-                </div>
-              </div>
-              <div className="flex gap-2 pt-2">
-                <button onClick={handleSaveMembershipTier} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-xs font-bold cursor-pointer">
-                  {editingMembershipTierId ? 'Cập nhật' : 'Thêm mới'}
-                </button>
-                {editingMembershipTierId && (
-                  <button onClick={() => { setEditingMembershipTierId(null); setMembershipTierForm({ name: '', displayName: '', minTotalSpent: 0, minTotalOrders: 0, autoDiscountPercent: 0, voucherCount: 0, voucherDiscountPercent: 0 }); }} className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-xl text-xs font-bold cursor-pointer">
-                    Hủy
+            {/* Sub-tabs */}
+            <div className="flex gap-1 border-b border-[#F3F0E9] dark:border-[#E0D8D0] pb-2">
+              {(['tiers', 'members', 'vouchers'] as const).map(st => {
+                const labels: Record<string, string> = { tiers: '📋 Hạng', members: '👥 Thành viên', vouchers: '🎫 Voucher' };
+                return (
+                  <button key={st} onClick={() => setMembershipSubTab(st)}
+                    className={`px-3 py-1.5 rounded-t-lg text-xs font-bold cursor-pointer transition-all ${membershipSubTab === st ? 'bg-[#E74C3C] text-white' : 'bg-[#F3F0E9] dark:bg-[#FFF0E0] text-[#3E2F26] hover:bg-[#E5E1D8]'}`}>
+                    {labels[st]}
                   </button>
-                )}
-              </div>
+                );
+              })}
             </div>
 
-            <div className="space-y-2">
-              {membershipTiers.length === 0 ? (
-                <p className="text-center py-8 text-xs text-[#8B7E74] italic">Chưa có hạng thành viên nào.</p>
-              ) : (
-                membershipTiers.map(tier => (
-                  <div key={tier.id} className="p-3 bg-[#FAF8F5] dark:bg-[#FFF8F0] border border-[#E5E1D8] dark:border-[#E0D8D0] rounded-xl flex items-center justify-between">
-                    <div className="text-xs space-y-0.5">
-                      <p className="font-bold text-sm text-[#2D241E] dark:text-[#2D241E]">{tier.displayName} <span className="text-[#8B7E74] font-mono">({tier.name})</span></p>
-                      <p className="text-[#8B7E74]">Giảm {tier.autoDiscountPercent}% | {tier.voucherCount} voucher {tier.voucherDiscountPercent}% | Chi tiêu {tier.minTotalSpent.toLocaleString('vi-VN')}đ</p>
+            {/* TAB: Hạng */}
+            {membershipSubTab === 'tiers' && (
+              <div className="space-y-3">
+                <div className="bg-[#F3F0E9] dark:bg-[#FFF9F2] p-4 rounded-2xl border border-[#E5E1D8] dark:border-[#E0D8D0] space-y-3">
+                  <h4 className="text-sm font-bold text-[#2D241E] dark:text-[#2D241E]">{editingMembershipTierId ? 'Sửa Hạng' : 'Thêm Hạng Mới'}</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div>
+                      <label className="text-[10px] font-bold text-[#8B7E74] uppercase">Mã hạng</label>
+                      <input type="text" value={membershipTierForm.name} onChange={e => setMembershipTierForm(p => ({ ...p, name: e.target.value }))} placeholder="vip" className="w-full mt-1 bg-white dark:bg-[#FFF8F0] border border-[#E5E1D8] dark:border-[#D0C8C0] rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-red-500" />
                     </div>
-                    <div className="flex gap-1.5">
-                      <button onClick={() => handleEditMembershipTier(tier)} className="text-red-600 hover:text-red-800 p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/20 cursor-pointer" title="Sửa"><Edit3 className="w-3.5 h-3.5" /></button>
-                      <button onClick={() => handleDeleteMembershipTier(tier.id)} className="text-red-500 hover:text-red-700 p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/20 cursor-pointer" title="Xóa"><Trash2 className="w-3.5 h-3.5" /></button>
+                    <div>
+                      <label className="text-[10px] font-bold text-[#8B7E74] uppercase">Tên hiển thị</label>
+                      <input type="text" value={membershipTierForm.displayName} onChange={e => setMembershipTierForm(p => ({ ...p, displayName: e.target.value }))} placeholder="VIP" className="w-full mt-1 bg-white dark:bg-[#FFF8F0] border border-[#E5E1D8] dark:border-[#D0C8C0] rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-red-500" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-[#8B7E74] uppercase">Chi tiêu tối thiểu</label>
+                      <input type="number" value={membershipTierForm.minTotalSpent} onChange={e => setMembershipTierForm(p => ({ ...p, minTotalSpent: parseFloat(e.target.value) || 0 }))} className="w-full mt-1 bg-white dark:bg-[#FFF8F0] border border-[#E5E1D8] dark:border-[#D0C8C0] rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-red-500" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-[#8B7E74] uppercase">Số đơn tối thiểu</label>
+                      <input type="number" value={membershipTierForm.minTotalOrders} onChange={e => setMembershipTierForm(p => ({ ...p, minTotalOrders: parseInt(e.target.value) || 0 }))} className="w-full mt-1 bg-white dark:bg-[#FFF8F0] border border-[#E5E1D8] dark:border-[#D0C8C0] rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-red-500" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-[#8B7E74] uppercase">Giảm tự động (%)</label>
+                      <input type="number" step="0.1" value={membershipTierForm.autoDiscountPercent} onChange={e => setMembershipTierForm(p => ({ ...p, autoDiscountPercent: parseFloat(e.target.value) || 0 }))} className="w-full mt-1 bg-white dark:bg-[#FFF8F0] border border-[#E5E1D8] dark:border-[#D0C8C0] rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-red-500" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-[#8B7E74] uppercase">Số voucher</label>
+                      <input type="number" value={membershipTierForm.voucherCount} onChange={e => setMembershipTierForm(p => ({ ...p, voucherCount: parseInt(e.target.value) || 0 }))} className="w-full mt-1 bg-white dark:bg-[#FFF8F0] border border-[#E5E1D8] dark:border-[#D0C8C0] rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-red-500" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-[#8B7E74] uppercase">Giảm voucher (%)</label>
+                      <input type="number" step="0.1" value={membershipTierForm.voucherDiscountPercent} onChange={e => setMembershipTierForm(p => ({ ...p, voucherDiscountPercent: parseFloat(e.target.value) || 0 }))} className="w-full mt-1 bg-white dark:bg-[#FFF8F0] border border-[#E5E1D8] dark:border-[#D0C8C0] rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-red-500" />
                     </div>
                   </div>
-                ))
-              )}
-            </div>
+                  <div className="flex gap-2 pt-2">
+                    <button onClick={handleSaveMembershipTier} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-xs font-bold cursor-pointer">
+                      {editingMembershipTierId ? 'Cập nhật' : 'Thêm mới'}
+                    </button>
+                    {editingMembershipTierId && (
+                      <button onClick={() => { setEditingMembershipTierId(null); setMembershipTierForm({ name: '', displayName: '', minTotalSpent: 0, minTotalOrders: 0, autoDiscountPercent: 0, voucherCount: 0, voucherDiscountPercent: 0 }); }} className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-xl text-xs font-bold cursor-pointer">
+                        Hủy
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {membershipTiers.length === 0 ? (
+                    <p className="text-center py-8 text-xs text-[#8B7E74] italic">Chưa có hạng thành viên nào.</p>
+                  ) : (
+                    membershipTiers.map(tier => (
+                      <div key={tier.id} className="p-3 bg-[#FAF8F5] dark:bg-[#FFF8F0] border border-[#E5E1D8] dark:border-[#E0D8D0] rounded-xl flex items-center justify-between">
+                        <div className="text-xs space-y-0.5">
+                          <p className="font-bold text-sm text-[#2D241E] dark:text-[#2D241E]">{tier.displayName} <span className="text-[#8B7E74] font-mono">({tier.name})</span></p>
+                          <p className="text-[#8B7E74]">Giảm {tier.autoDiscountPercent}% | {tier.voucherCount} voucher {tier.voucherDiscountPercent}% | Chi tiêu {tier.minTotalSpent.toLocaleString('vi-VN')}đ</p>
+                        </div>
+                        <div className="flex gap-1.5">
+                          <button onClick={() => handleEditMembershipTier(tier)} className="text-red-600 hover:text-red-800 p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/20 cursor-pointer" title="Sửa"><Edit3 className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => handleDeleteMembershipTier(tier.id)} className="text-red-500 hover:text-red-700 p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/20 cursor-pointer" title="Xóa"><Trash2 className="w-3.5 h-3.5" /></button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB: Thành viên */}
+            {membershipSubTab === 'members' && (
+              <div className="space-y-2">
+                {membershipTiers.map(tier => {
+                  const tierUsers = usersByTier[tier.id] || [];
+                  return (
+                    <details key={tier.id} className="bg-[#FAF8F5] dark:bg-[#FFF8F0] border border-[#E5E1D8] dark:border-[#E0D8D0] rounded-xl overflow-hidden">
+                      <summary className="px-4 py-3 font-bold text-sm text-[#2D241E] dark:text-[#2D241E] cursor-pointer hover:bg-[#F3F0E9] flex items-center gap-2">
+                        {tier.displayName} <span className="text-[10px] font-normal text-[#8B7E74]">({tierUsers.length} thành viên)</span>
+                      </summary>
+                      {tierUsers.length === 0 ? (
+                        <p className="px-4 pb-3 text-xs text-[#8B7E74] italic">Chưa có thành viên nào.</p>
+                      ) : (
+                        <div className="px-4 pb-3 space-y-1.5">
+                          {tierUsers.map((u: any) => (
+                            <div key={u.id} className="flex items-center justify-between py-1.5 border-b border-[#F3F0E9] last:border-0">
+                              <div className="text-xs">
+                                <p className="font-semibold text-[#2D241E]">{u.fullName || u.username || u.email}</p>
+                                <p className="text-[10px] text-[#8B7E74]">{u.phone || u.email} · {u.total_orders || 0} đơn · {((u.total_spent || 0)).toLocaleString('vi-VN')}đ</p>
+                              </div>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-700">{(u.isActive ? 'Hoạt động' : 'Không hoạt động')}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </details>
+                  );
+                })}
+                {membershipTiers.length === 0 && (
+                  <p className="text-center py-8 text-xs text-[#8B7E74] italic">Chưa có hạng thành viên nào.</p>
+                )}
+              </div>
+            )}
+
+            {/* TAB: Voucher */}
+            {membershipSubTab === 'vouchers' && (
+              <div className="space-y-3">
+                {/* Create voucher form */}
+                <div className="bg-[#F3F0E9] dark:bg-[#FFF9F2] p-4 rounded-2xl border border-[#E5E1D8] dark:border-[#E0D8D0] space-y-3">
+                  <h4 className="text-sm font-bold text-[#2D241E] dark:text-[#2D241E]">🎫 Cấp Voucher</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div>
+                      <label className="text-[10px] font-bold text-[#8B7E74] uppercase">Người dùng (ID)</label>
+                      <input type="number" value={newVoucherForm.userId || ''} onChange={e => setNewVoucherForm(p => ({ ...p, userId: parseInt(e.target.value) || 0 }))} placeholder="Nhập User ID" className="w-full mt-1 bg-white dark:bg-[#FFF8F0] border border-[#E5E1D8] dark:border-[#D0C8C0] rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-red-500" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-[#8B7E74] uppercase">Hạng</label>
+                      <select value={newVoucherForm.tierId} onChange={e => setNewVoucherForm(p => ({ ...p, tierId: parseInt(e.target.value) }))} className="w-full mt-1 bg-white dark:bg-[#FFF8F0] border border-[#E5E1D8] dark:border-[#D0C8C0] rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-red-500">
+                        {membershipTiers.map(t => <option key={t.id} value={t.id}>{t.displayName}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-[#8B7E74] uppercase">Giảm (%)</label>
+                      <input type="number" value={newVoucherForm.discountPercent} onChange={e => setNewVoucherForm(p => ({ ...p, discountPercent: parseFloat(e.target.value) || 0 }))} className="w-full mt-1 bg-white dark:bg-[#FFF8F0] border border-[#E5E1D8] dark:border-[#D0C8C0] rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-red-500" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-[#8B7E74] uppercase">Giảm tối đa</label>
+                      <input type="number" value={newVoucherForm.maxDiscount} onChange={e => setNewVoucherForm(p => ({ ...p, maxDiscount: parseFloat(e.target.value) || 0 }))} className="w-full mt-1 bg-white dark:bg-[#FFF8F0] border border-[#E5E1D8] dark:border-[#D0C8C0] rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-red-500" />
+                    </div>
+                  </div>
+                  <button onClick={async () => {
+                    if (!newVoucherForm.userId) return setMembershipMsg('Vui lòng nhập User ID');
+                    try {
+                      await ApiService.adminCreateVoucher(newVoucherForm);
+                      setMembershipMsg('Đã tạo voucher thành công');
+                      loadAllVouchers();
+                      setNewVoucherForm({ userId: 0, tierId: 1, discountPercent: 10, maxDiscount: 50000, minOrderAmount: 0 });
+                    } catch { setMembershipMsg('Lỗi tạo voucher'); }
+                  }} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-xs font-bold cursor-pointer">Cấp voucher</button>
+                  {membershipMsg && <p className="text-xs text-emerald-600">{membershipMsg}</p>}
+                </div>
+
+                {/* Voucher list */}
+                <div className="bg-[#F3F0E9] dark:bg-[#FFF9F2] rounded-2xl border border-[#E5E1D8] dark:border-[#E0D8D0] overflow-hidden">
+                  <div className="p-3 border-b border-[#E5E1D8] dark:border-[#E0D8D0] flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-[#2D241E]">Danh sách Voucher ({allVouchers.length})</h4>
+                    <div className="flex gap-1">
+                      <button onClick={() => loadAllVouchers()} className="px-2 py-1 bg-white dark:bg-[#FFF8F0] border border-[#E5E1D8] rounded-lg text-[10px] text-[#8B7E74] hover:text-[#2D241E] cursor-pointer"><RefreshCw className="w-3 h-3 inline" /></button>
+                    </div>
+                  </div>
+                  {allVouchers.length === 0 ? (
+                    <p className="p-6 text-center text-xs text-[#8B7E74] italic">Chưa có voucher nào.</p>
+                  ) : (
+                    <div className="max-h-80 overflow-y-auto">
+                      {allVouchers.map(v => (
+                        <div key={v.id} className="px-4 py-2.5 border-b border-[#F3F0E9] flex items-center justify-between text-xs">
+                          <div>
+                            <p className="font-semibold text-[#2D241E]">{v.code} <span className="text-[#E74C3C]">-{v.discountPercent}%</span></p>
+                            <p className="text-[10px] text-[#8B7E74]">User #{v.userId} · {getTierName(v.tierId)} · {v.status === 'available' ? '🟢 Khả dụng' : v.status === 'used' ? '🔴 Đã dùng' : '⚫ Hết hạn'}</p>
+                          </div>
+                          <div className="text-right text-[10px] text-[#8B7E74]">
+                            <p>{v.issuedAt ? new Date(v.issuedAt).toLocaleDateString('vi-VN') : ''}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
