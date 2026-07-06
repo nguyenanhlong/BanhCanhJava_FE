@@ -82,7 +82,8 @@ export function AdminDashboard({
   onDeleteProduct
 }: AdminDashboardProps) {
   const isSuperAdmin = userRole === 'super_admin';
-  const [adminTab, setAdminTab] = useState<'stats' | 'orders' | 'products' | 'categories' | 'toppings' | 'promotions' | 'reviews' | 'invoices' | 'drivers' | 'users' | 'permissions' | 'role-manager' | 'delivery-areas' | 'membership-tiers' | 'delivery-trips' | 'payment-transactions' | 'order-history'>('stats');
+  const isAdminOrSuper = userRole === 'admin' || userRole === 'super_admin';
+  const [adminTab, setAdminTab] = useState<'stats' | 'orders' | 'products' | 'categories' | 'toppings' | 'promotions' | 'reviews' | 'invoices' | 'drivers' | 'users' | 'permissions' | 'delivery-areas' | 'membership-tiers' | 'delivery-trips' | 'payment-transactions' | 'order-history'>('stats');
   const tabsRef = useRef<HTMLDivElement>(null);
   const [selectedFEFile, setSelectedFEFile] = useState(0);
 
@@ -98,11 +99,11 @@ export function AdminDashboard({
       loadAllMemberships();
       loadAllVouchers();
     }
+    if (adminTab === 'permissions') {
+      loadRoles();
+    }
     if (adminTab === 'toppings') {
       loadProductOptions();
-    }
-    if (adminTab === 'role-manager') {
-      loadRoles();
     }
     if (adminTab === 'delivery-trips') {
       loadDeliveryTrips();
@@ -527,7 +528,9 @@ export function AdminDashboard({
   const [membershipSubTab, setMembershipSubTab] = useState<'tiers' | 'members' | 'vouchers'>('tiers');
   const [allMemberships, setAllMemberships] = useState<UserMembership[]>([]);
   const [allVouchers, setAllVouchers] = useState<MembershipVoucher[]>([]);
-  const [newVoucherForm, setNewVoucherForm] = useState({ userId: 0, tierId: 1, discountPercent: 10, maxDiscount: 50000, minOrderAmount: 0 });
+  const [newVoucherForm, setNewVoucherForm] = useState({ tierId: 1, discountPercent: 10, maxDiscount: 50000, minOrderAmount: 0, code: '', status: 'available', expiresAt: '' });
+  const [assignToAll, setAssignToAll] = useState(false);
+  const [selectedVoucherUserIds, setSelectedVoucherUserIds] = useState<Set<number>>(new Set());
   const [membershipMsg, setMembershipMsg] = useState('');
 
   const loadAllMemberships = async () => {
@@ -1287,7 +1290,7 @@ export function AdminDashboard({
    const tabClass = (tab: string) =>
     `px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
       adminTab === tab
-        ? tab === 'stats' || tab === 'users' || tab === 'permissions' || tab === 'role-manager'
+        ? tab === 'stats' || tab === 'users' || tab === 'permissions'
           ? 'bg-[#E74C3C] text-white shadow-xs'
           : 'bg-[#E74C3C] dark:bg-[#E74C3C] text-white dark:text-white shadow-xs'
         : 'text-[#3E2F26] dark:text-[#3E2F26] hover:bg-[#E5E1D8] dark:hover:bg-[#E8E0D8]'
@@ -1323,8 +1326,7 @@ export function AdminDashboard({
             <button onClick={() => setAdminTab('delivery-areas')} className={`shrink-0 ${tabClass('delivery-areas')}`}>🗺️ Khu Vực GH</button>
             <button onClick={() => { handleRefreshUsers(); setAdminTab('users'); }} className={`shrink-0 ${tabClass('users')}`}>👥 Người dùng</button>
             {isSuperAdmin && <button onClick={() => setAdminTab('permissions')} className={`shrink-0 ${tabClass('permissions')}`}>🔐 Phân quyền & Vai trò</button>}
-            <button onClick={() => setAdminTab('role-manager')} className={`shrink-0 ${tabClass('role-manager')}`}>🎭 Vai trò - Phân quyền</button>
-            {isSuperAdmin && <button onClick={() => setAdminTab('membership-tiers')} className={`shrink-0 ${tabClass('membership-tiers')}`}>🏅 Hạng TV</button>}
+            {isAdminOrSuper && <button onClick={() => setAdminTab('membership-tiers')} className={`shrink-0 ${tabClass('membership-tiers')}`}>🏅 Hạng TV</button>}
             <button onClick={() => setAdminTab('delivery-trips')} className={`shrink-0 ${tabClass('delivery-trips')}`}>🚚 Chuyến GH</button>
             <button onClick={() => setAdminTab('payment-transactions')} className={`shrink-0 ${tabClass('payment-transactions')}`}>💳 GD Thanh Toán</button>
             <button onClick={() => setAdminTab('order-history')} className={`shrink-0 ${tabClass('order-history')}`}>📜 Lịch Sử ĐH</button>
@@ -2926,7 +2928,7 @@ export function AdminDashboard({
         )}
 
         {/* TAB: MEMBERSHIP TIERS */}
-        {adminTab === 'membership-tiers' && isSuperAdmin && (
+        {adminTab === 'membership-tiers' && isAdminOrSuper && (
           <div className="space-y-4">
             <div className="flex justify-between items-center border-b border-[#F3F0E9] dark:border-[#E0D8D0] pb-3">
               <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#2D241E]">🏅 Hạng Thành Viên</h3>
@@ -3058,36 +3060,99 @@ export function AdminDashboard({
                 {/* Create voucher form */}
                 <div className="bg-[#F3F0E9] dark:bg-[#FFF9F2] p-4 rounded-2xl border border-[#E5E1D8] dark:border-[#E0D8D0] space-y-3">
                   <h4 className="text-sm font-bold text-[#2D241E] dark:text-[#2D241E]">🎫 Cấp Voucher</h4>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div>
-                      <label className="text-[10px] font-bold text-[#8B7E74] uppercase">Người dùng (ID)</label>
-                      <input type="number" value={newVoucherForm.userId || ''} onChange={e => setNewVoucherForm(p => ({ ...p, userId: parseInt(e.target.value) || 0 }))} placeholder="Nhập User ID" className="w-full mt-1 bg-white dark:bg-[#FFF8F0] border border-[#E5E1D8] dark:border-[#D0C8C0] rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-red-500" />
-                    </div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                     <div>
                       <label className="text-[10px] font-bold text-[#8B7E74] uppercase">Hạng</label>
-                      <select value={newVoucherForm.tierId} onChange={e => setNewVoucherForm(p => ({ ...p, tierId: parseInt(e.target.value) }))} className="w-full mt-1 bg-white dark:bg-[#FFF8F0] border border-[#E5E1D8] dark:border-[#D0C8C0] rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-red-500">
+                      <select value={newVoucherForm.tierId} onChange={e => { setNewVoucherForm(p => ({ ...p, tierId: parseInt(e.target.value) })); setSelectedVoucherUserIds(new Set()); }} className="w-full mt-1 bg-white dark:bg-[#FFF8F0] border border-[#E5E1D8] dark:border-[#D0C8C0] rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-red-500">
                         {membershipTiers.map(t => <option key={t.id} value={t.id}>{t.displayName}</option>)}
                       </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-[#8B7E74] uppercase">Mã (để trống tự sinh)</label>
+                      <input type="text" value={newVoucherForm.code} onChange={e => setNewVoucherForm(p => ({ ...p, code: e.target.value }))} placeholder="VD: SUMMER2026" className="w-full mt-1 bg-white dark:bg-[#FFF8F0] border border-[#E5E1D8] dark:border-[#D0C8C0] rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-red-500" />
                     </div>
                     <div>
                       <label className="text-[10px] font-bold text-[#8B7E74] uppercase">Giảm (%)</label>
                       <input type="number" value={newVoucherForm.discountPercent} onChange={e => setNewVoucherForm(p => ({ ...p, discountPercent: parseFloat(e.target.value) || 0 }))} className="w-full mt-1 bg-white dark:bg-[#FFF8F0] border border-[#E5E1D8] dark:border-[#D0C8C0] rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-red-500" />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-[#8B7E74] uppercase">Giảm tối đa</label>
+                      <label className="text-[10px] font-bold text-[#8B7E74] uppercase">Giảm tối đa (₫)</label>
                       <input type="number" value={newVoucherForm.maxDiscount} onChange={e => setNewVoucherForm(p => ({ ...p, maxDiscount: parseFloat(e.target.value) || 0 }))} className="w-full mt-1 bg-white dark:bg-[#FFF8F0] border border-[#E5E1D8] dark:border-[#D0C8C0] rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-red-500" />
                     </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-[#8B7E74] uppercase">Đơn tối thiểu (₫)</label>
+                      <input type="number" value={newVoucherForm.minOrderAmount} onChange={e => setNewVoucherForm(p => ({ ...p, minOrderAmount: parseFloat(e.target.value) || 0 }))} className="w-full mt-1 bg-white dark:bg-[#FFF8F0] border border-[#E5E1D8] dark:border-[#D0C8C0] rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-red-500" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-[#8B7E74] uppercase">Trạng thái</label>
+                      <select value={newVoucherForm.status} onChange={e => setNewVoucherForm(p => ({ ...p, status: e.target.value }))} className="w-full mt-1 bg-white dark:bg-[#FFF8F0] border border-[#E5E1D8] dark:border-[#D0C8C0] rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-red-500">
+                        <option value="available">🟢 Khả dụng</option>
+                        <option value="expired">⚫ Hết hạn</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-[#8B7E74] uppercase">Hết hạn ngày</label>
+                      <input type="date" value={newVoucherForm.expiresAt} onChange={e => setNewVoucherForm(p => ({ ...p, expiresAt: e.target.value }))} className="w-full mt-1 bg-white dark:bg-[#FFF8F0] border border-[#E5E1D8] dark:border-[#D0C8C0] rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-red-500" />
+                    </div>
+                    <div className="flex items-end">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={assignToAll} onChange={e => { setAssignToAll(e.target.checked); setSelectedVoucherUserIds(new Set()); }} className="w-4 h-4 accent-[#E74C3C]" />
+                        <span className="text-[10px] font-bold text-[#2D241E]">Cấp cho tất cả <span className="text-[#E74C3C]">({(usersByTier[newVoucherForm.tierId] || []).length} TV)</span></span>
+                      </label>
+                    </div>
                   </div>
+
+                  {/* User selector */}
+                  {!assignToAll && (
+                    <div className="max-h-40 overflow-y-auto space-y-1 border border-[#E5E1D8] rounded-xl p-2 bg-white dark:bg-[#FFF8F0]">
+                      {(usersByTier[newVoucherForm.tierId] || []).length === 0 ? (
+                        <p className="text-[10px] text-[#8B7E74] italic text-center py-2">Không có thành viên nào trong hạng này.</p>
+                      ) : (
+                        (usersByTier[newVoucherForm.tierId] || []).map((u: any) => (
+                          <label key={u.id} className="flex items-center gap-2 p-1.5 rounded hover:bg-[#F3F0E9] cursor-pointer">
+                            <input type="checkbox" checked={selectedVoucherUserIds.has(u.id)}
+                              onChange={() => {
+                                const next = new Set(selectedVoucherUserIds);
+                                if (next.has(u.id)) next.delete(u.id); else next.add(u.id);
+                                setSelectedVoucherUserIds(next);
+                              }}
+                              className="w-4 h-4 accent-[#E74C3C]" />
+                            <span className="text-xs text-[#2D241E]">{u.fullName || u.username || u.email} <span className="text-[#8B7E74]">#{u.id}</span></span>
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  )}
+
                   <button onClick={async () => {
-                    if (!newVoucherForm.userId) return setMembershipMsg('Vui lòng nhập User ID');
+                    const tierUsers = usersByTier[newVoucherForm.tierId] || [];
+                    let userIds: number[];
+                    if (assignToAll) {
+                      userIds = tierUsers.map((u: any) => u.id);
+                    } else {
+                      userIds = Array.from(selectedVoucherUserIds);
+                    }
+                    if (userIds.length === 0) return setMembershipMsg('Vui lòng chọn ít nhất một người dùng');
                     try {
-                      await ApiService.adminCreateVoucher(newVoucherForm);
-                      setMembershipMsg('Đã tạo voucher thành công');
+                      const payload: any = {
+                        tierId: newVoucherForm.tierId,
+                        userIds,
+                        discountPercent: newVoucherForm.discountPercent,
+                        maxDiscount: newVoucherForm.maxDiscount,
+                        minOrderAmount: newVoucherForm.minOrderAmount,
+                        status: newVoucherForm.status,
+                      };
+                      if (newVoucherForm.code) payload.code = newVoucherForm.code;
+                      if (newVoucherForm.expiresAt) payload.expiresAt = newVoucherForm.expiresAt;
+                      const res = await ApiService.adminCreateVouchersBatch(payload);
+                      setMembershipMsg(`Đã tạo ${res.created} voucher thành công`);
                       loadAllVouchers();
-                      setNewVoucherForm({ userId: 0, tierId: 1, discountPercent: 10, maxDiscount: 50000, minOrderAmount: 0 });
+                      setSelectedVoucherUserIds(new Set());
+                      setAssignToAll(false);
+                      setNewVoucherForm(p => ({ ...p, code: '', status: 'available', expiresAt: '' }));
                     } catch { setMembershipMsg('Lỗi tạo voucher'); }
                   }} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-xs font-bold cursor-pointer">Cấp voucher</button>
-                  {membershipMsg && <p className="text-xs text-emerald-600">{membershipMsg}</p>}
+                  {membershipMsg && <p className={`text-xs ${membershipMsg.startsWith('Đã') ? 'text-emerald-600' : 'text-red-500'}`}>{membershipMsg}</p>}
                 </div>
 
                 {/* Voucher list */}
@@ -3268,11 +3333,11 @@ export function AdminDashboard({
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#3E2F26] uppercase">Vai trò</label>
-                  <select value={accountForm.roleId} onChange={e => setAccountForm(prev => ({ ...prev, roleId: Number(e.target.value) }))}
-                    className="w-full text-xs p-2 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] bg-white dark:bg-[#FFF8F0] text-[#2D241E] dark:text-[#2D241E] focus:outline-[#E74C3C]">
-                    <option value={0}>-- Chọn role --</option>
-                    {roleList.map(r => <option key={r.id} value={r.id}>{r.display} ({r.name})</option>)}
-                  </select>
+                    <select value={accountForm.roleId} onChange={e => setAccountForm(prev => ({ ...prev, roleId: Number(e.target.value) }))}
+                      className="w-full text-xs p-2 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] bg-white dark:bg-[#FFF8F0] text-[#2D241E] dark:[#2D241E] focus:outline-[#E74C3C]">
+                      <option value={0}>-- Chọn role --</option>
+                      {roleList.filter(r => isSuperAdmin || r.name !== 'super_admin').map(r => <option key={r.id} value={r.id}>{r.display} ({r.name})</option>)}
+                    </select>
                 </div>
                 <button type="submit" className="bg-[#E74C3C] hover:bg-[#E74C3C]/90 text-white font-bold px-4 py-2 rounded-lg text-xs cursor-pointer">
                   Tạo TK
@@ -3299,143 +3364,6 @@ export function AdminDashboard({
                   </table>
                 </div>
               )}
-            </div>
-          </div>
-        )}
-
-        {/* TAB: ROLE MANAGER */}
-        {adminTab === 'role-manager' && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center border-b border-[#F3F0E9] dark:border-[#E0D8D0] pb-3">
-              <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#2D241E]">🎭 Vai trò - Phân quyền</h3>
-              <span className="text-xs text-[#8B7E74] dark:text-[#8B7E74]">Quản lý vai trò và phân quyền chi tiết theo module</span>
-            </div>
-
-            {roleManagerMsg && (
-              <div className={`text-xs font-bold px-4 py-3 rounded-2xl border ${
-                roleManagerMsg.type === 'success'
-                  ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/40'
-                  : 'bg-red-50 dark:bg-red-950/20 text-red-800 dark:text-red-400 border-red-200 dark:border-red-900/40'
-              }`}>
-                {roleManagerMsg.text}
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              {/* Left Panel: Role List + CRUD */}
-              <div className="lg:col-span-4 space-y-4">
-                <div className="bg-[#F3F0E9] dark:bg-[#FFF0E0] p-4 rounded-2xl border border-[#E5E1D8] dark:border-[#D0C8C0]">
-                  <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#2D241E] mb-3">
-                    {editingRoleId !== null ? <><Edit3 className="w-4 h-4 inline mr-1 text-[#E74C3C]" /> Sửa Vai Trò</> : <><Plus className="w-4 h-4 inline mr-1 text-emerald-500" /> Thêm Vai Trò</>}
-                  </h4>
-                  <form onSubmit={handleRoleFormSubmit} className="space-y-2">
-                    <input type="text" required placeholder="ROLE_NAME (vd: MANAGER)"
-                      value={roleForm.name}
-                      onChange={(e) => setRoleForm(prev => ({ ...prev, name: e.target.value }))}
-                      className="w-full text-xs p-2 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] bg-white dark:bg-[#FFF8F0] text-[#2D241E] dark:text-[#2D241E] focus:outline-[#E74C3C]" />
-                    <input type="text" required placeholder="Tên hiển thị"
-                      value={roleForm.display}
-                      onChange={(e) => setRoleForm(prev => ({ ...prev, display: e.target.value }))}
-                      className="w-full text-xs p-2 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] bg-white dark:bg-[#FFF8F0] text-[#2D241E] dark:text-[#2D241E] focus:outline-[#E74C3C]" />
-                    <input type="text" placeholder="Mô tả"
-                      value={roleForm.desc}
-                      onChange={(e) => setRoleForm(prev => ({ ...prev, desc: e.target.value }))}
-                      className="w-full text-xs p-2 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] bg-white dark:bg-[#FFF8F0] text-[#2D241E] dark:text-[#2D241E] focus:outline-[#E74C3C]" />
-                    <div className="flex gap-2">
-                      {editingRoleId !== null && (
-                        <button type="button" onClick={() => { setEditingRoleId(null); setRoleForm({ name: '', display: '', desc: '' }); }}
-                          className="px-3 py-1.5 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] text-xs font-bold text-[#3E2F26] dark:text-[#3E2F26] hover:bg-[#E5E1D8] dark:hover:bg-[#E8E0D8] cursor-pointer">
-                          <X className="w-3 h-3 inline mr-1" />Hủy
-                        </button>
-                      )}
-                      <button type="submit"
-                        className="px-4 py-1.5 rounded-lg bg-[#E74C3C] dark:bg-[#E74C3C] text-white dark:text-white text-xs font-bold hover:opacity-90 cursor-pointer">
-                        {editingRoleId !== null ? 'Cập Nhật' : 'Thêm'}
-                      </button>
-                    </div>
-                  </form>
-                </div>
-
-                <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
-                  {roleManagerLoading && roleList.length === 0 && (
-                    <div className="p-4 text-center text-[10px] text-[#8B7E74] italic">Đang tải danh sách vai trò...</div>
-                  )}
-                  {roleList.map(r => (
-                    <div
-                      key={r.id}
-                      onClick={() => handleRoleSelect(r)}
-                      className={`p-3 rounded-xl border cursor-pointer transition-all ${
-                        selectedRoleForPerms?.id === r.id
-                          ? 'bg-red-50 dark:bg-red-950/20 border-[#E74C3C] dark:border-red-700'
-                          : 'bg-[#FAF8F5] dark:bg-[#FFFAF3] border-[#E5E1D8] dark:border-[#E0D8D0] hover:border-red-300'
-                      }`}
-                    >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <p className="font-bold text-xs text-[#E74C3C] font-mono">{r.name}</p>
-                          <p className="text-xs text-[#2D241E] dark:text-[#2D241E]">{r.display}</p>
-                          <p className="text-[9px] text-[#8B7E74]">{r.desc}</p>
-                        </div>
-                        <div className="flex gap-1">
-                          <button onClick={(e) => { e.stopPropagation(); handleEditRole(r); }}
-                            className="p-1 rounded bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-950/50 cursor-pointer">
-                            <Edit3 className="w-3 h-3" />
-                          </button>
-                          <button onClick={(e) => { e.stopPropagation(); handleDeleteRole(r.id); }}
-                            className="p-1 rounded bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-950/50 cursor-pointer">
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Right Panel: Permission checkboxes */}
-              <div className="lg:col-span-8">
-                {selectedRoleForPerms ? (
-                  <div className="bg-[#FAF8F5] dark:bg-[#FFFAF3] p-5 rounded-2xl border border-[#E5E1D8] dark:border-[#E0D8D0]">
-                    <div className="flex justify-between items-center mb-4">
-                      <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#2D241E]">
-                        Quyền hạn cho <span className="text-[#E74C3C] font-mono">{selectedRoleForPerms.name}</span>
-                      </h4>
-                      <button
-                        onClick={handleSavePermissions}
-                        className="px-4 py-1.5 rounded-lg bg-[#E74C3C] hover:bg-[#E74C3C]/90 text-white text-xs font-bold cursor-pointer"
-                      >
-                        {roleManagerLoading ? 'Đang lưu...' : 'Lưu Phân Quyền'}
-                      </button>
-                    </div>
-
-                    {roleManagerLoading && (
-                      <div className="text-center text-[10px] text-amber-500 animate-pulse py-2">⏳ Đang đồng bộ quyền...</div>
-                    )}
-
-                    <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
-                      {PERMISSION_MODULES.map(mod => (
-                        <div key={mod.module} className="bg-white dark:bg-[#FFF8F0] p-3 rounded-xl border border-[#E5E1D8] dark:border-[#E0D8D0]">
-                          <h5 className="font-bold text-xs text-[#E74C3C] uppercase mb-2">{mod.label}</h5>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                            {mod.permissions.map(perm => (
-                              <label key={perm.code} className="flex items-center gap-2 p-1.5 rounded hover:bg-[#F3F0E9] dark:hover:bg-[#E5DDD5] cursor-pointer">
-                                <input type="checkbox" checked={!!checkPermissions[perm.code]}
-                                  onChange={() => handlePermissionToggle(perm.code)}
-                                  className="w-4 h-4 accent-[#E74C3C] cursor-pointer" />
-                                <span className="text-[10px] text-[#3E2F26] dark:text-[#3E2F26]">{perm.name}</span>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="bg-[#FAF8F5] dark:bg-[#FFFAF3] p-8 rounded-2xl border border-[#E5E1D8] dark:border-[#E0D8D0] flex items-center justify-center">
-                    <p className="text-xs text-[#8B7E74] italic">Chọn một vai trò ở bên trái để xem và chỉnh sửa quyền hạn</p>
-                  </div>
-                )}
-              </div>
             </div>
           </div>
         )}
@@ -3596,6 +3524,7 @@ export function AdminDashboard({
                       <option value="customer">Khách hàng</option>
                       <option value="driver">Tài xế</option>
                       <option value="admin">Quản trị</option>
+                      {isSuperAdmin && <option value="super_admin">Super Admin</option>}
                     </select>
                     <div className="flex gap-2 pt-1">
                       <button onClick={() => setShowUserRoleForm(false)}
