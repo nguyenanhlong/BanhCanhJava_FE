@@ -28,6 +28,7 @@ interface AdminDashboardProps {
   onCreateProduct?: (product: Omit<Product, 'id'>) => void;
   onUpdateProduct?: (id: string, product: Omit<Product, 'id'>) => void;
   onDeleteProduct?: (id: string) => void;
+  onShowToast?: (message: string, type?: 'success' | 'info' | 'warning' | 'error', title?: string) => void;
 }
 
 interface ToppingItem { id: number; productId: number; name: string; optionGroup: string; price: number; isRequired: boolean; isActive: boolean; displayOrder: number; productName?: string; }
@@ -79,7 +80,8 @@ export function AdminDashboard({
   onUpdateOrderProgress,
   onCreateProduct,
   onUpdateProduct,
-  onDeleteProduct
+  onDeleteProduct,
+  onShowToast
 }: AdminDashboardProps) {
   const isSuperAdmin = userRole === 'super_admin';
   const isAdminOrSuper = userRole === 'admin' || userRole === 'super_admin';
@@ -197,8 +199,10 @@ export function AdminDashboard({
       setSelectedUser((prev: any) => ({ ...prev, ...updated }));
       setUserActionMsg({ type: 'success', text: 'Đã cập nhật thông tin!' });
       setShowUserEditForm(false);
+      onShowToast?.('Đã cập nhật thông tin người dùng', 'success', 'Người dùng');
     } catch (err: any) {
       setUserActionMsg({ type: 'error', text: err.message || 'Lỗi cập nhật' });
+      onShowToast?.(err.message || 'Lỗi cập nhật', 'error', 'Người dùng');
     } finally {
       setUserActionLoading(false);
     }
@@ -214,8 +218,10 @@ export function AdminDashboard({
       setSelectedUser((prev: any) => ({ ...prev, role: userNewRole }));
       setUserActionMsg({ type: 'success', text: `Đã đổi vai trò thành "${userNewRole}"` });
       setShowUserRoleForm(false);
+      onShowToast?.(`Đã đổi vai trò thành "${userNewRole}"`, 'success', 'Phân quyền');
     } catch (err: any) {
       setUserActionMsg({ type: 'error', text: err.message || 'Lỗi đổi vai trò' });
+      onShowToast?.(err.message || 'Lỗi đổi vai trò', 'error', 'Phân quyền');
     } finally {
       setUserActionLoading(false);
     }
@@ -230,6 +236,7 @@ export function AdminDashboard({
       setApiUsers(prev => prev.map(u => u.id === selectedUser.id ? { ...u, isActive: res.isActive } : u));
       setSelectedUser((prev: any) => ({ ...prev, isActive: res.isActive }));
       setUserActionMsg({ type: 'success', text: res.isActive ? 'Đã mở khoá tài khoản' : 'Đã khoá tài khoản' });
+      onShowToast?.(res.isActive ? 'Đã mở khoá tài khoản' : 'Đã khoá tài khoản', 'success', 'Tài khoản');
     } catch (err: any) {
       setUserActionMsg({ type: 'error', text: err.message || 'Lỗi thay đổi trạng thái' });
     } finally {
@@ -246,8 +253,10 @@ export function AdminDashboard({
       setUserActionMsg({ type: 'success', text: 'Đã đặt lại mật khẩu!' });
       setShowUserPasswordForm(false);
       setUserNewPassword('');
+      onShowToast?.('Đã đặt lại mật khẩu', 'success', 'Tài khoản');
     } catch (err: any) {
       setUserActionMsg({ type: 'error', text: err.message || 'Lỗi đặt lại mật khẩu' });
+      onShowToast?.(err.message || 'Lỗi đặt lại mật khẩu', 'error', 'Tài khoản');
     } finally {
       setUserActionLoading(false);
     }
@@ -263,8 +272,10 @@ export function AdminDashboard({
       setApiUsers(prev => prev.filter(u => u.id !== selectedUser.id));
       setUserActionMsg({ type: 'success', text: `Đã xoá tài khoản "${selectedUser.username}"` });
       setSelectedUser(null);
+      onShowToast?.(`Đã xoá tài khoản "${selectedUser.username}"`, 'success', 'Tài khoản');
     } catch (err: any) {
       setUserActionMsg({ type: 'error', text: err.message || 'Lỗi xoá tài khoản' });
+      onShowToast?.(err.message || 'Lỗi xoá tài khoản', 'error', 'Tài khoản');
     } finally {
       setUserActionLoading(false);
     }
@@ -509,7 +520,8 @@ export function AdminDashboard({
       }
       setMembershipTierForm({ name: '', displayName: '', minTotalSpent: 0, minTotalOrders: 0, autoDiscountPercent: 0, voucherCount: 0, voucherDiscountPercent: 0 });
       setEditingMembershipTierId(null);
-    } catch { setMembershipTierError('Lỗi lưu hạng thành viên'); }
+      onShowToast?.(editingMembershipTierId ? 'Đã cập nhật hạng thành viên' : 'Đã tạo hạng thành viên mới', 'success', 'Hạng TV');
+    } catch { setMembershipTierError('Lỗi lưu hạng thành viên'); onShowToast?.('Lỗi lưu hạng thành viên', 'error', 'Hạng TV'); }
   };
 
   const handleEditMembershipTier = (t: MembershipTier) => {
@@ -521,7 +533,8 @@ export function AdminDashboard({
     try {
       if (isBackendConnected) await ApiService.deleteMembershipTier(id);
       setMembershipTiers(prev => prev.filter(t => t.id !== id));
-    } catch { setMembershipTierError('Lỗi xóa hạng'); }
+      onShowToast?.('Đã xoá hạng thành viên', 'success', 'Hạng TV');
+    } catch { setMembershipTierError('Lỗi xóa hạng'); onShowToast?.('Lỗi xóa hạng thành viên', 'error', 'Hạng TV'); }
   };
 
   // Membership sub-tab
@@ -1220,8 +1233,10 @@ export function AdminDashboard({
       }
       setRoleManagerMsg({ type: 'success', text: 'Đã lưu phân quyền!' });
       setTimeout(() => setRoleManagerMsg(null), 3000);
+      onShowToast?.('Đã lưu phân quyền!', 'success', 'Phân quyền');
     } catch (err: any) {
       setRoleManagerMsg({ type: 'error', text: err.message || 'Lỗi lưu phân quyền' });
+      onShowToast?.(err.message || 'Lỗi lưu phân quyền', 'error', 'Phân quyền');
     } finally {
       setRoleManagerLoading(false);
     }
@@ -1240,6 +1255,7 @@ export function AdminDashboard({
           setRoleList(roleList.map(r => r.id === editingRoleId ? { ...r, ...roleForm } : r));
         }
         setRoleManagerMsg({ type: 'success', text: 'Đã cập nhật vai trò!' });
+        onShowToast?.('Đã cập nhật vai trò!', 'success', 'Vai trò');
       } else {
         let newRole: any;
         if (isBackendConnected) {
@@ -1251,12 +1267,14 @@ export function AdminDashboard({
         }
         setRoleList([...roleList, newRole]);
         setRoleManagerMsg({ type: 'success', text: `Đã tạo vai trò "${roleForm.name}"! Vai trò mới chưa có quyền, hãy chọn để phân quyền.` });
+        onShowToast?.(`Đã tạo vai trò "${roleForm.name}"`, 'success', 'Vai trò');
       }
       setTimeout(() => setRoleManagerMsg(null), 3000);
       setRoleForm({ name: '', display: '', desc: '' });
       setEditingRoleId(null);
     } catch (err: any) {
       setRoleManagerMsg({ type: 'error', text: err.message || 'Lỗi khi lưu vai trò' });
+      onShowToast?.(err.message || 'Lỗi khi lưu vai trò', 'error', 'Vai trò');
     }
   };
 
@@ -1282,8 +1300,10 @@ export function AdminDashboard({
       }
       setRoleManagerMsg({ type: 'success', text: 'Đã xoá vai trò!' });
       setTimeout(() => setRoleManagerMsg(null), 3000);
+      onShowToast?.('Đã xoá vai trò!', 'success', 'Vai trò');
     } catch (err: any) {
       setRoleManagerMsg({ type: 'error', text: err.message || 'Lỗi xoá vai trò' });
+      onShowToast?.(err.message || 'Lỗi xoá vai trò', 'error', 'Vai trò');
     }
   };
 
@@ -1897,10 +1917,9 @@ export function AdminDashboard({
                         try {
                           const url = await ApiService.uploadImage(file, 'avatar_Image');
                           setDriverAvatarUrl(url);
-                        } catch {
-                          const reader = new FileReader();
-                          reader.onload = () => setDriverAvatarUrl(reader.result as string);
-                          reader.readAsDataURL(file);
+                          onShowToast?.('Tải ảnh lên S3 thành công', 'success', 'Avatar');
+                        } catch (err: any) {
+                          onShowToast?.(err.message || 'Không thể tải ảnh lên S3', 'error', 'Avatar');
                         } finally {
                           setUploadingDriverAvatar(false);
                           e.target.value = '';
@@ -1998,10 +2017,9 @@ export function AdminDashboard({
                           try {
                             const url = await ApiService.uploadImage(file, 'avatar_Image');
                             setDriverEditForm(p => ({ ...p, avatarUrl: url }));
-                          } catch {
-                            const reader = new FileReader();
-                            reader.onload = () => setDriverEditForm(p => ({ ...p, avatarUrl: reader.result as string }));
-                            reader.readAsDataURL(file);
+                            onShowToast?.('Tải ảnh lên S3 thành công', 'success', 'Avatar');
+                          } catch (err: any) {
+                            onShowToast?.(err.message || 'Không thể tải ảnh lên S3', 'error', 'Avatar');
                           }
                           e.target.value = '';
                         }} />
@@ -3146,11 +3164,12 @@ export function AdminDashboard({
                       if (newVoucherForm.expiresAt) payload.expiresAt = newVoucherForm.expiresAt;
                       const res = await ApiService.adminCreateVouchersBatch(payload);
                       setMembershipMsg(`Đã tạo ${res.created} voucher thành công`);
+                      onShowToast?.(`Đã tạo ${res.created} voucher thành công`, 'success', 'Voucher');
                       loadAllVouchers();
                       setSelectedVoucherUserIds(new Set());
                       setAssignToAll(false);
                       setNewVoucherForm(p => ({ ...p, code: '', status: 'available', expiresAt: '' }));
-                    } catch { setMembershipMsg('Lỗi tạo voucher'); }
+                    } catch { setMembershipMsg('Lỗi tạo voucher'); onShowToast?.('Lỗi tạo voucher', 'error', 'Voucher'); }
                   }} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-xs font-bold cursor-pointer">Cấp voucher</button>
                   {membershipMsg && <p className={`text-xs ${membershipMsg.startsWith('Đã') ? 'text-emerald-600' : 'text-red-500'}`}>{membershipMsg}</p>}
                 </div>

@@ -858,6 +858,7 @@ export default function App() {
             onCreateProduct={handleCreateProduct}
             onUpdateProduct={handleUpdateProduct}
             onDeleteProduct={handleDeleteProduct}
+            onShowToast={showToast}
           />
         </main>
 
@@ -1103,6 +1104,7 @@ export default function App() {
             onCreateProduct={handleCreateProduct}
             onUpdateProduct={handleUpdateProduct}
             onDeleteProduct={handleDeleteProduct}
+            onShowToast={showToast}
           />
         )}
 
