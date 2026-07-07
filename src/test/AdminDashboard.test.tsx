@@ -36,9 +36,9 @@ vi.mock('../services/api', () => ({
 }));
 
 const mockOrders: Order[] = [
-  { id: '1', customerName: 'Nguyễn Văn A', phone: '0909123456', address: '123 Đường ABC', orderType: 'delivery', subtotal: 65000, discountAmount: 0, shippingFee: 10000, totalAmount: 75000, paymentMethod: 'cod', paymentStatus: 'pending', status: 'pending', items: [{ productName: 'Bánh Canh Cá Lóc', quantity: 1, price: 65000 }], createdAt: '2024-01-01T10:00:00Z' },
+  { id: '1', customerName: 'Nguyễn Văn A', phone: '0909123456', address: '123 Đường ABC', orderType: 'delivery', subtotal: 65000, discountAmount: 0, shippingFee: 10000, totalAmount: 75000, paymentMethod: 'cod', paymentStatus: 'pending', status: 'pending', items: [{ productName: 'Bánh Canh Cá Lóc', quantity: 1, price: 65000, subtotal: 65000 }], createdAt: '2024-01-01T10:00:00Z' },
   { id: '2', customerName: 'Trần Thị B', phone: '0909987654', address: '456 Đường XYZ', orderType: 'delivery', subtotal: 130000, discountAmount: 0, shippingFee: 10000, totalAmount: 140000, paymentMethod: 'momo', paymentStatus: 'paid', status: 'completed', items: [], createdAt: '2024-01-02T10:00:00Z' },
-  { id: '3', customerName: 'Lê Văn C', phone: '0909777888', address: '789 Đường LMN', orderType: 'dine-in', subtotal: 50000, discountAmount: 5000, shippingFee: 0, totalAmount: 45000, paymentMethod: 'cash', paymentStatus: 'paid', status: 'cancelled', items: [], createdAt: '2024-01-03T10:00:00Z' },
+  { id: '3', customerName: 'Lê Văn C', phone: '0909777888', address: '789 Đường LMN', orderType: 'dine-in', subtotal: 50000, discountAmount: 5000, shippingFee: 0, totalAmount: 45000, paymentMethod: 'cod', paymentStatus: 'paid', status: 'cancelled', items: [], createdAt: '2024-01-03T10:00:00Z' },
 ];
 
 const mockDrivers: Driver[] = [
