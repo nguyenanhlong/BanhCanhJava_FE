@@ -374,42 +374,6 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModalProps) {
             />
           </div>
 
-          {/* Role selection representing role to Register / Login with */}
-          {!isRegisterStep ? (
-            <div>
-              <label className="block text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase mb-2">
-                Vai trò đăng nhập nhanh (Trải nghiệm):
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedRole('customer')}
-                  className={`py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
-                    selectedRole === 'customer'
-                      ? 'bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] border-[#2D241E] dark:border-[#FAF8F5]'
-                      : 'bg-white dark:bg-[#1C1311] text-[#3E2F26] dark:text-[#EAE3D2] border-[#E5E1D8] dark:border-[#2D2321] hover:bg-[#F3F0E9] dark:hover:bg-[#251A18]'
-                  }`}
-                >
-                  Khách hàng
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedRole('admin')}
-                  className={`py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
-                    selectedRole === 'admin'
-                      ? 'bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] border-[#2D241E] dark:border-[#FAF8F5]'
-                      : 'bg-white dark:bg-[#1C1311] text-[#3E2F26] dark:text-[#EAE3D2] border-[#E5E1D8] dark:border-[#2D2321] hover:bg-[#F3F0E9] dark:hover:bg-[#251A18]'
-                  }`}
-                >
-                  Chủ quán (Admin)
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="p-3 bg-[#FAF8F5] dark:bg-[#1C1311] border border-[#E5E1D8] dark:border-[#2D2321] text-xs font-medium text-[#8B7E74] dark:text-[#B2A496] rounded-xl">
-              Đăng ký tài khoản tự động lưu trữ làm <strong className="text-[#D97706] dark:text-amber-400">Khách hàng</strong> thành viên.
-            </div>
-          )}
 
           <button
             type="submit"
@@ -441,7 +405,7 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModalProps) {
           {/* Helper Tips block */}
           <div className="mt-4 p-2.5 bg-[#F3F0E9] dark:bg-[#211715] rounded-xl text-[9px] text-[#8B7E74] dark:text-[#B2A496] leading-normal text-left">
             <strong>Mẹo trải nghiệm nhanh:</strong><br />
-                    • Đăng nhập <strong>Super Admin:</strong> gõ <code className="font-mono text-[#D97706]">superadmin</code> - mật khẩu <code className="font-mono text-[#D97706]">superadmin</code>.<br />
+                    • Đăng nhập <strong>Người dùng:</strong> gõ <code className="font-mono text-[#D97706]">AnhLong</code> - mật khẩu <code className="font-mono text-[#D97706]">Test@1234</code>.<br />
                     • Đăng nhập <strong>Chủ quán:</strong> gõ <code className="font-mono text-[#D97706]">admin</code> - mật khẩu <code className="font-mono text-[#D97706]">admin</code>.<br />
                     • Đăng nhập <strong>Tài xế:</strong> gõ <code className="font-mono text-[#D97706]">driver</code> - mật khẩu <code className="font-mono text-[#D97706]">driver</code>.
           </div>

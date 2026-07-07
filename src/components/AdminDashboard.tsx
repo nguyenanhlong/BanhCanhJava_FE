@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Order, Driver, OrderStatus, Product, MembershipTier, MembershipVoucher, UserMembership, DeliveryTrip, PaymentTransaction } from '../types';
 import { JAVA_BACKEND_FILES, MYSQL_DATABASE_SQL, FRONTEND_INTEGRATION_FILES } from '../data';
-import { FileCode, Check, Copy, AlertTriangle, Plus, Edit3, Trash2, X, FileText, RefreshCw } from 'lucide-react';
+
 import { ApiService } from '../services/api';
 
 function toSlug(str: string): string {
@@ -182,7 +182,7 @@ export function AdminDashboard({
   const [userActionLoading, setUserActionLoading] = useState(false);
 
   const handleSelectUser = (u: any) => {
-    setSelectedUser(prev => prev?.id === u.id ? null : u);
+    setSelectedUser((prev: any | null) => prev?.id === u.id ? null : u);
     setShowUserEditForm(false);
     setShowUserRoleForm(false);
     setShowUserPasswordForm(false);
@@ -282,6 +282,7 @@ export function AdminDashboard({
   };
 
   const [productForm, setProductForm] = useState<{ name: string; description: string; price: number; categoryName: string; isBestSeller: boolean; isAvailable: boolean; imageUrl: string; preparationTime: number }>({ name: '', description: '', price: 0, categoryName: 'Bánh Canh Cá Lóc', isBestSeller: false, isAvailable: true, imageUrl: '', preparationTime: 10 });
+  const [priceInput, setPriceInput] = useState('');
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [productSuccess, setProductSuccess] = useState('');
   const [productError, setProductError] = useState('');
@@ -619,12 +620,14 @@ export function AdminDashboard({
 
   const resetProductForm = () => {
     setProductForm({ name: '', description: '', price: 0, categoryName: 'Bánh Canh Cá Lóc', isBestSeller: false, isAvailable: true, imageUrl: '', preparationTime: 10 });
+    setPriceInput('');
     setEditingProductId(null);
     setProductError('');
   };
 
   const handleEditProduct = (p: Product) => {
     setProductForm({ name: p.name, description: p.description, price: p.price, categoryName: p.categoryName || '', isBestSeller: p.isBestSeller, isAvailable: p.isAvailable, imageUrl: p.imageUrl || '', preparationTime: p.preparationTime });
+    setPriceInput(p.price ? p.price.toLocaleString('vi-VN') : '');
     setEditingProductId(p.id);
     setProductError('');
   };
@@ -1160,7 +1163,7 @@ export function AdminDashboard({
   };
 
   const loadRolePermissions = async (roleId: number) => {
-    if (!isBackendConnected) return;
+    if (!isBackendConnected) return [];
     try {
       return await ApiService.getRolePermissions(roleId);
     } catch {
@@ -1325,7 +1328,7 @@ export function AdminDashboard({
             Hệ quản trị quán ăn
           </span>
           <h2 className="text-xl font-serif font-bold text-[#2D241E] dark:text-[#2D241E] mt-1.5 flex items-center gap-2">
-            ⚙️ Quản Lý Đơn Hàng & Tài Xế
+            Quản Lý Đơn Hàng & Tài Xế
           </h2>
           <p className="text-xs text-[#8B7E74] dark:text-[#8B7E74] mt-0.5">Xử lý món ăn, phân công shipper vận chuyển và tích hợp backend Java Spring Boot kết nối MySQL XAMPP.</p>
         </div>
@@ -1334,22 +1337,22 @@ export function AdminDashboard({
         <div className="relative flex items-center gap-1 max-w-full">
           <button onClick={() => { const el = document.getElementById('admin-tabs-scroll'); if (el) el.scrollBy({ left: -200, behavior: 'smooth' }); }} className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full bg-[#E74C3C] text-white text-xs font-bold hover:bg-[#C0392B] transition shadow-sm">‹</button>
           <div id="admin-tabs-scroll" ref={tabsRef} className="flex gap-1 overflow-x-auto scroll-smooth bg-[#F3F0E9] dark:bg-[#FFF0E0] p-1 rounded-xl border border-[#E5E1D8] dark:border-[#D0C8C0] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-            <button onClick={() => setAdminTab('stats')} className={`shrink-0 ${tabClass('stats')}`}>📊 Thống Kê</button>
-            <button onClick={() => setAdminTab('orders')} className={`shrink-0 ${tabClass('orders')}`}>📋 Đơn Hàng ({orders.length})</button>
-            <button onClick={() => setAdminTab('products')} className={`shrink-0 ${tabClass('products')}`}>🍲 Sản Phẩm ({products.length})</button>
-            <button onClick={() => setAdminTab('categories')} className={`shrink-0 ${tabClass('categories')}`}>📂 Danh Mục</button>
-            <button onClick={() => setAdminTab('toppings')} className={`shrink-0 ${tabClass('toppings')}`}>🧂 Lựa Chọn</button>
-            <button onClick={() => setAdminTab('promotions')} className={`shrink-0 ${tabClass('promotions')}`}>🏷️ Khuyến Mãi</button>
-            <button onClick={() => setAdminTab('reviews')} className={`shrink-0 ${tabClass('reviews')}`}>⭐ Đánh Giá</button>
-            <button onClick={() => setAdminTab('invoices')} className={`shrink-0 ${tabClass('invoices')}`}>🧾 Hóa Đơn</button>
-            <button onClick={() => setAdminTab('drivers')} className={`shrink-0 ${tabClass('drivers')}`}>🛵 Shipper / Tài xế</button>
-            <button onClick={() => setAdminTab('delivery-areas')} className={`shrink-0 ${tabClass('delivery-areas')}`}>🗺️ Khu Vực GH</button>
-            <button onClick={() => { handleRefreshUsers(); setAdminTab('users'); }} className={`shrink-0 ${tabClass('users')}`}>👥 Người dùng</button>
-            {isSuperAdmin && <button onClick={() => setAdminTab('permissions')} className={`shrink-0 ${tabClass('permissions')}`}>🔐 Phân quyền & Vai trò</button>}
-            {isAdminOrSuper && <button onClick={() => setAdminTab('membership-tiers')} className={`shrink-0 ${tabClass('membership-tiers')}`}>🏅 Hạng TV</button>}
-            <button onClick={() => setAdminTab('delivery-trips')} className={`shrink-0 ${tabClass('delivery-trips')}`}>🚚 Chuyến GH</button>
-            <button onClick={() => setAdminTab('payment-transactions')} className={`shrink-0 ${tabClass('payment-transactions')}`}>💳 GD Thanh Toán</button>
-            <button onClick={() => setAdminTab('order-history')} className={`shrink-0 ${tabClass('order-history')}`}>📜 Lịch Sử ĐH</button>
+            <button onClick={() => setAdminTab('stats')} className={`shrink-0 ${tabClass('stats')}`}>Thống Kê</button>
+            <button onClick={() => setAdminTab('orders')} className={`shrink-0 ${tabClass('orders')}`}>Đơn Hàng ({orders.length})</button>
+            <button onClick={() => setAdminTab('products')} className={`shrink-0 ${tabClass('products')}`}>Sản Phẩm ({products.length})</button>
+            <button onClick={() => setAdminTab('categories')} className={`shrink-0 ${tabClass('categories')}`}>Danh Mục</button>
+            <button onClick={() => setAdminTab('toppings')} className={`shrink-0 ${tabClass('toppings')}`}>Lựa Chọn</button>
+            <button onClick={() => setAdminTab('promotions')} className={`shrink-0 ${tabClass('promotions')}`}>Khuyến Mãi</button>
+            <button onClick={() => setAdminTab('reviews')} className={`shrink-0 ${tabClass('reviews')}`}>Đánh Giá</button>
+            <button onClick={() => setAdminTab('invoices')} className={`shrink-0 ${tabClass('invoices')}`}>Hóa Đơn</button>
+            <button onClick={() => setAdminTab('drivers')} className={`shrink-0 ${tabClass('drivers')}`}>Shipper / Tài xế</button>
+            <button onClick={() => setAdminTab('delivery-areas')} className={`shrink-0 ${tabClass('delivery-areas')}`}>Khu Vực GH</button>
+            <button onClick={() => { handleRefreshUsers(); setAdminTab('users'); }} className={`shrink-0 ${tabClass('users')}`}>Người dùng</button>
+            {isSuperAdmin && <button onClick={() => setAdminTab('permissions')} className={`shrink-0 ${tabClass('permissions')}`}>Phân quyền & Vai trò</button>}
+            {isAdminOrSuper && <button onClick={() => setAdminTab('membership-tiers')} className={`shrink-0 ${tabClass('membership-tiers')}`}>Hạng TV</button>}
+            <button onClick={() => setAdminTab('delivery-trips')} className={`shrink-0 ${tabClass('delivery-trips')}`}>Chuyến GH</button>
+            <button onClick={() => setAdminTab('payment-transactions')} className={`shrink-0 ${tabClass('payment-transactions')}`}>GD Thanh Toán</button>
+            <button onClick={() => setAdminTab('order-history')} className={`shrink-0 ${tabClass('order-history')}`}>Lịch Sử ĐH</button>
           </div>
           <button onClick={() => { const el = document.getElementById('admin-tabs-scroll'); if (el) el.scrollBy({ left: 200, behavior: 'smooth' }); }} className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full bg-[#E74C3C] text-white text-xs font-bold hover:bg-[#C0392B] transition shadow-sm">›</button>
         </div>
@@ -1406,10 +1409,10 @@ export function AdminDashboard({
                           ))}
                         </td>
                         <td className="p-3.5 text-[10px]">
-                          {order.orderType === 'dine-in' ? '🍽️ Tại quán' :
-                            order.orderType === 'takeaway' ? '🛍️ Mang đi' :
-                            order.orderType === 'delivery' ? '🛵 Giao hàng' :
-                            order.orderType || '🛵 Giao hàng'}
+                          {order.orderType === 'dine-in' ? 'Tại quán' :
+                            order.orderType === 'takeaway' ? 'Mang đi' :
+                            order.orderType === 'delivery' ? 'Giao hàng' :
+                            order.orderType || 'Giao hàng'}
                           {order.tableNumber && <span className="block text-[9px] text-[#8B7E74]">Bàn {order.tableNumber}</span>}
                         </td>
                         <td className="p-3.5 text-right font-mono text-[10px] text-[#8B7E74]">
@@ -1438,11 +1441,11 @@ export function AdminDashboard({
                         </td>
                         <td className="p-3.5 text-[10px]">
                           <span className={`font-bold ${order.paymentStatus === 'paid' ? 'text-emerald-600' : 'text-red-600'}`}>
-                            {order.paymentStatus === 'paid' ? '✅ Đã TT' : '⏳ Chưa TT'}
+                            {order.paymentStatus === 'paid' ? 'Đã TT' : 'Chưa TT'}
                           </span>
                           <span className="block text-[9px] text-[#8B7E74] mt-0.5">
-                            {order.paymentMethod === 'momo' ? '🎀 MoMo' :
-                             order.paymentMethod === 'cod' ? '💵 Tiền mặt (COD)' :
+                            {order.paymentMethod === 'momo' ? 'MoMo' :
+                             order.paymentMethod === 'cod' ? 'Tiền mặt (COD)' :
                              order.paymentMethod || '-'}
                           </span>
                         </td>
@@ -1479,7 +1482,7 @@ export function AdminDashboard({
                             </select>
                           )}
                           {order.driverId && (
-                            <p className="text-[9px] text-[#E74C3C] dark:text-red-400 font-bold mt-1">🏍️ Đã chỉ định tài xế (ID: {order.driverId})</p>
+                            <p className="text-[9px] text-[#E74C3C] dark:text-red-400 font-bold mt-1">Đã chỉ định tài xế (ID: {order.driverId})</p>
                           )}
                         </td>
                         <td className="p-3.5">
@@ -1498,7 +1501,7 @@ export function AdminDashboard({
                                 className={`${order.driverId ? 'bg-sky-600 hover:bg-sky-700 cursor-pointer' : 'bg-sky-600/40 cursor-not-allowed'} text-white font-bold px-2 py-1 rounded text-[10px] text-center w-full`}
                                 title={!order.driverId ? 'Vui lòng chọn tài xế trước khi lên xe' : ''}
                               >
-                                {order.driverId ? 'Xác Nhận Hoàn Tất Lên Xe' : '⚠️ Chọn tài xế trước'}
+                                {order.driverId ? 'Xác Nhận Hoàn Tất Lên Xe' : 'Chọn tài xế trước'}
                               </button>
                             )}
                             {order.status === 'picked_up' && (
@@ -1537,7 +1540,7 @@ export function AdminDashboard({
                                     className="bg-[#E74C3C] hover:bg-[#E74C3C]/90 text-white font-bold px-2 py-1 rounded text-[10px] text-center w-full mt-1 flex items-center justify-center gap-0.5 cursor-pointer"
                                     title="Tăng nhanh tiến trình giao hàng theo từng mốc bản đồ định vị"
                                   >
-                                    ⚡ Ship Nhanh ({
+                                    Ship Nhanh ({
                                       (() => {
                                         const currentProgress = order.deliveryProgress || 0;
                                         const routeMilestones = [10, 25, 45, 65, 85, 100];
@@ -1581,7 +1584,7 @@ export function AdminDashboard({
               </div>
               <div className="flex gap-2">
                 <span className={`text-[9px] px-2 py-1 rounded font-mono font-bold ${isBackendConnected ? 'bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400' : 'bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400'}`}>
-                  {isBackendConnected ? '🟢 API Live' : '🟡 Local Only'}
+                  {isBackendConnected ? 'API Live' : 'Local Only'}
                 </span>
               </div>
             </div>
@@ -1601,7 +1604,7 @@ export function AdminDashboard({
             {/* Product Form */}
             <div className="bg-[#F3F0E9] dark:bg-[#FFF0E0] p-5 rounded-3xl border border-[#E5E1D8] dark:border-[#D0C8C0]">
               <h4 className="font-serif font-bold text-sm text-[#2D241E] dark:text-[#2D241E] mb-3">
-                {editingProductId ? <><Edit3 className="w-4 h-4 inline mr-1 text-[#E74C3C]" /> Sửa Sản Phẩm</> : <><Plus className="w-4 h-4 inline mr-1 text-emerald-500" /> Thêm Sản Phẩm Mới</>}
+                {editingProductId ? 'Sửa Sản Phẩm' : 'Thêm Sản Phẩm Mới'}
               </h4>
               <form onSubmit={handleProductSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div className="space-y-1">
@@ -1613,9 +1616,25 @@ export function AdminDashboard({
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#3E2F26] uppercase">Giá (VNĐ)</label>
-                  <input type="number" required min={0} step={1000} placeholder="45000"
-                    value={productForm.price || ''}
-                    onChange={(e) => setProductForm(prev => ({ ...prev, price: Number(e.target.value) }))}
+                  <input type="text" required placeholder="0"
+                    value={priceInput}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/[^0-9]/g, '');
+                      setPriceInput(digits);
+                      setProductForm(prev => ({ ...prev, price: digits ? Number(digits) : 0 }));
+                    }}
+                    onBlur={(e) => {
+                      const num = Number(e.target.value.replace(/[^0-9]/g, ''));
+                      if (num > 0) {
+                        setPriceInput(num.toLocaleString('vi-VN'));
+                      }
+                    }}
+                    onFocus={(e) => {
+                      if (productForm.price > 0) {
+                        setPriceInput(String(productForm.price));
+                        setTimeout(() => e.target.setSelectionRange(e.target.value.length, e.target.value.length), 0);
+                      }
+                    }}
                     className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] bg-white dark:bg-[#FFF8F0] text-[#2D241E] dark:text-[#2D241E] focus:outline-[#E74C3C]" />
                 </div>
                 <div className="space-y-1">
@@ -1634,7 +1653,7 @@ export function AdminDashboard({
                     {categories.map(cat => (
                       <option key={cat.id} value={cat.name}>{cat.name}</option>
                     ))}
-                    <option value="__new__">➕ Tạo danh mục mới...</option>
+                    <option value="__new__">Tạo danh mục mới...</option>
                   </select>
                 </div>
                 <div className="space-y-1 md:col-span-2">
@@ -1671,7 +1690,7 @@ export function AdminDashboard({
                         }} />
                       <label htmlFor="productImageUpload"
                         className={`px-3 py-2.5 rounded-lg text-xs font-bold cursor-pointer transition-all whitespace-nowrap border ${uploadingImage ? 'bg-gray-400 text-white border-gray-400 cursor-not-allowed' : 'bg-[#E74C3C] text-white border-[#E74C3C] hover:bg-[#E74C3C]/90'}`}>
-                        {uploadingImage ? '⏳ Đang tải...' : '📁 Upload'}
+                        {uploadingImage ? 'Đang tải...' : 'Upload'}
                       </label>
                       {productForm.imageUrl && (
                         <div className="w-9 h-9 rounded-lg overflow-hidden border border-[#E5E1D8] dark:border-[#D0C8C0] bg-[#FAF8F5] dark:bg-[#FFFBF5] shrink-0 flex items-center justify-center">
@@ -1686,13 +1705,13 @@ export function AdminDashboard({
                     <input type="checkbox" checked={productForm.isBestSeller}
                       onChange={(e) => setProductForm(prev => ({ ...prev, isBestSeller: e.target.checked }))}
                       className="w-4 h-4 accent-[#E74C3C]" />
-                    <span className="text-xs font-bold text-[#3E2F26] dark:text-[#3E2F26]">🔥 Bán chạy</span>
+                    <span className="text-xs font-bold text-[#3E2F26] dark:text-[#3E2F26]">Bán chạy</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" checked={productForm.isAvailable}
                       onChange={(e) => setProductForm(prev => ({ ...prev, isAvailable: e.target.checked }))}
                       className="w-4 h-4 accent-[#E74C3C]" />
-                    <span className="text-xs font-bold text-[#3E2F26] dark:text-[#3E2F26]">🟢 Còn hàng</span>
+                    <span className="text-xs font-bold text-[#3E2F26] dark:text-[#3E2F26]">Còn hàng</span>
                   </label>
                 </div>
                 <div className="space-y-1">
@@ -1706,7 +1725,7 @@ export function AdminDashboard({
                   {editingProductId && (
                     <button type="button" onClick={resetProductForm}
                       className="px-4 py-2 rounded-xl border border-[#E5E1D8] dark:border-[#D0C8C0] text-xs font-bold text-[#3E2F26] dark:text-[#3E2F26] hover:bg-[#E5E1D8] dark:hover:bg-[#E8E0D8] cursor-pointer">
-                      <X className="w-3.5 h-3.5 inline mr-1" />Hủy
+                      Hủy
                     </button>
                   )}
                   <button type="submit"
@@ -1749,22 +1768,22 @@ export function AdminDashboard({
                       <td className="p-3 text-right font-extrabold text-[#E74C3C]">{p.price.toLocaleString('vi-VN')} đ</td>
                       <td className="p-3 text-center">
                         {p.isAvailable
-                          ? <span className="text-emerald-500 font-bold text-[10px]">✅ Còn hàng</span>
-                          : <span className="text-red-400 font-bold text-[10px]">⛔ Hết hàng</span>}
+                          ? <span className="text-emerald-500 font-bold text-[10px]">Còn hàng</span>
+                          : <span className="text-red-400 font-bold text-[10px]">Hết hàng</span>}
                       </td>
-                      <td className="p-3 text-center">{p.isBestSeller ? <span className="text-emerald-500 font-bold">🔥 Bán chạy</span> : '-'}</td>
+                      <td className="p-3 text-center">{p.isBestSeller ? <span className="text-emerald-500 font-bold">Bán chạy</span> : '-'}</td>
                       <td className="p-3 text-right text-[#8B7E74] font-mono">{p.preparationTime || '-'} ph</td>
                       <td className="p-3">
                         <div className="flex gap-1.5 justify-center">
                           <button onClick={() => handleEditProduct(p)}
-                            className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-950/50 cursor-pointer"
+                            className="px-2 py-1 rounded-lg bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-950/50 cursor-pointer text-[10px] font-bold"
                             title="Sửa sản phẩm">
-                            <Edit3 className="w-3.5 h-3.5" />
+                            Sửa
                           </button>
                           <button onClick={() => handleDeleteProduct(p.id)}
-                            className="p-1.5 rounded-lg bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-950/50 cursor-pointer"
+                            className="px-2 py-1 rounded-lg bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-950/50 cursor-pointer text-[10px] font-bold"
                             title="Xóa sản phẩm">
-                            <Trash2 className="w-3.5 h-3.5" />
+                            Xóa
                           </button>
                         </div>
                       </td>
@@ -1788,12 +1807,11 @@ export function AdminDashboard({
                 {drivers.map((d) => (
                   <div key={d.id} className="bg-[#FAF8F5] dark:bg-[#FFFAF3] p-4 rounded-2xl border border-[#E5E1D8] dark:border-[#E0D8D0] flex gap-3.5 items-start">
                     <div className="w-11 h-11 rounded-xl bg-[#E74C3C]/10 border border-[#E5E1D8] dark:border-[#E0D8D0] flex items-center justify-center text-xl shrink-0">
-                      🛵
                     </div>
                     <div className="flex-1">
                       <p className="font-bold text-sm text-[#2D241E] dark:text-[#2D241E]">{d.name}</p>
                       <p className="text-[9px] text-[#E74C3C] font-mono">ID: {d.id}</p>
-                      <p className="text-[10px] text-[#8B7E74] dark:text-[#8B7E74]">📞 {d.phone}</p>
+                      <p className="text-[10px] text-[#8B7E74] dark:text-[#8B7E74]">{d.phone}</p>
                       <p className="text-[10px] text-[#8B7E74] dark:text-[#8B7E74] font-mono mt-0.5">{d.vehicle}</p>
                       <p className="text-[9px] text-[#8B7E74] dark:text-[#8B7E74] font-mono">{d.vehicleType || 'Xe máy'} | {d.vehiclePlate || 'Chưa có BS'}</p>
 
@@ -1810,16 +1828,16 @@ export function AdminDashboard({
                           }}
                           className="text-[9px] p-1.5 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] bg-white dark:bg-[#FFF8F0] text-[#2D241E] dark:text-[#2D241E] focus:outline-none"
                         >
-                          <option value="available" className="dark:bg-[#FFF8F0]">🟢 Rảnh rỗi</option>
-                          <option value="busy" className="dark:bg-[#FFF8F0]">🔴 Bận chở bánh</option>
-                          <option value="offline" className="dark:bg-[#FFF8F0]">⚫ Nghỉ phép/Offline</option>
+                          <option value="available" className="dark:bg-[#FFF8F0]">Rảnh rỗi</option>
+                          <option value="busy" className="dark:bg-[#FFF8F0]">Bận chở bánh</option>
+                          <option value="offline" className="dark:bg-[#FFF8F0]">Nghỉ phép/Offline</option>
                         </select>
                         <button onClick={() => handleEditDriverOpen(d)}
-                          className="ml-1 p-1.5 rounded-lg bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-950/50 cursor-pointer"
-                          title="Sửa tài xế"><Edit3 className="w-3 h-3" /></button>
+                          className="ml-1 px-2 py-1 rounded-lg bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-950/50 cursor-pointer text-[10px] font-bold"
+                          title="Sửa tài xế">Sửa</button>
                         <button onClick={() => handleDeleteDriver(d.id)}
-                          className="p-1.5 rounded-lg bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-950/50 cursor-pointer"
-                          title="Xoá tài xế"><Trash2 className="w-3 h-3" /></button>
+                          className="px-2 py-1 rounded-lg bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-950/50 cursor-pointer text-[10px] font-bold"
+                          title="Xoá tài xế">Xóa</button>
                       </div>
                     </div>
                   </div>
@@ -1829,7 +1847,7 @@ export function AdminDashboard({
 
             {/* Create new driver */}
             <div className="lg:col-span-5 bg-[#F3F0E9] dark:bg-[#FFF0E0] p-5 rounded-3xl border border-[#E5E1D8] dark:border-[#D0C8C0]">
-              <h3 className="font-serif text-base font-bold text-[#2D241E] dark:text-[#2D241E] mb-3">🖊️ Đăng ký Shipper Mới</h3>
+              <h3 className="font-serif text-base font-bold text-[#2D241E] dark:text-[#2D241E] mb-3">Đăng ký Shipper Mới</h3>
               <p className="text-xs text-[#8B7E74] dark:text-[#8B7E74] mb-4">Thêm tài xế mới vào danh mục nội bộ của Bánh canh cá lóc miền Trung.</p>
 
               {driverSuccess && (
@@ -1854,7 +1872,7 @@ export function AdminDashboard({
                 </div>
 
                 <div className="border-t border-[#E5E1D8] dark:border-[#D0C8C0] pt-3 mt-1">
-                  <p className="text-[10px] font-bold text-[#E74C3C] uppercase mb-2">🔑 Thông tin tài khoản đăng nhập</p>
+                  <p className="text-[10px] font-bold text-[#E74C3C] uppercase mb-2">Thông tin tài khoản đăng nhập</p>
                   <div className="grid grid-cols-3 gap-3">
                     <div>
                       <label className="block text-[10px] font-bold text-[#3E2F26] dark:text-[#3E2F26] uppercase">Tên đăng nhập:</label>
@@ -1926,7 +1944,7 @@ export function AdminDashboard({
                         }
                       }} />
                     <label htmlFor="driverAvatarUpload" className="px-3 py-2.5 rounded-lg border border-[#E5E1D8] text-xs font-bold cursor-pointer hover:bg-gray-50">
-                      {uploadingDriverAvatar ? '⏳' : '📁'}
+                      {uploadingDriverAvatar ? '' : ''}
                     </label>
                     {driverAvatarUrl && <img src={driverAvatarUrl} alt="" className="w-8 h-8 rounded-full object-cover border" />}
                   </div>
@@ -1941,7 +1959,7 @@ export function AdminDashboard({
 
                 <button type="submit"
                   className="w-full bg-[#E74C3C] hover:bg-[#C0392B] dark:bg-[#E74C3C] dark:hover:bg-[#C0392B] text-white dark:text-white text-center py-3 rounded-xl font-bold text-xs shadow-md transition-all cursor-pointer">
-                  🚀 Thêm Shipper Vào Hệ Thống
+                  Thêm Shipper Vào Hệ Thống
                 </button>
               </form>
             </div>
@@ -1955,10 +1973,10 @@ export function AdminDashboard({
                   {driverEditForm.avatarUrl ? (
                     <img src={driverEditForm.avatarUrl} alt="" className="w-10 h-10 rounded-full object-cover border-2 border-[#E74C3C]" />
                   ) : (
-                    <div className="w-10 h-10 rounded-full bg-[#F3F0E9] flex items-center justify-center text-lg">🛵</div>
+                    <div className="w-10 h-10 rounded-full bg-[#F3F0E9] flex items-center justify-center text-lg"></div>
                   )}
                   <div>
-                    <h4 className="font-bold text-sm text-[#2D241E]">✏️ Sửa Thông Tin Tài Xế</h4>
+                    <h4 className="font-bold text-sm text-[#2D241E]">Sửa Thông Tin Tài Xế</h4>
                     <p className="text-[10px] text-[#8B7E74]">{driverEditForm.name || driverEditModal.name}</p>
                   </div>
                 </div>
@@ -2023,11 +2041,11 @@ export function AdminDashboard({
                           }
                           e.target.value = '';
                         }} />
-                      <label htmlFor="driverEditAvatarUpload" className="px-3 py-2.5 rounded-lg border border-[#E5E1D8] text-xs font-bold cursor-pointer hover:bg-gray-50">📁</label>
+                      <label htmlFor="driverEditAvatarUpload" className="px-3 py-2.5 rounded-lg border border-[#E5E1D8] text-xs font-bold cursor-pointer hover:bg-gray-50">Upload</label>
                     </div>
                   </div>
                   <div className="border-t border-[#E5E1D8] pt-3">
-                    <label className="text-[10px] font-bold text-[#E74C3C] uppercase">🔑 Đổi mật khẩu</label>
+                    <label className="text-[10px] font-bold text-[#E74C3C] uppercase">Đổi mật khẩu</label>
                     <p className="text-[8px] text-[#8B7E74] mb-1">Để trống nếu không muốn đổi</p>
                     <input type="password" placeholder="Mật khẩu mới..."
                       value={driverEditForm.password} onChange={e => setDriverEditForm(p => ({ ...p, password: e.target.value }))}
@@ -2047,12 +2065,12 @@ export function AdminDashboard({
         {/* TAB: CATEGORIES - Full CRUD */}
         {adminTab === 'categories' && (
           <div className="space-y-6">
-            <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#2D241E]">📂 Quản Lý Danh Mục</h3>
+            <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#2D241E]">Quản Lý Danh Mục</h3>
             <p className="text-xs text-[#8B7E74] dark:text-[#8B7E74]">Các danh mục món ăn trong thực đơn</p>
 
             <div className="bg-[#F3F0E9] dark:bg-[#FFF0E0] p-5 rounded-3xl border border-[#E5E1D8] dark:border-[#D0C8C0]">
               <h4 className="font-serif font-bold text-sm text-[#2D241E] dark:text-[#2D241E] mb-3">
-                {editingCategoryId !== null ? <><Edit3 className="w-4 h-4 inline mr-1 text-[#E74C3C]" /> Sửa Danh Mục</> : <><Plus className="w-4 h-4 inline mr-1 text-emerald-500" /> Thêm Danh Mục Mới</>}
+                {editingCategoryId !== null ? 'Sửa Danh Mục' : 'Thêm Danh Mục Mới'}
               </h4>
               <form onSubmit={handleCategorySubmit} className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
@@ -2109,7 +2127,7 @@ export function AdminDashboard({
                   {editingCategoryId !== null && (
                     <button type="button" onClick={() => { setEditingCategoryId(null); setCategoryForm({ name: '', slug: '', description: '', imageUrl: '', displayOrder: 0, isActive: true }); }}
                       className="px-4 py-2.5 rounded-xl border border-[#E5E1D8] dark:border-[#D0C8C0] text-xs font-bold text-[#3E2F26] dark:text-[#3E2F26] hover:bg-[#E5E1D8] dark:hover:bg-[#E8E0D8] cursor-pointer">
-                      <X className="w-3.5 h-3.5 inline mr-1" />Hủy
+                      Hủy
                     </button>
                   )}
                   <button type="submit"
@@ -2145,12 +2163,12 @@ export function AdminDashboard({
                       <td className="p-3">
                         <div className="flex gap-1.5 justify-center">
                           <button onClick={() => handleEditCategory(cat)}
-                            className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-950/50 cursor-pointer">
-                            <Edit3 className="w-3.5 h-3.5" />
+                            className="px-2 py-1 rounded-lg bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-950/50 cursor-pointer text-[10px] font-bold">
+                            Sửa
                           </button>
                           <button onClick={() => handleDeleteCategory(cat.id)}
-                            className="p-1.5 rounded-lg bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-950/50 cursor-pointer">
-                            <Trash2 className="w-3.5 h-3.5" />
+                            className="px-2 py-1 rounded-lg bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-950/50 cursor-pointer text-[10px] font-bold">
+                            Xóa
                           </button>
                         </div>
                       </td>
@@ -2165,12 +2183,12 @@ export function AdminDashboard({
         {/* TAB: TOPPINGS - Full CRUD */}
         {adminTab === 'toppings' && (
           <div className="space-y-6">
-            <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#2D241E]">🧂 Quản Lý Các Lựa Chọn</h3>
+            <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#2D241E]">Quản Lý Các Lựa Chọn</h3>
             <p className="text-xs text-[#8B7E74] dark:text-[#8B7E74]">Topping, Size, Đường, Đá, Loại Cà Phê, Loại Sợi — gắn với từng sản phẩm</p>
 
             <div className="bg-[#F3F0E9] dark:bg-[#FFF0E0] p-5 rounded-3xl border border-[#E5E1D8] dark:border-[#D0C8C0]">
               <h4 className="font-serif font-bold text-sm text-[#2D241E] dark:text-[#2D241E] mb-3">
-                {editingToppingId !== null ? <><Edit3 className="w-4 h-4 inline mr-1 text-[#E74C3C]" /> Sửa Tuỳ Chọn</> : <><Plus className="w-4 h-4 inline mr-1 text-emerald-500" /> Thêm Tuỳ Chọn Mới</>}
+                {editingToppingId !== null ? 'Sửa Tuỳ Chọn' : 'Thêm Tuỳ Chọn Mới'}
               </h4>
               <form onSubmit={handleToppingSubmit} className="flex gap-3 items-end flex-wrap">
                 <div className="space-y-1 min-w-[150px]">
@@ -2253,7 +2271,7 @@ export function AdminDashboard({
                   {editingToppingId !== null && (
                     <button type="button" onClick={() => { setEditingToppingId(null); setToppingForm({ productId: 1, name: '', optionGroup: 'topping', price: 0, isRequired: false, displayOrder: 1, isActive: true }); }}
                       className="px-4 py-2.5 rounded-xl border border-[#E5E1D8] dark:border-[#D0C8C0] text-xs font-bold text-[#3E2F26] dark:text-[#3E2F26] hover:bg-[#E5E1D8] dark:hover:bg-[#E8E0D8] cursor-pointer">
-                      <X className="w-3.5 h-3.5 inline mr-1" />Hủy
+                      Hủy
                     </button>
                   )}
                   <button type="submit"
@@ -2295,12 +2313,12 @@ export function AdminDashboard({
                       <td className="p-3">
                         <div className="flex gap-1.5 justify-center">
                           <button onClick={() => handleEditTopping(t)}
-                            className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-950/50 cursor-pointer">
-                            <Edit3 className="w-3.5 h-3.5" />
+                            className="px-2 py-1 rounded-lg bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-950/50 cursor-pointer text-[10px] font-bold">
+                            Sửa
                           </button>
                           <button onClick={() => handleDeleteTopping(t.id)}
-                            className="p-1.5 rounded-lg bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-950/50 cursor-pointer">
-                            <Trash2 className="w-3.5 h-3.5" />
+                            className="px-2 py-1 rounded-lg bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-950/50 cursor-pointer text-[10px] font-bold">
+                            Xóa
                           </button>
                         </div>
                       </td>
@@ -2315,12 +2333,12 @@ export function AdminDashboard({
         {/* TAB: PROMOTIONS - Full CRUD */}
         {adminTab === 'promotions' && (
           <div className="space-y-6">
-            <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#2D241E]">🏷️ Quản Lý Khuyến Mãi</h3>
+            <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#2D241E]">Quản Lý Khuyến Mãi</h3>
             <p className="text-xs text-[#8B7E74] dark:text-[#8B7E74]">Mã giảm giá và chương trình ưu đãi</p>
 
             <div className="bg-[#F3F0E9] dark:bg-[#FFF0E0] p-5 rounded-3xl border border-[#E5E1D8] dark:border-[#D0C8C0]">
               <h4 className="font-serif font-bold text-sm text-[#2D241E] dark:text-[#2D241E] mb-3">
-                {editingPromoId !== null ? <><Edit3 className="w-4 h-4 inline mr-1 text-[#E74C3C]" /> Sửa Khuyến Mãi</> : <><Plus className="w-4 h-4 inline mr-1 text-emerald-500" /> Thêm Khuyến Mãi</>}
+                {editingPromoId !== null ? 'Sửa Khuyến Mãi' : 'Thêm Khuyến Mãi'}
               </h4>
               <form onSubmit={handlePromoSubmit} className="space-y-3">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -2411,7 +2429,7 @@ export function AdminDashboard({
                   {editingPromoId !== null && (
                     <button type="button" onClick={() => { setEditingPromoId(null); setPromoForm({ code: '', name: '', description: '', discount_type: 'percentage', discount_value: 0, min_order_amount: 0, max_discount: 0, usage_limit: 100, start_date: defaultPromoDate().start, end_date: defaultPromoDate().end, isActive: true }); }}
                       className="px-4 py-2.5 rounded-xl border border-[#E5E1D8] dark:border-[#D0C8C0] text-xs font-bold text-[#3E2F26] dark:text-[#3E2F26] hover:bg-[#E5E1D8] dark:hover:bg-[#E8E0D8] cursor-pointer">
-                      <X className="w-3.5 h-3.5 inline mr-1" />Hủy
+                      Hủy
                     </button>
                   )}
                   <button type="submit"
@@ -2426,7 +2444,7 @@ export function AdminDashboard({
               {promotions.map(p => (
                 <div key={p.id} className="bg-[#FAF8F5] dark:bg-[#FFFAF3] p-4 rounded-2xl border border-[#E5E1D8] dark:border-[#E0D8D0] gap-3 relative">
                   <div className="flex items-start gap-3">
-                    <div className="text-2xl shrink-0">🏷️</div>
+                    <div className="text-2xl shrink-0"></div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#2D241E]">{p.name}</h4>
@@ -2441,19 +2459,19 @@ export function AdminDashboard({
                         {p.max_discount ? ` (tối đa ${p.max_discount.toLocaleString('vi-VN')}đ)` : ''} • Đơn từ {p.min_order_amount.toLocaleString('vi-VN')}đ
                       </p>
                       <p className="text-[8px] text-[#8B7E74] mt-1">
-                        {p.start_date ? `📅 ${new Date(p.start_date).toLocaleString('vi-VN')}` : ''}
+                        {p.start_date ? `${new Date(p.start_date).toLocaleString('vi-VN')}` : ''}
                         {p.end_date ? ` → ${new Date(p.end_date).toLocaleString('vi-VN')}` : ''}
                         {p.usage_limit ? ` • Đã dùng ${p.used_count || 0}/${p.usage_limit}` : ''}
                       </p>
                     </div>
                     <div className="flex flex-col gap-1 shrink-0">
                       <button onClick={() => handleEditPromo(p)}
-                        className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-950/50 cursor-pointer">
-                        <Edit3 className="w-3 h-3" />
+                        className="px-2 py-1 rounded-lg bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-950/50 cursor-pointer text-[10px] font-bold">
+                        Sửa
                       </button>
                       <button onClick={() => handleDeletePromo(p.id)}
-                        className="p-1.5 rounded-lg bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-950/50 cursor-pointer">
-                        <Trash2 className="w-3 h-3" />
+                        className="px-2 py-1 rounded-lg bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-950/50 cursor-pointer text-[10px] font-bold">
+                        Xóa
                       </button>
                     </div>
                   </div>
@@ -2505,12 +2523,12 @@ export function AdminDashboard({
                         <td className="p-3 text-center">
                           <div className="flex gap-1.5 justify-center">
                             <button onClick={() => handleEditPromo(p)}
-                              className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-950/50 cursor-pointer">
-                              <Edit3 className="w-3.5 h-3.5" />
+                              className="px-2 py-1 rounded-lg bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-950/50 cursor-pointer text-[10px] font-bold">
+                              Sửa
                             </button>
                             <button onClick={() => handleDeletePromo(p.id)}
-                              className="p-1.5 rounded-lg bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-950/50 cursor-pointer">
-                              <Trash2 className="w-3.5 h-3.5" />
+                              className="px-2 py-1 rounded-lg bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-950/50 cursor-pointer text-[10px] font-bold">
+                              Xóa
                             </button>
                           </div>
                         </td>
@@ -2566,7 +2584,7 @@ export function AdminDashboard({
                         <td className="p-3 max-w-[150px]">
                           {r.adminReply ? (
                             <span className="text-[10px] text-emerald-600 dark:text-emerald-400 line-clamp-2" title={r.adminReply}>
-                              💬 {r.adminReply}
+                              {r.adminReply}
                             </span>
                           ) : (
                             <button onClick={() => {
@@ -2585,12 +2603,12 @@ export function AdminDashboard({
                         <td className="p-3">
                           <div className="flex gap-1.5 justify-center">
                             <button onClick={() => handleEditReview(r)}
-                              className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-950/50 cursor-pointer">
-                              <Edit3 className="w-3.5 h-3.5" />
+                              className="px-2 py-1 rounded-lg bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-950/50 cursor-pointer text-[10px] font-bold">
+                              Sửa
                             </button>
                             <button onClick={() => handleDeleteReview(r.id)}
-                              className="p-1.5 rounded-lg bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-950/50 cursor-pointer">
-                              <Trash2 className="w-3.5 h-3.5" />
+                              className="px-2 py-1 rounded-lg bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-950/50 cursor-pointer text-[10px] font-bold">
+                              Xóa
                             </button>
                           </div>
                         </td>
@@ -2608,7 +2626,7 @@ export function AdminDashboard({
             {invoiceError && <div className="mb-3 p-2.5 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/50 text-red-800 dark:text-red-400 text-xs rounded-xl text-center font-bold">{invoiceError}</div>}
             <div className="flex justify-between items-center">
               <div>
-                <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#2D241E]">🧾 Hóa Đơn</h3>
+                <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#2D241E]">Hóa Đơn</h3>
                 <p className="text-xs text-[#8B7E74] dark:text-[#8B7E74]">Xuất hóa đơn cho đơn hàng đã hoàn thành</p>
               </div>
               <div className="text-xs text-[#8B7E74] dark:text-[#8B7E74] bg-[#F3F0E9] dark:bg-[#FFF0E0] px-3 py-1.5 rounded-lg border border-[#E5E1D8] dark:border-[#E0D8D0]">
@@ -2664,15 +2682,15 @@ export function AdminDashboard({
                       <td className="p-3">
                         <div className="flex gap-1.5 justify-center">
                           <button onClick={() => handleViewInvoice(inv)}
-                            className="p-1.5 rounded-lg bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-950/50 cursor-pointer"
+                            className="px-2 py-1 rounded-lg bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-950/50 cursor-pointer text-[10px] font-bold"
                             title="Xem chi tiết">
-                            <FileText className="w-3.5 h-3.5" />
+                            Xem
                           </button>
                           {inv.status === 'issued' && (
                             <button onClick={() => handleCancelInvoice(inv.id)}
-                              className="p-1.5 rounded-lg bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-950/50 cursor-pointer"
+                              className="px-2 py-1 rounded-lg bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-950/50 cursor-pointer text-[10px] font-bold"
                               title="Hủy hóa đơn">
-                              <X className="w-3.5 h-3.5" />
+                              Hủy
                             </button>
                           )}
                         </div>
@@ -2684,7 +2702,7 @@ export function AdminDashboard({
             </div>
 
             <div className="bg-[#FAF8F5] dark:bg-[#FFFAF3] p-4 rounded-2xl border border-[#E5E1D8] dark:border-[#E0D8D0]">
-              <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#2D241E] mb-3">📋 Xuất Hóa Đơn Cho Đơn Hàng</h4>
+              <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#2D241E] mb-3">Xuất Hóa Đơn Cho Đơn Hàng</h4>
               <p className="text-[10px] text-[#8B7E74] dark:text-[#8B7E74] mb-3">Chọn đơn hàng đã hoàn thành để xuất hóa đơn</p>
               <div className="flex gap-2 flex-wrap">
                 {orders.filter(o => o.status === 'completed' && !invoices.some(inv => inv.orderId === Number(o.id))).slice(0, 10).map(o => (
@@ -2708,12 +2726,12 @@ export function AdminDashboard({
                 <div className="bg-white dark:bg-[#FFF5EB] rounded-2xl max-w-lg w-full p-6 border border-[#E5E1D8] dark:border-[#E0D8D0] shadow-2xl space-y-4 transform scale-100 transition-all">
                   <div className="flex justify-between items-start">
                     <div>
-                      <h4 className="font-serif font-bold text-base text-[#2D241E] dark:text-[#2D241E]">🧾 Hóa Đơn</h4>
+                      <h4 className="font-serif font-bold text-base text-[#2D241E] dark:text-[#2D241E]">Hóa Đơn</h4>
                       <p className="text-[10px] text-[#8B7E74] font-mono">{viewingInvoice.invoiceNumber}</p>
                     </div>
                     <button onClick={() => setViewingInvoice(null)}
-                      className="p-1.5 rounded-lg hover:bg-[#F3F0E9] dark:hover:bg-[#E5DDD5] cursor-pointer">
-                      <X className="w-4 h-4 text-[#8B7E74]" />
+                      className="px-2 py-1 rounded-lg hover:bg-[#F3F0E9] dark:hover:bg-[#E5DDD5] cursor-pointer text-[10px] font-bold text-[#8B7E74]">
+                      Đóng
                     </button>
                   </div>
 
@@ -2786,7 +2804,7 @@ export function AdminDashboard({
                   <div className="flex gap-2 pt-2">
                     <button onClick={() => { window.print(); }}
                       className="flex-1 bg-[#E74C3C] hover:bg-[#E74C3C]/90 text-white py-2 rounded-xl text-xs font-bold transition-all cursor-pointer">
-                      🖨️ In hóa đơn
+                      In hóa đơn
                     </button>
                     <button onClick={() => setViewingInvoice(null)}
                       className="flex-1 border border-[#E5E1D8] dark:border-[#D0C8C0] text-[#3E2F26] dark:text-[#3E2F26] py-2 rounded-xl text-xs font-bold transition-all hover:bg-[#F3F0E9] dark:hover:bg-[#E8E0D8] cursor-pointer">
@@ -2802,7 +2820,7 @@ export function AdminDashboard({
         {/* TAB: STATISTICS */}
         {adminTab === 'stats' && (
           <div className="space-y-6">
-            <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#2D241E]">📊 Thống Kê Kinh Doanh</h3>
+            <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#2D241E]">Thống Kê Kinh Doanh</h3>
             <p className="text-xs text-[#8B7E74] dark:text-[#8B7E74]">Tổng quan tình hình bán hàng</p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -2821,7 +2839,7 @@ export function AdminDashboard({
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="bg-[#FAF8F5] dark:bg-[#FFFAF3] p-5 rounded-2xl border border-[#E5E1D8] dark:border-[#E0D8D0]">
-                <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#2D241E] mb-3">💰 Doanh Thu</h4>
+                <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#2D241E] mb-3">Doanh Thu</h4>
                 <p className="text-2xl font-black text-[#E74C3C]">
                   {orders.filter(o => o.status === 'completed').reduce((sum, o) => sum + o.totalAmount, 0).toLocaleString('vi-VN')}đ
                 </p>
@@ -2829,7 +2847,7 @@ export function AdminDashboard({
               </div>
 
               <div className="bg-[#FAF8F5] dark:bg-[#FFFAF3] p-5 rounded-2xl border border-[#E5E1D8] dark:border-[#E0D8D0]">
-                <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#2D241E] mb-3">🛵 Tài Xế</h4>
+                <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#2D241E] mb-3">Tài Xế</h4>
                 <div className="flex gap-4">
                   <div>
                     <p className="text-2xl font-black text-emerald-500">{drivers.filter(d => d.status === 'available').length}</p>
@@ -2848,7 +2866,7 @@ export function AdminDashboard({
             </div>
 
             <div className="bg-[#FAF8F5] dark:bg-[#FFFAF3] p-5 rounded-2xl border border-[#E5E1D8] dark:border-[#E0D8D0]">
-              <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#2D241E] mb-3">🔥 Sản Phẩm Bán Chạy</h4>
+              <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#2D241E] mb-3">Sản Phẩm Bán Chạy</h4>
               <div className="space-y-2">
                 {products.filter(p => p.isBestSeller).map((p, i) => (
                   <div key={p.id} className="flex items-center justify-between bg-white dark:bg-[#FFF8F0] p-3 rounded-xl border border-[#E5E1D8] dark:border-[#E0D8D0]">
@@ -2872,7 +2890,7 @@ export function AdminDashboard({
         {adminTab === 'delivery-areas' && (
           <div className="space-y-4">
             <div className="flex justify-between items-center border-b border-[#F3F0E9] dark:border-[#E0D8D0] pb-3">
-              <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#2D241E]">🗺️ Khu Vực Giao Hàng</h3>
+              <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#2D241E]">Khu Vực Giao Hàng</h3>
               <span className="text-xs text-[#8B7E74] dark:text-[#8B7E74]">{deliveryAreas.length} khu vực</span>
             </div>
 
@@ -2935,8 +2953,8 @@ export function AdminDashboard({
                       <p className="text-[#8B7E74]">Bán kính {area.radiusKm}km | Phí CB: {area.baseFee.toLocaleString('vi-VN')}đ | Phí/km: {area.feePerKm.toLocaleString('vi-VN')}đ</p>
                     </div>
                     <div className="flex gap-1.5">
-                      <button onClick={() => handleEditDeliveryArea(area)} className="text-red-600 hover:text-red-800 p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/20 cursor-pointer" title="Sửa"><Edit3 className="w-3.5 h-3.5" /></button>
-                      <button onClick={() => handleDeleteDeliveryArea(area.id)} className="text-red-500 hover:text-red-700 p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/20 cursor-pointer" title="Xóa"><Trash2 className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => handleEditDeliveryArea(area)} className="text-red-600 hover:text-red-800 px-2 py-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/20 cursor-pointer text-[10px] font-bold" title="Sửa">Sửa</button>
+                      <button onClick={() => handleDeleteDeliveryArea(area.id)} className="text-red-500 hover:text-red-700 px-2 py-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/20 cursor-pointer text-[10px] font-bold" title="Xóa">Xóa</button>
                     </div>
                   </div>
                 ))
@@ -2949,7 +2967,7 @@ export function AdminDashboard({
         {adminTab === 'membership-tiers' && isAdminOrSuper && (
           <div className="space-y-4">
             <div className="flex justify-between items-center border-b border-[#F3F0E9] dark:border-[#E0D8D0] pb-3">
-              <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#2D241E]">🏅 Hạng Thành Viên</h3>
+              <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#2D241E]">Hạng Thành Viên</h3>
               <span className="text-xs text-[#8B7E74] dark:text-[#8B7E74]">{membershipTiers.length} hạng · {apiUsers.length} thành viên</span>
             </div>
 
@@ -2960,7 +2978,7 @@ export function AdminDashboard({
             {/* Sub-tabs */}
             <div className="flex gap-1 border-b border-[#F3F0E9] dark:border-[#E0D8D0] pb-2">
               {(['tiers', 'members', 'vouchers'] as const).map(st => {
-                const labels: Record<string, string> = { tiers: '📋 Hạng', members: '👥 Thành viên', vouchers: '🎫 Voucher' };
+                const labels: Record<string, string> = { tiers: 'Hạng', members: 'Thành viên', vouchers: 'Voucher' };
                 return (
                   <button key={st} onClick={() => setMembershipSubTab(st)}
                     className={`px-3 py-1.5 rounded-t-lg text-xs font-bold cursor-pointer transition-all ${membershipSubTab === st ? 'bg-[#E74C3C] text-white' : 'bg-[#F3F0E9] dark:bg-[#FFF0E0] text-[#3E2F26] hover:bg-[#E5E1D8]'}`}>
@@ -3028,8 +3046,8 @@ export function AdminDashboard({
                           <p className="text-[#8B7E74]">Giảm {tier.autoDiscountPercent}% | {tier.voucherCount} voucher {tier.voucherDiscountPercent}% | Chi tiêu {tier.minTotalSpent.toLocaleString('vi-VN')}đ</p>
                         </div>
                         <div className="flex gap-1.5">
-                          <button onClick={() => handleEditMembershipTier(tier)} className="text-red-600 hover:text-red-800 p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/20 cursor-pointer" title="Sửa"><Edit3 className="w-3.5 h-3.5" /></button>
-                          <button onClick={() => handleDeleteMembershipTier(tier.id)} className="text-red-500 hover:text-red-700 p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/20 cursor-pointer" title="Xóa"><Trash2 className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => handleEditMembershipTier(tier)} className="text-red-600 hover:text-red-800 px-2 py-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/20 cursor-pointer text-[10px] font-bold" title="Sửa">Sửa</button>
+                          <button onClick={() => handleDeleteMembershipTier(tier.id)} className="text-red-500 hover:text-red-700 px-2 py-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/20 cursor-pointer text-[10px] font-bold" title="Xóa">Xóa</button>
                         </div>
                       </div>
                     ))
@@ -3077,7 +3095,7 @@ export function AdminDashboard({
               <div className="space-y-3">
                 {/* Create voucher form */}
                 <div className="bg-[#F3F0E9] dark:bg-[#FFF9F2] p-4 rounded-2xl border border-[#E5E1D8] dark:border-[#E0D8D0] space-y-3">
-                  <h4 className="text-sm font-bold text-[#2D241E] dark:text-[#2D241E]">🎫 Cấp Voucher</h4>
+                  <h4 className="text-sm font-bold text-[#2D241E] dark:text-[#2D241E]">Cấp Voucher</h4>
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                     <div>
                       <label className="text-[10px] font-bold text-[#8B7E74] uppercase">Hạng</label>
@@ -3104,7 +3122,7 @@ export function AdminDashboard({
                     <div>
                       <label className="text-[10px] font-bold text-[#8B7E74] uppercase">Trạng thái</label>
                       <select value={newVoucherForm.status} onChange={e => setNewVoucherForm(p => ({ ...p, status: e.target.value }))} className="w-full mt-1 bg-white dark:bg-[#FFF8F0] border border-[#E5E1D8] dark:border-[#D0C8C0] rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-red-500">
-                        <option value="available">🟢 Khả dụng</option>
+                        <option value="available">Khả dụng</option>
                         <option value="expired">⚫ Hết hạn</option>
                       </select>
                     </div>
@@ -3179,7 +3197,7 @@ export function AdminDashboard({
                   <div className="p-3 border-b border-[#E5E1D8] dark:border-[#E0D8D0] flex items-center justify-between">
                     <h4 className="text-xs font-bold text-[#2D241E]">Danh sách Voucher ({allVouchers.length})</h4>
                     <div className="flex gap-1">
-                      <button onClick={() => loadAllVouchers()} className="px-2 py-1 bg-white dark:bg-[#FFF8F0] border border-[#E5E1D8] rounded-lg text-[10px] text-[#8B7E74] hover:text-[#2D241E] cursor-pointer"><RefreshCw className="w-3 h-3 inline" /></button>
+                      <button onClick={() => loadAllVouchers()} className="px-2 py-1 bg-white dark:bg-[#FFF8F0] border border-[#E5E1D8] rounded-lg text-[10px] text-[#8B7E74] hover:text-[#2D241E] cursor-pointer">⟳</button>
                     </div>
                   </div>
                   {allVouchers.length === 0 ? (
@@ -3190,7 +3208,7 @@ export function AdminDashboard({
                         <div key={v.id} className="px-4 py-2.5 border-b border-[#F3F0E9] flex items-center justify-between text-xs">
                           <div>
                             <p className="font-semibold text-[#2D241E]">{v.code} <span className="text-[#E74C3C]">-{v.discountPercent}%</span></p>
-                            <p className="text-[10px] text-[#8B7E74]">User #{v.userId} · {getTierName(v.tierId)} · {v.status === 'available' ? '🟢 Khả dụng' : v.status === 'used' ? '🔴 Đã dùng' : '⚫ Hết hạn'}</p>
+                            <p className="text-[10px] text-[#8B7E74]">User #{v.userId} · {getTierName(v.tierId)} · {v.status === 'available' ? 'Khả dụng' : v.status === 'used' ? 'Đã dùng' : 'Hết hạn'}</p>
                           </div>
                           <div className="text-right text-[10px] text-[#8B7E74]">
                             <p>{v.issuedAt ? new Date(v.issuedAt).toLocaleDateString('vi-VN') : ''}</p>
@@ -3207,7 +3225,7 @@ export function AdminDashboard({
 
         {adminTab === 'permissions' && isSuperAdmin && (
           <div className="space-y-6">
-            <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#2D241E]">🔐 Phân quyền & Vai trò</h3>
+            <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#2D241E]">Phân quyền & Vai trò</h3>
             <p className="text-xs text-[#8B7E74] dark:text-[#8B7E74]">Quản lý vai trò và phân quyền chi tiết theo module</p>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -3215,7 +3233,7 @@ export function AdminDashboard({
               <div className="lg:col-span-4 space-y-4">
                 <div className="bg-[#F3F0E9] dark:bg-[#FFF0E0] p-4 rounded-2xl border border-[#E5E1D8] dark:border-[#D0C8C0]">
                   <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#2D241E] mb-3">
-                    {editingRoleId !== null ? <><Edit3 className="w-4 h-4 inline mr-1 text-[#E74C3C]" /> Sửa Vai Trò</> : <><Plus className="w-4 h-4 inline mr-1 text-emerald-500" /> Thêm Vai Trò</>}
+                    {editingRoleId !== null ? 'Sửa Vai Trò' : 'Thêm Vai Trò'}
                   </h4>
                   <form onSubmit={handleRoleFormSubmit} className="space-y-2">
                     <input type="text" required placeholder="ROLE_NAME"
@@ -3234,7 +3252,7 @@ export function AdminDashboard({
                       {editingRoleId !== null && (
                         <button type="button" onClick={() => { setEditingRoleId(null); setRoleForm({ name: '', display: '', desc: '' }); }}
                           className="px-3 py-1.5 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] text-xs font-bold text-[#3E2F26] dark:text-[#3E2F26] hover:bg-[#E5E1D8] dark:hover:bg-[#E8E0D8] cursor-pointer">
-                          <X className="w-3 h-3 inline mr-1" />Hủy
+                          Hủy
                         </button>
                       )}
                       <button type="submit"
@@ -3264,12 +3282,12 @@ export function AdminDashboard({
                         </div>
                         <div className="flex gap-1">
                           <button onClick={(e) => { e.stopPropagation(); handleEditRole(r); }}
-                            className="p-1 rounded bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-950/50 cursor-pointer">
-                            <Edit3 className="w-3 h-3" />
+                            className="px-2 py-1 rounded bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-950/50 cursor-pointer text-[10px] font-bold">
+                            Sửa
                           </button>
                           <button onClick={(e) => { e.stopPropagation(); handleDeleteRole(r.id); }}
-                            className="p-1 rounded bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-950/50 cursor-pointer">
-                            <Trash2 className="w-3 h-3" />
+                            className="px-2 py-1 rounded bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-950/50 cursor-pointer text-[10px] font-bold">
+                            Xóa
                           </button>
                         </div>
                       </div>
@@ -3322,7 +3340,7 @@ export function AdminDashboard({
 
             {/* Account Creation Section */}
             <div className="bg-[#FAF8F5] dark:bg-[#FFFAF3] p-5 rounded-2xl border border-[#E5E1D8] dark:border-[#E0D8D0]">
-              <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#2D241E] mb-3">👤 Tạo Tài Khoản Người Dùng</h4>
+              <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#2D241E] mb-3">Tạo Tài Khoản Người Dùng</h4>
               {accountSuccess && <div className="mb-3 p-2.5 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/50 text-emerald-800 dark:text-emerald-400 text-xs rounded-xl text-center font-bold">{accountSuccess}</div>}
               {accountError && <div className="mb-3 p-2.5 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/50 text-red-800 dark:text-red-400 text-xs rounded-xl text-center font-bold">{accountError}</div>}
               <form onSubmit={handleCreateAccount} className="grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
@@ -3394,7 +3412,7 @@ export function AdminDashboard({
             <div className="xl:col-span-7 space-y-6">
 
               <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 flex gap-3">
-                <span className="text-xl shrink-0">🤝</span>
+                <span className="text-xl shrink-0"></span>
                 <div className="text-xs text-[#FAF8F5]/80 space-y-1">
                   <p className="font-bold text-[#E74C3C] text-sm">Chính Sách Tài Khoản: Chỉ Người Dùng (Khách Hàng) Đăng Ký</p>
                   <p className="leading-relaxed text-[#B2A496]">
@@ -3412,13 +3430,13 @@ export function AdminDashboard({
                 <div className="flex items-center justify-between">
                   <h4 className="font-serif font-bold text-sm text-[#FAF8F5]">
                     {selectedUser ? (
-                      <span>🔧 Thao Tác: <span className="text-amber-400">{selectedUser.username}</span></span>
-                    ) : '🔧 Bảng Chức Năng'}
+                      <span>Thao Tác: <span className="text-amber-400">{selectedUser.username}</span></span>
+                    ) : 'Bảng Chức Năng'}
                   </h4>
                   {selectedUser && (
                     <button onClick={() => setSelectedUser(null)}
                       className="text-[10px] text-[#8B7E74] hover:text-red-400 cursor-pointer transition-colors">
-                      ✕ Bỏ chọn
+                      Bỏ chọn
                     </button>
                   )}
                 </div>
@@ -3445,7 +3463,7 @@ export function AdminDashboard({
                         ? 'bg-[#241A18] border-amber-700/40 text-[#FAF8F5] hover:bg-amber-900/30 hover:border-amber-500/60 cursor-pointer'
                         : 'bg-[#1A1412] border-[#2D2321] text-[#5A4A40] cursor-not-allowed'
                     }`}>
-                    <div className="text-lg mb-1">✏️</div>
+                    <div className="text-lg mb-1"></div>
                     <div>Chỉnh sửa thông tin</div>
                     <div className="text-[8px] text-[#8B7E74] mt-0.5">Họ tên, SĐT, địa chỉ, email</div>
                   </button>
@@ -3457,7 +3475,7 @@ export function AdminDashboard({
                         ? 'bg-[#241A18] border-amber-700/40 text-[#FAF8F5] hover:bg-amber-900/30 hover:border-amber-500/60 cursor-pointer'
                         : 'bg-[#1A1412] border-[#2D2321] text-[#5A4A40] cursor-not-allowed'
                     }`}>
-                    <div className="text-lg mb-1">🔄</div>
+                    <div className="text-lg mb-1"></div>
                     <div>Đổi vai trò</div>
                     <div className="text-[8px] text-[#8B7E74] mt-0.5">customer / driver / admin</div>
                   </button>
@@ -3469,7 +3487,7 @@ export function AdminDashboard({
                         ? 'bg-[#241A18] border-amber-700/40 text-[#FAF8F5] hover:bg-amber-900/30 hover:border-amber-500/60 cursor-pointer'
                         : 'bg-[#1A1412] border-[#2D2321] text-[#5A4A40] cursor-not-allowed'
                     }`}>
-                    <div className="text-lg mb-1">{selectedUser?.isActive === false ? '🔓' : '🔒'}</div>
+                    <div className="text-lg mb-1">{selectedUser?.isActive === false ? '' : ''}</div>
                     <div>{selectedUser?.isActive === false ? 'Mở khoá' : 'Khoá tài khoản'}</div>
                     <div className="text-[8px] text-[#8B7E74] mt-0.5">{selectedUser?.isActive === false ? 'Đang bị khoá' : 'Đang hoạt động'}</div>
                   </button>
@@ -3481,7 +3499,7 @@ export function AdminDashboard({
                         ? 'bg-[#241A18] border-amber-700/40 text-[#FAF8F5] hover:bg-amber-900/30 hover:border-amber-500/60 cursor-pointer'
                         : 'bg-[#1A1412] border-[#2D2321] text-[#5A4A40] cursor-not-allowed'
                     }`}>
-                    <div className="text-lg mb-1">🔑</div>
+                    <div className="text-lg mb-1"></div>
                     <div>Đặt lại mật khẩu</div>
                     <div className="text-[8px] text-[#8B7E74] mt-0.5">Admin cấp mật khẩu mới</div>
                   </button>
@@ -3494,13 +3512,13 @@ export function AdminDashboard({
                       ? 'bg-red-950/30 border-red-800/50 text-red-400 hover:bg-red-950/50 hover:border-red-600 cursor-pointer'
                       : 'bg-[#1A1412] border-[#2D2321] text-[#5A4A40] cursor-not-allowed'
                   }`}>
-                  🗑️ Xoá tài khoản "{selectedUser?.username || '...'}"
+                  Xoá tài khoản "{selectedUser?.username || '...'}"
                 </button>
 
                 {/* Edit Info Form */}
                 {showUserEditForm && selectedUser && (
                   <div className="p-4 bg-[#241A18] rounded-xl border border-amber-700/40 space-y-3">
-                    <h5 className="text-xs font-bold text-amber-400">✏️ Chỉnh sửa thông tin</h5>
+                    <h5 className="text-xs font-bold text-amber-400">Chỉnh sửa thông tin</h5>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-[9px] text-[#8B7E74] font-bold uppercase">Họ tên</label>
@@ -3537,7 +3555,7 @@ export function AdminDashboard({
                 {/* Change Role Form */}
                 {showUserRoleForm && selectedUser && (
                   <div className="p-4 bg-[#241A18] rounded-xl border border-amber-700/40 space-y-3">
-                    <h5 className="text-xs font-bold text-amber-400">🔄 Đổi vai trò</h5>
+                    <h5 className="text-xs font-bold text-amber-400">Đổi vai trò</h5>
                     <select value={userNewRole} onChange={e => setUserNewRole(e.target.value)}
                       className="w-full p-2 rounded-lg bg-[#1C1311] border border-[#2D2321] text-[11px] text-[#FAF8F5] focus:outline-none focus:border-amber-500">
                       <option value="customer">Khách hàng</option>
@@ -3559,7 +3577,7 @@ export function AdminDashboard({
                 {/* Reset Password Form */}
                 {showUserPasswordForm && selectedUser && (
                   <div className="p-4 bg-[#241A18] rounded-xl border border-amber-700/40 space-y-3">
-                    <h5 className="text-xs font-bold text-amber-400">🔑 Đặt lại mật khẩu</h5>
+                    <h5 className="text-xs font-bold text-amber-400">Đặt lại mật khẩu</h5>
                     <input type="text" value={userNewPassword} onChange={e => setUserNewPassword(e.target.value)}
                       placeholder="Nhập mật khẩu mới (tối thiểu 6 ký tự)"
                       className="w-full p-2 rounded-lg bg-[#1C1311] border border-[#2D2321] text-[11px] text-[#FAF8F5] focus:outline-none focus:border-amber-500 placeholder:text-[#5A4A40]" />
@@ -3591,7 +3609,7 @@ export function AdminDashboard({
                   <div className="flex justify-between items-center">
                     <div>
                       <h4 className="font-serif font-bold text-sm text-[#FAF8F5]">
-                        👥 Người Dùng Từ Database {loadingUsers && <span className="text-[9px] text-[#B2A496] font-sans">(đang tải...)</span>}
+                        Người Dùng Từ Database {loadingUsers && <span className="text-[9px] text-[#B2A496] font-sans">(đang tải...)</span>}
                       </h4>
                       <p className="text-[10px] text-[#8B7E74]">Spring Boot + MySQL — {apiUsers.length} tài khoản</p>
                     </div>
@@ -3669,14 +3687,14 @@ export function AdminDashboard({
               <div className="p-4.5 bg-[#1C1311] border border-[#2D2321] rounded-2xl shadow-xs space-y-3">
                 <div className="flex justify-between items-center">
                   <h4 className="font-serif font-bold text-sm text-[#FAF8F5]">
-                    👥 Người Dùng Đã Đăng Ký (LocalStorage)
+                    Người Dùng Đã Đăng Ký (LocalStorage)
                   </h4>
                   <div className="flex items-center gap-2">
                     <span className="text-[9px] font-mono px-2 py-1 rounded border bg-[#241A18] border-[#2D2321] text-[#B2A496]">
                       {statusLabel[onlineStatus]?.icon} {statusLabel[onlineStatus]?.label}
                     </span>
                     <button onClick={handleRefreshUsers} className="text-[9px] text-amber-400 hover:underline cursor-pointer">⟳ Làm mới</button>
-                    <button onClick={handleResetSimulatedUsers} className="text-[9px] text-red-400 hover:underline cursor-pointer">🗑️ Xoá tất cả</button>
+                    <button onClick={handleResetSimulatedUsers} className="text-[9px] text-red-400 hover:underline cursor-pointer">Xoá tất cả</button>
                   </div>
                 </div>
                 {localUsers.length === 0 ? (
@@ -3743,7 +3761,7 @@ export function AdminDashboard({
         {adminTab === 'delivery-trips' && (
           <div className="space-y-6">
             <div className="flex justify-between items-center border-b border-[#F3F0E9] dark:border-[#E0D8D0] pb-3">
-              <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#2D241E]">🚚 Chuyến Giao Hàng</h3>
+              <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#2D241E]">Chuyến Giao Hàng</h3>
               <span className="text-xs text-[#8B7E74] dark:text-[#8B7E74]">Theo dõi các chuyến giao hàng</span>
             </div>
             <div className="overflow-x-auto border border-[#E5E1D8] dark:border-[#E0D8D0] rounded-2xl bg-[#FAF8F5] dark:bg-[#FFF5EB]">
@@ -3793,7 +3811,7 @@ export function AdminDashboard({
         {adminTab === 'payment-transactions' && (
           <div className="space-y-6">
             <div className="flex justify-between items-center border-b border-[#F3F0E9] dark:border-[#E0D8D0] pb-3">
-              <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#2D241E]">💳 Giao Dịch Thanh Toán</h3>
+              <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#2D241E]">Giao Dịch Thanh Toán</h3>
               <span className="text-xs text-[#8B7E74] dark:text-[#8B7E74]">Lịch sử giao dịch thanh toán</span>
             </div>
             <div className="overflow-x-auto border border-[#E5E1D8] dark:border-[#E0D8D0] rounded-2xl bg-[#FAF8F5] dark:bg-[#FFF5EB]">
@@ -3853,7 +3871,7 @@ export function AdminDashboard({
         {adminTab === 'order-history' && (
           <div className="space-y-6">
             <div className="flex justify-between items-center border-b border-[#F3F0E9] dark:border-[#E0D8D0] pb-3">
-              <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#2D241E]">📜 Lịch Sử Đơn Hàng</h3>
+              <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#2D241E]">Lịch Sử Đơn Hàng</h3>
               <span className="text-xs text-[#8B7E74] dark:text-[#8B7E74]">Tra cứu lịch sử đơn hàng</span>
             </div>
             {orders.filter(o => o.status === 'completed' || o.status === 'cancelled').length === 0 ? (
@@ -3890,11 +3908,11 @@ export function AdminDashboard({
                         </td>
                         <td className="p-3.5 text-[10px]">
                           <span className={`font-bold ${order.paymentStatus === 'paid' ? 'text-emerald-600' : 'text-red-600'}`}>
-                            {order.paymentStatus === 'paid' ? '✅ Đã TT' : '⏳ Chưa TT'}
+                            {order.paymentStatus === 'paid' ? 'Đã TT' : 'Chưa TT'}
                           </span>
                           <span className="block text-[9px] text-[#8B7E74] dark:text-[#8B7E74] mt-0.5">
-                            {order.paymentMethod === 'momo' ? '🎀 MoMo' :
-                             order.paymentMethod === 'cod' ? '💵 Tiền mặt (COD)' :
+                            {order.paymentMethod === 'momo' ? 'MoMo' :
+                             order.paymentMethod === 'cod' ? 'Tiền mặt (COD)' :
                              order.paymentMethod || '-'}
                           </span>
                         </td>
@@ -3920,7 +3938,7 @@ export function AdminDashboard({
           <div className="bg-white dark:bg-[#FFF5EB] rounded-2xl max-w-sm w-full p-6 border border-[#E5E1D8] dark:border-[#E0D8D0] shadow-2xl space-y-4 transform scale-100 transition-all select-none">
             <div className="flex items-center gap-3 text-red-600 dark:text-red-400">
               <div className="w-10 h-10 rounded-full bg-red-50 dark:bg-red-950/20 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 animate-pulse" />
+                <span className="text-red-600 dark:text-red-400 text-lg">!</span>
               </div>
               <div>
                 <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#2D241E]">Hủy đơn hàng đang chờ?</h4>

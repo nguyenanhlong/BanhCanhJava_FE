@@ -144,10 +144,10 @@ export function DriverSection({
                       <Bike className={`w-5 h-5 text-white ${journeyPhase !== 'delivered' ? 'animate-bounce' : ''}`} />
                     </div>
                     <span className="text-[7px] font-bold text-white mt-0.5 bg-sky-600/80 px-1 rounded whitespace-nowrap">
-                      {journeyPhase === 'to_shop' ? '🔄 Đang đến quán' :
-                       journeyPhase === 'at_shop' ? '📦 Nhận hàng' :
-                       journeyPhase === 'to_customer' ? '🚚 Đang giao' :
-                       journeyPhase === 'delivered' ? '✅ Đã giao' : ''}
+                      {journeyPhase === 'to_shop' ? 'Đang đến quán' :
+                       journeyPhase === 'at_shop' ? 'Nhận hàng' :
+                       journeyPhase === 'to_customer' ? 'Đang giao' :
+                       journeyPhase === 'delivered' ? 'Đã giao' : ''}
                     </span>
                   </div>
                 </div>
@@ -254,7 +254,7 @@ export function DriverSection({
 
             {selectedDelivery.notes && (
               <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-950/20 rounded-xl border border-amber-200 dark:border-amber-900/40">
-                <p className="text-[10px] text-amber-700 dark:text-amber-400 font-bold">📝 Ghi chú:</p>
+                <p className="text-[10px] text-amber-700 dark:text-amber-400 font-bold">Ghi chú:</p>
                 <p className="text-xs text-amber-800 dark:text-amber-300 mt-1">{selectedDelivery.notes}</p>
               </div>
             )}
@@ -309,7 +309,7 @@ export function DriverSection({
             <Bike className="w-5 h-5 text-white" />
           </div>
           <div>
-            <p className="font-bold text-sm">🛵 Đơn hàng mới!</p>
+            <p className="font-bold text-sm">Đơn hàng mới!</p>
             <p className="text-xs opacity-80">Bạn có đơn hàng mới được phân công</p>
           </div>
           <button onClick={() => setNewOrderAlert(false)} className="ml-auto p-1 rounded-lg hover:bg-emerald-200/50 cursor-pointer">
@@ -358,18 +358,18 @@ export function DriverSection({
       <div className="px-4 -mt-4">
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-white dark:bg-[#1C1311] p-3 rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] shadow-sm text-center">
-            <div className="text-xl mb-1">🛵</div>
+            <div className="text-xl mb-1"></div>
             <p className="font-black text-lg text-[#2D241E] dark:text-[#FAF8F5]">{myDeliveries.length}</p>
             <p className="text-[9px] text-[#8B7E74]">Đang giao</p>
           </div>
           <div className="bg-white dark:bg-[#1C1311] p-3 rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] shadow-sm text-center">
-            <div className="text-xl mb-1">✅</div>
+            <div className="text-xl mb-1"></div>
             <p className="font-black text-lg text-[#2D241E] dark:text-[#FAF8F5]">{completedDeliveries.filter(o => o.status === 'completed').length}</p>
             <p className="text-[9px] text-[#8B7E74]">Hoàn thành</p>
           </div>
           <div className="bg-white dark:bg-[#1C1311] p-3 rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] shadow-sm text-center cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-950/20 transition-colors"
             onClick={() => setShowEarnings(!showEarnings)}>
-            <div className="text-xl mb-1">💰</div>
+            <div className="text-xl mb-1"></div>
             <p className="font-black text-lg text-[#D97706]">{(totalEarnings || 0).toLocaleString('vi-VN')}đ</p>
             <p className="text-[9px] text-[#8B7E74]">Doanh thu</p>
           </div>
@@ -385,7 +385,7 @@ export function DriverSection({
 
         {myDeliveries.length === 0 ? (
           <div className="text-center py-12 bg-white dark:bg-[#1C1311] rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321]">
-            <div className="text-4xl mb-3">🛵</div>
+            <div className="text-4xl mb-3"></div>
             <p className="font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5]">Chưa có đơn hàng nào</p>
             <p className="text-xs text-[#8B7E74] mt-1">Bật trạng thái "Rảnh" để nhận đơn</p>
           </div>

@@ -1027,7 +1027,7 @@ export default function App() {
 
             {/* Highlighted info */}
             <div className="p-4 bg-[#F1EDE4] dark:bg-[#251A18] text-center rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] text-xs max-w-md mx-auto text-[#2D241E] dark:text-[#EAE3D2]">
-              🥫 <strong>Lưu ý:</strong> Sợi bánh canh nặn tay có độ dai tự nhiên. Nếu quý khách muốn nấu sẵn sợi bánh mềm rục hơn, vui lòng ghi chú lại khi tiến hành thêm món vào giỏ hàng!
+              <strong>Lưu ý:</strong> Sợi bánh canh nặn tay có độ dai tự nhiên. Nếu quý khách muốn nấu sẵn sợi bánh mềm rục hơn, vui lòng ghi chú lại khi tiến hành thêm món vào giỏ hàng!
             </div>
           </div>
         )}

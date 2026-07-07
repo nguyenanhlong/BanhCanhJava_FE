@@ -9,7 +9,7 @@ export function Hero({ onOrderNow }: HeroProps) {
     <section className="bg-[#F1EDE4] dark:bg-[#251A18] rounded-3xl p-6 sm:p-10 relative overflow-hidden shrink-0 border border-[#E5E1D8] dark:border-[#2D2321] shadow-sm my-6 transition-colors duration-300">
       {/* Miễn phí giao hàng banner */}
       <div className="absolute top-0 right-0 bg-[#D97706] text-white text-xs font-bold px-5 py-1.5 rounded-bl-2xl rounded-tr-3xl shadow-md z-20">
-        🚚 Miễn phí giao hàng
+        Miễn phí giao hàng
       </div>
 
       <div className="relative z-10 max-w-xl">
@@ -40,15 +40,15 @@ export function Hero({ onOrderNow }: HeroProps) {
         {/* Stats / Badge row */}
         <div className="flex flex-wrap gap-4 sm:gap-6 text-sm">
           <div className="flex items-center gap-1.5 bg-white/60 dark:bg-[#1C1311]/60 backdrop-blur px-3 py-2 rounded-xl border border-[#E5E1D8] dark:border-[#2D2321]">
-            <span className="text-lg">🍜</span>
+            <span className="text-lg"></span>
             <span className="text-[#3E2F26] dark:text-[#EAE3D2]"><strong className="text-[#D97706]">20+</strong> Món ngon</span>
           </div>
           <div className="flex items-center gap-1.5 bg-white/60 dark:bg-[#1C1311]/60 backdrop-blur px-3 py-2 rounded-xl border border-[#E5E1D8] dark:border-[#2D2321]">
-            <span className="text-lg">❤️</span>
+            <span className="text-lg"></span>
             <span className="text-[#3E2F26] dark:text-[#EAE3D2]"><strong className="text-[#D97706]">5.000+</strong> Khách hàng</span>
           </div>
           <div className="flex items-center gap-1.5 bg-white/60 dark:bg-[#1C1311]/60 backdrop-blur px-3 py-2 rounded-xl border border-[#E5E1D8] dark:border-[#2D2321]">
-            <span className="text-lg">⭐</span>
+            <span className="text-lg"></span>
             <span className="text-[#3E2F26] dark:text-[#EAE3D2]"><strong className="text-[#D97706]">25 Năm</strong> Kinh nghiệm</span>
           </div>
         </div>

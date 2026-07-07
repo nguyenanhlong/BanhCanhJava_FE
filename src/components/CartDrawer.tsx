@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { CartItem, User } from '../types';
 import { getUserTier, calculateAutoDiscount } from '../services/membership';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faBowlFood } from '@fortawesome/free-solid-svg-icons';
 import { X, Trash2, ShoppingBag, Award, AlertTriangle } from 'lucide-react';
 
 interface CartDrawerProps {
@@ -65,7 +67,7 @@ export function CartDrawer({
           <div className="flex-1 overflow-y-auto p-4 sm:p-6">
             {cartItems.length === 0 ? (
               <div className="text-center py-16 flex flex-col items-center justify-center">
-                <span className="text-6xl mb-4 animate-pulse">🥣</span>
+                <span className="text-6xl mb-4 animate-pulse text-[#D97706]"><FontAwesomeIcon icon={faBowlFood} /></span>
                 <p className="font-bold text-base text-[#2D241E] dark:text-[#FAF8F5]">Giỏ hàng của bạn đang trống</p>
                 <p className="text-xs text-[#8B7E74] dark:text-[#B2A496] max-w-xs mt-1">Đừng bỏ lỡ tô bánh canh cá lóc nóng hổi chuẩn vị miền Trung hôm nay nhé!</p>
                 <button 
@@ -127,7 +129,7 @@ export function CartDrawer({
                       <span>-{membershipDiscount.toLocaleString('vi-VN')} đ</span>
                     </div>
                   )}
-                  <p className="text-[10px] text-[#8B7E74] dark:text-[#B2A496] italic">🚚 Phí ship & khuyến mãi sẽ được tính tại trang xác nhận</p>
+                  <p className="text-[10px] text-[#8B7E74] dark:text-[#B2A496] italic"> Phí ship & khuyến mãi sẽ được tính tại trang xác nhận</p>
                   <div className="h-[1px] bg-[#E5E1D8] dark:border-[#2D2321] my-1" />
                   <div className="flex justify-between text-sm">
                     <span className="font-bold text-[#2D241E] dark:text-[#FAF8F5]">Tổng thanh toán:</span>
