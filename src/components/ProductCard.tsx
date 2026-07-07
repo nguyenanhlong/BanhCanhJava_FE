@@ -161,7 +161,7 @@ export function ProductCard({ product, onAddToCart, reviews = [], productOptions
             onError={(e) => { (e.target as HTMLElement).style.display = 'none'; (e.currentTarget.parentElement as HTMLElement).innerText = '🍲'; }}
           />
         ) : (
-          <span className="text-6xl drop-shadow-sm">🍲</span>
+          <span className="text-6xl drop-shadow-sm"></span>
         )}
         
         {isMain && (

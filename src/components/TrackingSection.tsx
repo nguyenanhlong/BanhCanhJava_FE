@@ -236,8 +236,8 @@ export function TrackingSection({
                   <div className="text-right">
                     <span className="text-xs text-[#8B7E74] dark:text-[#B2A496] font-medium">Hình thức thanh toán:</span>
                     <p className="text-xs text-[#D97706] font-bold mt-0.5 capitalize font-sans">
-                      {selectedOrder.paymentMethod === 'cod' ? '💵 Tiền mặt khi nhận (COD)' : 
-                       selectedOrder.paymentMethod === 'momo' ? '🎀 Ví MoMo' : 
+                      {selectedOrder.paymentMethod === 'cod' ? 'Tiền mặt khi nhận (COD)' : 
+                       selectedOrder.paymentMethod === 'momo' ? 'Ví MoMo' : 
                        selectedOrder.paymentMethod}
                     </p>
                   </div>
@@ -350,7 +350,7 @@ export function TrackingSection({
                 {/* INVOICE / BILL SECTION */}
                 <div className="mt-6 p-5 bg-[#FAF8F5] dark:bg-[#1C1311] rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] text-xs">
                   <h4 className="font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5] mb-3 flex items-center gap-2">
-                    <span className="text-lg">🧾</span> Chi Tiết Hóa Đơn
+                    <span className="text-lg"></span> Chi Tiết Hóa Đơn
                   </h4>
                   <div className="divide-y divide-[#E5E1D8] dark:divide-[#2D2321]">
                     {selectedOrder.items.map((it, idx) => (
@@ -358,7 +358,7 @@ export function TrackingSection({
                         <div className="flex-1 min-w-0">
                           <span className="font-bold text-[#2D241E] dark:text-[#FAF8F5] truncate block">{it.productName}</span>
                           {it.noodleType && <span className="text-[10px] text-[#8B7E74]">Sợi: {it.noodleType}</span>}
-                          {it.notes && <span className="text-[10px] text-[#8B7E74] italic block">✍️ {it.notes}</span>}
+                          {it.notes && <span className="text-[10px] text-[#8B7E74] italic block">{it.notes}</span>}
                         </div>
                         <div className="text-right shrink-0 ml-4">
                           <span className="font-bold text-[#2D241E] dark:text-[#FAF8F5]">x{it.quantity}</span>
@@ -391,15 +391,15 @@ export function TrackingSection({
                     <div className="flex justify-between mt-1">
                       <span className="text-[#8B7E74]">Thanh toán:</span>
                       <span className="font-bold capitalize">
-                        {selectedOrder.paymentMethod === 'cod' ? '💵 Tiền mặt (COD)' :
-                         selectedOrder.paymentMethod === 'momo' ? '🎀 MoMo' :
+                        {selectedOrder.paymentMethod === 'cod' ? 'Tiền mặt (COD)' :
+                         selectedOrder.paymentMethod === 'momo' ? 'MoMo' :
                          selectedOrder.paymentMethod || 'Chưa xác định'}
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-[#8B7E74]">Trạng thái:</span>
                       <span className={`font-bold ${selectedOrder.paymentStatus === 'paid' ? 'text-emerald-600' : 'text-amber-600'}`}>
-                        {selectedOrder.paymentStatus === 'paid' ? '✅ Đã thanh toán' : '⏳ Chờ thanh toán'}
+                        {selectedOrder.paymentStatus === 'paid' ? 'Đã thanh toán' : 'Chờ thanh toán'}
                       </span>
                     </div>
                   </div>
@@ -438,9 +438,8 @@ export function TrackingSection({
                         className="absolute flex flex-col items-center animate-bounce transition-all duration-500 ease-out z-[999] pointer-events-none"
                         style={{ left: `${bikeLeft}%`, top: `${bikeTop}%` }}
                       >
-                        <span className="bg-sky-600 text-white text-[8px] px-1.5 py-0.5 rounded font-black shadow-lg">Shipper 🏍️ ({progress}%)</span>
+                        <span className="bg-sky-600 text-white text-[8px] px-1.5 py-0.5 rounded font-black shadow-lg">Shipper ({progress}%)</span>
                         <div className="w-8 h-8 rounded-full bg-white dark:bg-[#251A18] flex items-center justify-center shadow-lg border border-[#E5E1D8] dark:border-[#2D2321] text-sm transform -scale-x-100 font-sans">
-                          🛵
                         </div>
                       </div>
                     );
@@ -465,19 +464,19 @@ export function TrackingSection({
                 {selectedOrder.driverId && selectedOrder.status !== 'cancelled' ? (
                   <div className="mt-4 p-4 bg-[#FAF8F5] dark:bg-[#1C1311] rounded-xl border border-[#E5E1D8] dark:border-[#2D2321] flex justify-between items-center text-xs">
                     <div className="flex items-center gap-3 font-sans">
-                      <div className="text-2xl">🛵</div>
+                      <div className="text-2xl"></div>
                       <div>
                         {(() => {
                           const driver = drivers.find(d => String(d.id) === String(selectedOrder.driverId));
                           return driver ? (
                             <>
                               <p className="font-bold text-[#2D241E] dark:text-[#FAF8F5]">{driver.name}</p>
-                              <p className="text-[10px] text-[#8B7E74]">📞 {driver.phone} &nbsp;|&nbsp; 🚛 {driver.vehicle}</p>
+                              <p className="text-[10px] text-[#8B7E74]"> {driver.phone} &nbsp;|&nbsp; {driver.vehicle}</p>
                             </>
                           ) : (
                             <>
                               <p className="font-bold text-[#2D241E] dark:text-[#FAF8F5]">Tài xế (ID: {selectedOrder.driverId})</p>
-                              <p className="text-[10px] text-[#8B7E74] dark:text-[#B2A496]">⏳ Đang tải thông tin tài xế...</p>
+                              <p className="text-[10px] text-[#8B7E74] dark:text-[#B2A496]">Đang tải thông tin tài xế...</p>
                             </>
                           );
                         })()}
@@ -500,7 +499,7 @@ export function TrackingSection({
                 ) : (
                   <div className="mt-4 p-3 bg-[#FAF8F5] dark:bg-[#1C1311] rounded-xl border border-[#E5E1D8] dark:border-[#2D2321] text-center text-xs text-[#8B7E74] dark:text-[#B2A496] font-sans">
                     {selectedOrder.status === 'cancelled' 
-                      ? '❌ Đơn hàng này đã bị hủy bỏ.' 
+                      ? 'Đơn hàng này đã bị hủy bỏ.' 
                       : 'Chưa phân tài xế. Chủ quán đang chuẩn bị nguyên liệu lóc xương cá.'}
                   </div>
                 )}
@@ -536,7 +535,7 @@ export function TrackingSection({
                           <div className="flex justify-between items-start flex-wrap gap-2">
                             <div>
                               <span className="text-xs font-bold text-[#2D241E] dark:text-[#FAF8F5] truncate max-w-xs block">
-                                🍲 {item.productName}
+                                 {item.productName}
                               </span>
                               {item.noodleType && (
                                 <span className="text-[10px] bg-[#E1DBD1] dark:bg-[#2D2321] text-[#2D241E] dark:text-[#EAE3D2] px-2 py-0.5 rounded font-black mr-2 mt-1 inline-block">
@@ -632,7 +631,7 @@ export function TrackingSection({
                 {/* Chat window panel */}
                 <div className="h-40 overflow-y-auto border border-[#E5E1D8] dark:border-[#2D2321] bg-[#FAF8F5] dark:bg-[#1C1311] rounded-xl p-3 space-y-2 mb-3">
                   <div className="bg-amber-100/50 dark:bg-amber-950/20 p-2.5 rounded-lg text-[10px] text-[#3E2F26] dark:text-[#EAE3D2]">
-                    🤖 <strong>Trợ lý Bánh Canh:</strong> Xin chào mừng! Quý khách có thể yêu cầu đặt thêm các loại rau đắng, củ nén, nước luộc cá ngọt thơm bằng cách chat ở đây. Chúng tôi sẽ báo làm ngay!
+                    <strong>Trợ lý Bánh Canh:</strong> Xin chào mừng! Quý khách có thể yêu cầu đặt thêm các loại rau đắng, củ nén, nước luộc cá ngọt thơm bằng cách chat ở đây. Chúng tôi sẽ báo làm ngay!
                   </div>
 
                   {(chatHistory[selectedOrder.id] || []).map((msg, i) => (
