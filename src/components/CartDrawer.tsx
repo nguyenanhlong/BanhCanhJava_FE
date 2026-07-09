@@ -83,7 +83,7 @@ export function CartDrawer({
                   <div key={idx} className="bg-white dark:bg-[#1C1311] p-4 rounded-xl border border-[#E5E1D8] dark:border-[#2D2321] flex gap-3.5 relative shadow-xs">
                     <div className="w-12 h-12 rounded-xl bg-[#F3F0E9] dark:bg-[#251A18] flex items-center justify-center text-2xl border border-[#E5E1D8] dark:border-[#2D2321] overflow-hidden shrink-0">
                       {item.product.imageUrl ? (
-                        <img src={item.product.imageUrl} alt={item.product.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" onError={(e) => { (e.target as HTMLElement).style.display = 'none'; (e.currentTarget.parentElement as HTMLElement).innerText = '🍲'; }} />
+                        <img src={item.product.imageUrl} alt={item.product.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; const p = (e.currentTarget as HTMLElement).parentElement; if (p) p.innerText = '🍲'; }} />
                       ) : '🍲'}
                     </div>
                     <div className="flex-1">

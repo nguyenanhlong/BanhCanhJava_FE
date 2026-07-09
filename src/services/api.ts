@@ -389,10 +389,12 @@ export const ApiService = {
   },
 
   // 10. IMAGE UPLOAD (Railway Bucket)
-  async uploadImage(file: File, folder: string): Promise<string> {
+  async uploadImage(file: File, folder: string, entityId?: string, entityName?: string): Promise<string> {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('folder', folder);
+    if (entityId) formData.append('id', entityId);
+    if (entityName) formData.append('name', entityName);
     const res = await fetch(`${BASE_URL}/upload/image`, {
       method: 'POST',
       body: formData

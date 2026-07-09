@@ -158,7 +158,7 @@ export function ProductCard({ product, onAddToCart, reviews = [], productOptions
             alt={product.name} 
             className="w-full h-full object-cover" 
             referrerPolicy="no-referrer"
-            onError={(e) => { (e.target as HTMLElement).style.display = 'none'; (e.currentTarget.parentElement as HTMLElement).innerText = '🍲'; }}
+            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; const p = (e.currentTarget as HTMLElement).parentElement; if (p) p.innerText = '🍲'; }}
           />
         ) : (
           <span className="text-6xl drop-shadow-sm"></span>
