@@ -69,7 +69,7 @@ export function PaymentModal({
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div className="absolute inset-0 bg-black/40 backdrop-blur-xs" onClick={onClose} />
         <div className="relative bg-white dark:bg-[#150F0D] rounded-3xl border border-[#E5E1D8] dark:border-[#2D2321] shadow-2xl max-w-sm w-full p-6 text-center">
-          <div className="text-5xl mb-3">📦</div>
+          <div className="text-5xl mb-3"></div>
           <h3 className="font-bold text-sm text-[#2D241E] dark:text-[#FAF8F5]">Đơn hàng COD</h3>
           <p className="text-xs text-[#8B7E74] mt-1">
             Thanh toán khi nhận hàng — {orderDetails.totalAmount.toLocaleString('vi-VN')}đ
@@ -104,12 +104,12 @@ export function PaymentModal({
 
           {paymentStatus === 'completed' ? (
             <div className="py-6">
-              <div className="text-5xl mb-2">✅</div>
+              <div className="text-5xl mb-2"></div>
               <p className="font-bold text-sm text-emerald-600">Thanh toán thành công!</p>
             </div>
           ) : paymentStatus === 'failed' ? (
             <div className="py-6">
-              <div className="text-5xl mb-2">❌</div>
+              <div className="text-5xl mb-2"></div>
               <p className="font-bold text-sm text-red-500">Thanh toán thất bại</p>
               <button onClick={onClose} className="mt-3 text-xs text-[#D97706] underline">Thử lại</button>
             </div>

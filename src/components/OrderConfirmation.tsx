@@ -426,11 +426,11 @@ export function OrderConfirmation({
               <h4 className="text-[10px] font-bold text-[#8B7E74] uppercase tracking-wider">Phương Thức Thanh Toán</h4>
               <label className="flex items-center gap-2 p-2 rounded-lg border border-[#E5E1D8] dark:border-[#2D2321] cursor-pointer hover:bg-[#FAF8F5] dark:hover:bg-[#211715] text-xs">
                 <input type="radio" name="pay" checked={paymentMethod === 'cod'} onChange={() => setPaymentMethod('cod')} className="text-[#D97706]" />
-                <span className="font-semibold">💵 Tiền mặt khi nhận hàng (COD)</span>
+                <span className="font-semibold">Tiền mặt khi nhận hàng (COD)</span>
               </label>
               <label className="flex items-center gap-2 p-2 rounded-lg border border-[#E5E1D8] dark:border-[#2D2321] cursor-pointer hover:bg-[#FAF8F5] dark:hover:bg-[#211715] text-xs">
                 <input type="radio" name="pay" checked={paymentMethod === 'momo'} onChange={() => setPaymentMethod('momo')} className="text-[#D97706]" />
-                <span className="font-semibold">💳 Ví MoMo (Quét QR)</span>
+                <span className="font-semibold">Ví MoMo (Quét QR)</span>
               </label>
             </div>
 

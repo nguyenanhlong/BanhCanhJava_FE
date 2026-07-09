@@ -76,7 +76,7 @@ export function Navbar({
                     : 'bg-[#F3F0E9] dark:bg-[#2D2321] text-[#2D241E] dark:text-[#FAF8F5] border-[#E5E1D8] dark:border-[#3D302D] hover:bg-[#E5E1D8] dark:hover:bg-[#3D302D]'
                 }`}
               >
-                <Shield className="w-3 h-3 text-[#D97706]" /> Quản Lý ⚙️
+                <Shield className="w-3 h-3 text-[#D97706]" /> Quản Lý
               </button>
             )}
           </div>
