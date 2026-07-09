@@ -79,7 +79,7 @@ describe('AdminDashboard', () => {
   describe('Stats tab', () => {
     it('renders stats tab by default', () => {
       render(<AdminDashboard {...baseProps} />);
-      expect(screen.getByText('Thống Kê')).toBeInTheDocument();
+      expect(screen.getAllByText(/Thống Kê/).length).toBeGreaterThan(0);
     });
 
     it('shows total order count', () => {
@@ -135,8 +135,8 @@ describe('AdminDashboard', () => {
     it('shows payment status badges', () => {
       render(<AdminDashboard {...baseProps} />);
       fireEvent.click(screen.getByText(/Đơn Hàng \(/));
-      const paidBadges = screen.getAllByText('Đã TT');
-      const unpaidBadges = screen.getAllByText('Chưa TT');
+      const paidBadges = screen.getAllByText(/Đã TT/);
+      const unpaidBadges = screen.getAllByText(/Chưa TT/);
       expect(paidBadges.length).toBeGreaterThan(0);
       expect(unpaidBadges.length).toBeGreaterThan(0);
     });
@@ -144,9 +144,9 @@ describe('AdminDashboard', () => {
     it('shows order type labels', () => {
       render(<AdminDashboard {...baseProps} />);
       fireEvent.click(screen.getByText(/Đơn Hàng \(/));
-      const deliveryLabels = screen.getAllByText('Giao hàng');
+      const deliveryLabels = screen.getAllByText(/Giao hàng/);
       expect(deliveryLabels.length).toBeGreaterThan(0);
-      expect(screen.getByText('Tại quán')).toBeInTheDocument();
+      expect(screen.getByText(/Tại quán/)).toBeInTheDocument();
     });
 
     it('shows driver assignment dropdown for non-completed/non-cancelled orders', () => {
@@ -232,16 +232,16 @@ describe('AdminDashboard', () => {
     });
 
     it('shows available badge for in-stock products', () => {
-      const badges = screen.getAllByText('Còn hàng');
+      const badges = screen.getAllByText(/Còn hàng/);
       expect(badges.length).toBeGreaterThan(0);
     });
 
     it('shows out of stock badge for unavailable products', () => {
-      expect(screen.getByText('Hết hàng')).toBeInTheDocument();
+      expect(screen.getByText(/Hết hàng/)).toBeInTheDocument();
     });
 
     it('shows best seller badge', () => {
-      const badges = screen.getAllByText('Bán chạy');
+      const badges = screen.getAllByText(/Bán chạy/);
       expect(badges.length).toBeGreaterThan(0);
     });
 
@@ -252,17 +252,17 @@ describe('AdminDashboard', () => {
     });
 
     it('shows validation error on empty submit', () => {
-      const form = screen.getByText('Thêm Món').closest('form');
+      const form = screen.getByText(/Thêm Món/).closest('form');
       fireEvent.submit(form!);
       expect(screen.getByText('Tên và giá sản phẩm là bắt buộc')).toBeInTheDocument();
     });
 
     it('creates product when form is valid', () => {
-      const nameInput = screen.getByPlaceholderText('Bánh Canh Cá Lóc...');
-      const priceInput = screen.getByPlaceholderText('0');
+      const nameInput = screen.getByPlaceholderText(/Bánh Canh Cá Lóc/);
+      const priceInput = screen.getByPlaceholderText('45000');
       fireEvent.change(nameInput, { target: { value: 'Bánh Canh Mới' } });
       fireEvent.change(priceInput, { target: { value: '45000' } });
-      const form = screen.getByText('Thêm Món').closest('form');
+      const form = screen.getByText(/Thêm Món/).closest('form');
       fireEvent.submit(form!);
       expect(baseProps.onCreateProduct).toHaveBeenCalledWith(
         expect.objectContaining({ name: 'Bánh Canh Mới', price: 45000 })
@@ -270,16 +270,16 @@ describe('AdminDashboard', () => {
     });
 
     it('pre-fills form when editing a product', () => {
-      fireEvent.click(screen.getAllByText('Sửa')[0]);
+      fireEvent.click(screen.getAllByTitle(/Sửa sản phẩm/)[0]);
       expect(screen.getByDisplayValue('Bánh Canh Cá Lóc')).toBeInTheDocument();
-      expect(screen.getByText('Cập Nhật')).toBeInTheDocument();
+      expect(screen.getByText(/Cập Nhật/)).toBeInTheDocument();
     });
 
     it('calls onUpdateProduct when editing an existing product', () => {
-      fireEvent.click(screen.getAllByText('Sửa')[0]);
+      fireEvent.click(screen.getAllByTitle(/Sửa sản phẩm/)[0]);
       const nameInput = screen.getByDisplayValue('Bánh Canh Cá Lóc');
       fireEvent.change(nameInput, { target: { value: 'Bánh Canh Cá Lóc Updated' } });
-      fireEvent.click(screen.getByText('Cập Nhật'));
+      fireEvent.click(screen.getByText(/Cập Nhật/));
       expect(baseProps.onUpdateProduct).toHaveBeenCalledWith(
         'p1',
         expect.objectContaining({ name: 'Bánh Canh Cá Lóc Updated' })
@@ -287,33 +287,33 @@ describe('AdminDashboard', () => {
     });
 
     it('cancels editing and resets form', () => {
-      fireEvent.click(screen.getAllByText('Sửa')[0]);
-      fireEvent.click(screen.getByText('Hủy'));
-      expect(screen.getByText('Thêm Món')).toBeInTheDocument();
+      fireEvent.click(screen.getAllByTitle(/Sửa sản phẩm/)[0]);
+      fireEvent.click(screen.getByText(/Hủy/));
+      expect(screen.getByText(/Thêm Món/)).toBeInTheDocument();
     });
 
     it('calls onDeleteProduct when deleting a product', () => {
       const mockConfirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
-      fireEvent.click(screen.getAllByText('Xóa')[0]);
+      fireEvent.click(screen.getAllByTitle(/Xóa sản phẩm/)[0]);
       expect(baseProps.onDeleteProduct).toHaveBeenCalledWith('p1');
       mockConfirm.mockRestore();
     });
 
     it('does not call onDeleteProduct when cancel is clicked', () => {
       const mockConfirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
-      fireEvent.click(screen.getAllByText('Xóa')[0]);
+      fireEvent.click(screen.getAllByTitle(/Xóa sản phẩm/)[0]);
       expect(baseProps.onDeleteProduct).not.toHaveBeenCalled();
       mockConfirm.mockRestore();
     });
 
     it('allows entering image URL', () => {
-      const imageInput = screen.getByPlaceholderText('https://... hoặc upload file bên cạnh');
+      const imageInput = screen.getByPlaceholderText(/https:\/\/\.\.\. hoặc upload file bên cạnh/);
       fireEvent.change(imageInput, { target: { value: 'http://example.com/new.jpg' } });
       expect(imageInput).toHaveValue('http://example.com/new.jpg');
     });
 
     it('shows image preview when imageUrl is provided', () => {
-      const imageInput = screen.getByPlaceholderText('https://... hoặc upload file bên cạnh');
+      const imageInput = screen.getByPlaceholderText(/https:\/\/\.\.\. hoặc upload file bên cạnh/);
       fireEvent.change(imageInput, { target: { value: 'http://example.com/preview.jpg' } });
       const imgs = screen.getAllByRole('img');
       const previewImg = imgs.find(img => img.getAttribute('src') === 'http://example.com/preview.jpg');
@@ -351,7 +351,7 @@ describe('AdminDashboard', () => {
     });
 
     it('shows driver phone numbers', () => {
-      expect(screen.getByText('0909777888')).toBeInTheDocument();
+      expect(screen.getByText(/0909777888/)).toBeInTheDocument();
     });
 
     it('calls onUpdateDriverStatus when changing status', () => {
@@ -367,7 +367,7 @@ describe('AdminDashboard', () => {
     });
 
     it('shows add driver form', () => {
-      expect(screen.getByText('Đăng ký Shipper Mới')).toBeInTheDocument();
+      expect(screen.getByText(/Đăng ký Shipper Mới/)).toBeInTheDocument();
     });
 
     it('calls onCreateDriver when submitting valid driver form', () => {
@@ -381,13 +381,13 @@ describe('AdminDashboard', () => {
       fireEvent.change(usernameInput, { target: { value: 'driver_f' } });
       fireEvent.change(passwordInput, { target: { value: 'pass123' } });
       fireEvent.change(emailInput, { target: { value: 'f@test.com' } });
-      const submitBtn = screen.getByText('Thêm Shipper Vào Hệ Thống');
+      const submitBtn = screen.getByText(/Thêm Shipper Vào Hệ Thống/);
       fireEvent.click(submitBtn);
       expect(baseProps.onCreateDriver).toHaveBeenCalled();
     });
 
     it('shows driver avatar URL input', () => {
-      const avatarInput = screen.getByPlaceholderText('https://... hoặc upload file');
+      const avatarInput = screen.getByPlaceholderText(/https:\/\/\.\.\. hoặc upload file/);
       expect(avatarInput).toBeInTheDocument();
     });
   });
@@ -396,15 +396,15 @@ describe('AdminDashboard', () => {
   describe('Categories tab', () => {
     beforeEach(() => {
       render(<AdminDashboard {...baseProps} />);
-      fireEvent.click(screen.getByText('Danh Mục'));
+      fireEvent.click(screen.getByText(/Danh Mục/));
     });
 
     it('switches to categories tab', () => {
-      expect(screen.getByText('Quản Lý Danh Mục')).toBeInTheDocument();
+      expect(screen.getByText(/Quản Lý Danh Mục/)).toBeInTheDocument();
     });
 
     it('shows add category form', () => {
-      expect(screen.getByText('Thêm Danh Mục Mới')).toBeInTheDocument();
+      expect(screen.getByText(/Thêm Danh Mục Mới/)).toBeInTheDocument();
     });
 
     it('allows entering category name and auto-generates slug', () => {
@@ -424,9 +424,9 @@ describe('AdminDashboard', () => {
   describe('Order History tab', () => {
     it('shows completed and cancelled orders', () => {
       render(<AdminDashboard {...baseProps} />);
-      fireEvent.click(screen.getByText('Lịch Sử ĐH'));
-      expect(screen.getByText('140.000 đ')).toBeInTheDocument();
-      expect(screen.getByText('45.000 đ')).toBeInTheDocument();
+      fireEvent.click(screen.getByText(/Lịch Sử ĐH/));
+      expect(screen.getByText(/140\.000 đ/)).toBeInTheDocument();
+      expect(screen.getByText(/45\.000 đ/)).toBeInTheDocument();
     });
   });
 
@@ -435,13 +435,13 @@ describe('AdminDashboard', () => {
     it('shows Local Only when backend is not connected', () => {
       render(<AdminDashboard {...baseProps} isBackendConnected={false} />);
       fireEvent.click(screen.getByText(/Sản Phẩm \(/));
-      expect(screen.getByText('Local Only')).toBeInTheDocument();
+      expect(screen.getByText(/Local Only/)).toBeInTheDocument();
     });
 
     it('shows API Live when backend is connected', () => {
       render(<AdminDashboard {...baseProps} isBackendConnected={true} />);
       fireEvent.click(screen.getByText(/Sản Phẩm \(/));
-      expect(screen.getByText('API Live')).toBeInTheDocument();
+      expect(screen.getByText(/API Live/)).toBeInTheDocument();
     });
   });
 
@@ -449,12 +449,12 @@ describe('AdminDashboard', () => {
   describe('User role based access', () => {
     it('shows Phân quyền tab for super_admin', () => {
       render(<AdminDashboard {...baseProps} userRole="super_admin" />);
-      expect(screen.getByText('Phân quyền & Vai trò')).toBeInTheDocument();
+      expect(screen.getByText(/Phân quyền & Vai trò/)).toBeInTheDocument();
     });
 
     it('shows Hạng TV tab for admin', () => {
       render(<AdminDashboard {...baseProps} userRole="admin" />);
-      expect(screen.getByText('Hạng TV')).toBeInTheDocument();
+      expect(screen.getByText(/Hạng TV/)).toBeInTheDocument();
     });
   });
 });
