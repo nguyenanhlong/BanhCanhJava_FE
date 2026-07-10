@@ -5,7 +5,7 @@ const BASE_URL = 'https://banhcanhjava-be.onrender.com';
 export function resolveImageUrl(url: string): string {
   if (!url) return '';
   if (url.startsWith('http://') || url.startsWith('https://')) return url;
-  if (url.startsWith('/api/')) return `https://banhcanhjavabe-production.up.railway.app${url}`;
+  if (url.startsWith('/api/')) return `${BASE_URL}${url}`;
   return url;
 }
 
