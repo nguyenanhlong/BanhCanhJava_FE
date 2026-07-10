@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: BanhCanhFE
+    env: node
+    region: singapore
+    plan: free
+    buildCommand: npm run build
+    startCommand: node dist/server.cjs
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: NODE_ENV
+        value: production
