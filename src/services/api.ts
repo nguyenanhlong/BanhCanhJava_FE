@@ -1,6 +1,6 @@
 import { Product, Driver, Order, Category, Review, User, Invoice, DeliveryArea, DeliveryTrip, MembershipVoucher, UserMembership, InvoiceDetail, OrderStatusHistory, PaymentTransaction, Promotion, ProductOption, MembershipTier } from '../types';
 
-const BASE_URL = 'https://banhcanhjavabe-production.up.railway.app/api';
+const BASE_URL = 'https://banhcanhjava-be.onrender.com';
 
 export function resolveImageUrl(url: string): string {
   if (!url) return '';
