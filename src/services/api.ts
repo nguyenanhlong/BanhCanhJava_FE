@@ -923,24 +923,22 @@ function extractS3Key(imageUrl: string): string | null {
     const url = new URL(imageUrl);
     let key = url.pathname.startsWith('/') ? url.pathname.slice(1) : url.pathname;
 
-    // Supabase path-style: .../storage/v1/s3/<bucket>/<key> or .../object/authenticated/<bucket>/<key>
-    // T3 path-style:       https://t3.storageapi.dev/<bucket>/<key>
-    // Virtual-hosted:      https://<bucket>.t3.storageapi.dev/<key>
+    // Strip the storage API's own path prefix first — our backend's S3 endpoint is
+    // itself mounted at /storage/v1/s3, so presigned URLs look like
+    // .../storage/v1/s3/<bucket>/<key>, not just /<bucket>/<key>.
+    // Also handles Supabase's REST-style object URLs and T3 path-style URLs.
+    const pathPrefixes = ['storage/v1/s3/', 'storage/v1/object/public/', 'storage/v1/object/authenticated/', 'object/public/', 'object/authenticated/'];
+    for (const prefix of pathPrefixes) {
+      if (key.startsWith(prefix)) { key = key.slice(prefix.length); break; }
+    }
+
+    // Virtual-hosted style (https://<bucket>.t3.storageapi.dev/<key>) has no bucket segment
+    // in the path at all, so this strip is a no-op there — safe either way.
     const bucketNames = ['Image', 'collapsible-burrito-tvsjvu'];
     for (const b of bucketNames) {
       if (key.startsWith(b + '/')) {
         key = key.slice(b.length + 1);
         break;
-      }
-    }
-
-    // Supabase: key might contain "object/public/" or "object/authenticated/" prefix
-    for (const prefix of ['object/public/', 'object/authenticated/']) {
-      if (key.startsWith(prefix)) {
-        key = key.slice(prefix.length);
-        for (const b of bucketNames) {
-          if (key.startsWith(b + '/')) { key = key.slice(b.length + 1); break; }
-        }
       }
     }
 

@@ -90,7 +90,7 @@ export function ProductCard({ product, onAddToCart, reviews = [], productOptions
 
   useEffect(() => {
     if (!product.imageUrl) return;
-    if (!product.imageUrl.includes('storageapi.dev') && !product.imageUrl.includes('storage.supabase.co') && !product.imageUrl.match(/^(product|avatar|review|category)_Image\//)) {
+    if (!product.imageUrl.includes('storageapi.dev') && !product.imageUrl.includes('storage.supabase.co') && !product.imageUrl.match(/^(product|avatar|review|category|payment)_Image\//)) {
       setSignedImageUrl(product.imageUrl);
       return;
     }

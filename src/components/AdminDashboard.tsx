@@ -287,13 +287,29 @@ export function AdminDashboard({
   const [productError, setProductError] = useState('');
   const [pendingNewCategory, setPendingNewCategory] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState('');
+  const [existingImagePreview, setExistingImagePreview] = useState('');
 
   const [signedImageUrls, setSignedImageUrls] = useState<Map<string, string>>(new Map());
   useEffect(() => {
-    const s3Urls = products.filter(p => p.imageUrl && (p.imageUrl.includes('storageapi.dev') || p.imageUrl.includes('storage.supabase.co') || p.imageUrl.match(/^(product|avatar|review|category)_Image\//))).map(p => p.imageUrl!);
-    if (s3Urls.length === 0) { setSignedImageUrls(new Map()); return; }
-    ImageService.getPresignedUrlsBatch(s3Urls).then(setSignedImageUrls);
+    const candidates = products.filter(p => p.imageUrl && (p.imageUrl.includes('storageapi.dev') || p.imageUrl.includes('storage.supabase.co') || p.imageUrl.match(/^(product|avatar|review|category|payment)_Image\//)));
+    if (candidates.length === 0) { setSignedImageUrls(new Map()); return; }
+    ImageService.getPresignedUrlsBatch(candidates.map(p => p.imageUrl!)).then(urlMap => {
+      const byId = new Map<string, string>();
+      candidates.forEach(p => {
+        const signed = urlMap.get(p.imageUrl!);
+        if (signed) byId.set(p.id, signed);
+      });
+      setSignedImageUrls(byId);
+    });
   }, [products]);
+
+  // Preview for the currently-stored image (edit mode) — resolved to a signed URL for display only.
+  useEffect(() => {
+    if (!productForm.imageUrl) { setExistingImagePreview(''); return; }
+    ImageService.getPresignedUrl(productForm.imageUrl).then(setExistingImagePreview).catch(() => setExistingImagePreview(productForm.imageUrl));
+  }, [productForm.imageUrl]);
 
   // New Driver Form State
   const [driverName, setDriverName] = useState('');
@@ -624,16 +640,24 @@ export function AdminDashboard({
     setTimeout(() => setCopiedText(false), 2000);
   };
 
+  const clearPendingImage = () => {
+    if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
+    setPendingImageFile(null);
+    setImagePreviewUrl('');
+  };
+
   const resetProductForm = () => {
     setProductForm({ name: '', description: '', price: 0, categoryName: 'Bánh Canh Cá Lóc', isBestSeller: false, isAvailable: true, imageUrl: '', preparationTime: 10 });
     setEditingProductId(null);
     setProductError('');
+    clearPendingImage();
   };
 
   const handleEditProduct = (p: Product) => {
     setProductForm({ name: p.name, description: p.description, price: p.price, categoryName: p.categoryName || '', isBestSeller: p.isBestSeller, isAvailable: p.isAvailable, imageUrl: p.imageUrl || '', preparationTime: p.preparationTime });
     setEditingProductId(p.id);
     setProductError('');
+    clearPendingImage();
   };
 
   const handleProductSubmit = async (e: React.FormEvent) => {
@@ -643,7 +667,7 @@ export function AdminDashboard({
       setProductError('Tên và giá sản phẩm là bắt buộc');
       return;
     }
-    const payload = {
+    const buildPayload = (imageValue: string | undefined) => ({
       name: productForm.name,
       description: productForm.description,
       price: Number(productForm.price),
@@ -651,12 +675,20 @@ export function AdminDashboard({
       isBestSeller: productForm.isBestSeller,
       isAvailable: productForm.isAvailable,
       preparationTime: Number(productForm.preparationTime),
-      imageUrl: productForm.imageUrl || undefined
-    };
-    const productData: Omit<Product, 'id'> = { ...productForm, price: Number(productForm.price), isAvailable: productForm.isAvailable, preparationTime: Number(productForm.preparationTime) };
+      imageUrl: imageValue || undefined
+    });
     const isNumeric = (v: string) => /^\d+$/.test(v);
     try {
+      let imageKey = productForm.imageUrl || undefined;
+
       if (editingProductId) {
+        // Update: the product already has a real id/name, so upload straight to its folder now.
+        if (pendingImageFile && isBackendConnected) {
+          setUploadingImage(true);
+          imageKey = await ApiService.uploadImage(pendingImageFile, 'product_Image', editingProductId, productForm.name);
+          setUploadingImage(false);
+        }
+        const payload = buildPayload(imageKey);
         if (isBackendConnected) {
           if (isNumeric(editingProductId)) {
             await ApiService.updateProduct(editingProductId, payload);
@@ -665,17 +697,28 @@ export function AdminDashboard({
             await ApiService.updateProduct(created.id, payload);
           }
         }
+        const productData: Omit<Product, 'id'> = { ...productForm, imageUrl: imageKey || '', price: Number(productForm.price), preparationTime: Number(productForm.preparationTime) };
         if (onUpdateProduct) onUpdateProduct(editingProductId, productData);
       } else {
+        // Add: save the product first to get its real id, then upload using that id/name,
+        // then attach the resulting key so the products table always ends up with complete data.
         if (isBackendConnected) {
-          await ApiService.createProduct(payload);
+          const created = await ApiService.createProduct(buildPayload(imageKey));
+          if (pendingImageFile) {
+            setUploadingImage(true);
+            imageKey = await ApiService.uploadImage(pendingImageFile, 'product_Image', created.id, productForm.name);
+            setUploadingImage(false);
+            await ApiService.updateProduct(created.id, buildPayload(imageKey));
+          }
         }
+        const productData: Omit<Product, 'id'> = { ...productForm, imageUrl: imageKey || '', price: Number(productForm.price), preparationTime: Number(productForm.preparationTime) };
         if (onCreateProduct) onCreateProduct(productData);
       }
       resetProductForm();
       setProductSuccess(editingProductId ? 'Đã cập nhật sản phẩm thành công!' : 'Đã thêm sản phẩm mới thành công!');
       setTimeout(() => setProductSuccess(''), 3000);
     } catch (err: any) {
+      setUploadingImage(false);
       setProductError(err.message || 'Lỗi khi lưu sản phẩm');
     }
   };
@@ -1656,37 +1699,28 @@ export function AdminDashboard({
                     <div className="flex-1 min-w-[180px]">
                       <input type="text" placeholder="https://... hoặc upload file bên cạnh"
                         value={productForm.imageUrl}
-                        onChange={(e) => setProductForm(prev => ({ ...prev, imageUrl: e.target.value }))}
+                        onChange={(e) => { setProductForm(prev => ({ ...prev, imageUrl: e.target.value })); clearPendingImage(); }}
                         className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] bg-white dark:bg-[#FFF8F0] text-[#2D241E] dark:text-[#2D241E] focus:outline-[#E74C3C]" />
                     </div>
                     <div className="flex items-center gap-1.5">
                       <input type="file" accept="image/*" id="productImageUpload" className="hidden"
-                        onChange={async (e) => {
+                        onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (!file) return;
-                          setUploadingImage(true);
-                          try {
-                              const key = await ApiService.uploadImage(file, 'product_Image', editingProductId || undefined, productForm.name);
-                              setProductForm(prev => ({ ...prev, imageUrl: key }));
-                              // Fetch presigned URL immediately for preview
-                              ImageService.getPresignedUrl(key).then(signed => {
-                                if (signed) setProductForm(prev => ({ ...prev, imageUrl: signed }));
-                              });
-                            } catch (err: any) {
-                            onShowToast?.(err.message || 'Lỗi upload ảnh', 'error', 'Sản phẩm');
-                            setProductError(err.message || 'Lỗi upload ảnh');
-                          } finally {
-                            setUploadingImage(false);
-                            e.target.value = '';
-                          }
+                          // Only stage the file locally — it's uploaded to the bucket when the
+                          // product is actually saved (Add/Update), using the product's real id/name.
+                          if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
+                          setPendingImageFile(file);
+                          setImagePreviewUrl(URL.createObjectURL(file));
+                          e.target.value = '';
                         }} />
                       <label htmlFor="productImageUpload"
-                        className={`px-3 py-2.5 rounded-lg text-xs font-bold cursor-pointer transition-all whitespace-nowrap border ${uploadingImage ? 'bg-gray-400 text-white border-gray-400 cursor-not-allowed' : 'bg-[#E74C3C] text-white border-[#E74C3C] hover:bg-[#E74C3C]/90'}`}>
-                        {uploadingImage ? '⏳ Đang tải...' : '📁 Upload'}
+                        className="px-3 py-2.5 rounded-lg text-xs font-bold cursor-pointer transition-all whitespace-nowrap border bg-[#E74C3C] text-white border-[#E74C3C] hover:bg-[#E74C3C]/90">
+                        📁 Chọn ảnh
                       </label>
-                      {productForm.imageUrl && (
+                      {(imagePreviewUrl || existingImagePreview) && (
                         <div className="w-9 h-9 rounded-lg overflow-hidden border border-[#E5E1D8] dark:border-[#D0C8C0] bg-[#FAF8F5] dark:bg-[#FFFBF5] shrink-0 flex items-center justify-center">
-                          <img src={productForm.imageUrl} alt="preview" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; const p = (e.currentTarget as HTMLElement).parentElement; if (p) p.innerHTML = '🍲'; }} />
+                          <img src={imagePreviewUrl || existingImagePreview} alt="preview" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; const p = (e.currentTarget as HTMLElement).parentElement; if (p) p.innerHTML = '🍲'; }} />
                         </div>
                       )}
                     </div>
@@ -1720,9 +1754,9 @@ export function AdminDashboard({
                       <X className="w-3.5 h-3.5 inline mr-1" />Hủy
                     </button>
                   )}
-                  <button type="submit"
-                    className="px-6 py-2 rounded-xl bg-[#E74C3C] dark:bg-[#E74C3C] text-white dark:text-white text-xs font-bold hover:opacity-90 cursor-pointer">
-                    {editingProductId ? 'Cập Nhật' : 'Thêm Món'}
+                  <button type="submit" disabled={uploadingImage}
+                    className={`px-6 py-2 rounded-xl text-white dark:text-white text-xs font-bold hover:opacity-90 ${uploadingImage ? 'bg-gray-400 dark:bg-gray-400 cursor-not-allowed' : 'bg-[#E74C3C] dark:bg-[#E74C3C] cursor-pointer'}`}>
+                    {uploadingImage ? '⏳ Đang lưu...' : (editingProductId ? 'Cập Nhật' : 'Thêm Món')}
                   </button>
                 </div>
               </form>
