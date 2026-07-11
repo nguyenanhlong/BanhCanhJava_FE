@@ -93,10 +93,11 @@ export default function App() {
   // Auth User
   const [user, setUser] = useState<User | null>(null);
 
-  // Dữ liệu cần đăng nhập: tải khi vừa kết nối được backend (token cũ trong localStorage, nếu
-  // còn hiệu lực) và mỗi khi user đăng nhập/đăng xuất. 401 (khách chưa đăng nhập) bị bỏ qua lặng lẽ.
+  // Dữ liệu cần đăng nhập: chỉ tải khi đã có user đăng nhập (khách vãng lai chưa đăng nhập thì
+  // không có token, gọi chắc chắn 403 — bỏ qua hẳn thay vì gọi rồi nuốt lỗi, đỡ tốn request và
+  // đỡ nhiễu console). Tải lại mỗi khi user đăng nhập/đăng xuất.
   useEffect(() => {
-    if (!isBackendConnected) return;
+    if (!isBackendConnected || !user) return;
     ApiService.getDrivers().then(setDrivers).catch(() => {});
     ApiService.getOrders().then(setOrders).catch(() => {});
   }, [isBackendConnected, user]);
@@ -862,6 +863,16 @@ export default function App() {
               <p className="font-bold text-[#E74C3C] text-[11px]">ADMIN • {user.username}</p>
               <p className="max-w-[150px] truncate text-[9px] text-[#8B7E74] font-mono">{user.email}</p>
             </div>
+            <button
+              onClick={() => setActiveTab(activeTab === 'profile' ? 'admin' : 'profile')}
+              className={`text-[10px] uppercase font-bold tracking-wider px-3.5 py-1.5 rounded-xl transition-all cursor-pointer shrink-0 ${
+                activeTab === 'profile'
+                  ? 'bg-[#D97706] text-white'
+                  : 'bg-[#F3F0E9] text-[#3E2F26] hover:bg-[#E5E1D8]'
+              }`}
+            >
+              {activeTab === 'profile' ? 'Quản Lý' : 'Tài Khoản'}
+            </button>
             <button 
               onClick={handleLogout}
               className="bg-[#E74C3C] hover:bg-[#C0392B] text-white text-[10px] uppercase font-bold tracking-wider px-3.5 py-1.5 rounded-xl transition-all cursor-pointer shadow-xs shrink-0"
@@ -874,6 +885,10 @@ export default function App() {
         {/* CONTAINER FOR STANDALONE OWNER PORTAL */}
         <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
           
+          {activeTab === 'profile' ? (
+            <ProfileSection user={user} isBackendConnected={isBackendConnected} onUpdateUser={handleUpdateUser} />
+          ) : (
+          <>
           {/* Active Business Performance Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-white border border-[#E5E1D8] rounded-2xl p-4.5 shadow-sm">
@@ -920,6 +935,8 @@ export default function App() {
             onDeleteProduct={handleDeleteProduct}
             onShowToast={showToast}
           />
+          </>
+          )}
         </main>
 
         <footer className="bg-[#FFFAF3] border-t border-[#E5E1D8] py-6 text-center text-[10px] text-[#8B7E74] font-mono uppercase tracking-wider select-none">
