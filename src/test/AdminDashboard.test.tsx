@@ -125,15 +125,13 @@ describe('AdminDashboard', () => {
       expect(screen.getByText('Lê Văn C')).toBeInTheDocument();
     });
 
-    it('shows order items with product names', () => {
+    it('shows detail modal with order items when clicking Chi Tiết', () => {
       render(<AdminDashboard {...baseProps} />);
       fireEvent.click(screen.getByText(/Đơn Hàng \(/));
-      screen.getByText((_content, element) => {
-        if (element?.tagName === 'P' && element.textContent?.includes('1x') && element.textContent?.includes('Bánh Canh Cá Lóc')) {
-          return true;
-        }
-        return false;
-      });
+      fireEvent.click(screen.getAllByText(/Chi Tiết/)[0]);
+      expect(screen.getByText(/1x/)).toBeInTheDocument();
+      expect(screen.getByText(/Bánh Canh Cá Lóc/)).toBeInTheDocument();
+      expect(screen.getByText(/Đóng/)).toBeInTheDocument();
     });
 
     it('shows payment status badges', () => {
@@ -145,11 +143,13 @@ describe('AdminDashboard', () => {
       expect(unpaidBadges.length).toBeGreaterThan(0);
     });
 
-    it('shows order type labels', () => {
+    it('shows order type in detail modal', () => {
       render(<AdminDashboard {...baseProps} />);
       fireEvent.click(screen.getByText(/Đơn Hàng \(/));
-      const deliveryLabels = screen.getAllByText(/Giao hàng/);
-      expect(deliveryLabels.length).toBeGreaterThan(0);
+      fireEvent.click(screen.getAllByText(/Chi Tiết/)[0]);
+      expect(screen.getByText(/Giao hàng/)).toBeInTheDocument();
+      fireEvent.click(screen.getByText(/Đóng/));
+      fireEvent.click(screen.getAllByText(/Chi Tiết/)[2]);
       expect(screen.getByText(/Tại quán/)).toBeInTheDocument();
     });
 

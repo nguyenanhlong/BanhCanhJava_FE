@@ -26,6 +26,7 @@ interface AdminDashboardProps {
   onAssignDriver: (orderId: string, driverId: string) => void;
   onCreateDriver: (name: string, phone: string, vehicle: string) => void;
   onUpdateDriverStatus: (driverId: string, status: Driver['status']) => void;
+  onRefreshDrivers?: () => void;
   onUpdateOrderProgress?: (orderId: string, progress: number, stage: string) => void;
   onCreateProduct?: (product: Omit<Product, 'id'>) => void;
   onUpdateProduct?: (id: string, product: Omit<Product, 'id'>) => void;
@@ -79,6 +80,7 @@ export function AdminDashboard({
   onAssignDriver,
   onCreateDriver,
   onUpdateDriverStatus,
+  onRefreshDrivers,
   onUpdateOrderProgress,
   onCreateProduct,
   onUpdateProduct,
@@ -92,6 +94,9 @@ export function AdminDashboard({
   const [selectedFEFile, setSelectedFEFile] = useState(0);
 
   useEffect(() => {
+    if (adminTab === 'orders' || adminTab === 'drivers') {
+      onRefreshDrivers?.();
+    }
     if (adminTab === 'invoices') {
       loadInvoices();
     }
@@ -105,6 +110,9 @@ export function AdminDashboard({
     }
     if (adminTab === 'permissions') {
       loadRoles();
+    }
+    if (adminTab === 'promotions') {
+      loadPromotions();
     }
     if (adminTab === 'toppings') {
       loadProductOptions();
@@ -350,6 +358,7 @@ export function AdminDashboard({
 
   // Order cancellation confirmation state
   const [orderIdToCancel, setOrderIdToCancel] = useState<string | null>(null);
+  const [viewingOrderDetail, setViewingOrderDetail] = useState<any | null>(null);
 
   // Categories CRUD (persisted to localStorage)
   const [categories, setCategories] = useState<{ id: number; name: string; slug: string; description?: string; imageUrl?: string; displayOrder?: number; isActive?: boolean; count: number }[]>(() => {
@@ -421,6 +430,31 @@ export function AdminDashboard({
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const [reviewForm, setReviewForm] = useState({ customer: '', product: '', rating: 5, comment: '' });
   const [editingReviewId, setEditingReviewId] = useState<number | null>(null);
+
+  // Promotions fetch
+  const loadPromotions = async () => {
+    if (!isBackendConnected) return;
+    try {
+      const data = await ApiService.getPromotions();
+      setPromotions(data.map(p => ({
+        id: p.id,
+        code: p.code,
+        name: p.name,
+        description: p.description,
+        discount_type: p.discountType === 'fixed_amount' ? 'fixed' : 'percentage',
+        discount_value: p.discountValue,
+        min_order_amount: p.minOrderAmount,
+        max_discount: p.maxDiscount,
+        usage_limit: p.usageLimit,
+        used_count: p.usedCount,
+        start_date: p.startDate,
+        end_date: p.endDate,
+        isActive: p.isActive,
+      })));
+    } catch (err) {
+      console.warn('Failed to load promotions:', err);
+    }
+  };
 
   // Invoices CRUD
   const [invoices, setInvoices] = useState<any[]>([]);
@@ -1526,17 +1560,10 @@ export function AdminDashboard({
                   <thead className="bg-[#F3F0E9] dark:bg-[#FFF0E0] uppercase font-bold text-[#2D241E] dark:text-[#2D241E] border-b border-[#E5E1D8] dark:border-[#E0D8D0]">
                     <tr>
                       <th className="p-3.5">Mã Đơn</th>
-                      <th className="p-3.5">Thông tin Khách</th>
-                      <th className="p-3.5">Chi Tiết Bát Canh</th>
-                      <th className="p-3.5">Loại Đơn</th>
-                      <th className="p-3.5 text-right">Tạm tính</th>
-                      <th className="p-3.5 text-right">Giảm giá</th>
-                      <th className="p-3.5 text-right">Phí GH</th>
+                      <th className="p-3.5">Khách Hàng</th>
                       <th className="p-3.5 text-right">Tổng Tiền</th>
-                      <th className="p-3.5">Ghi chú</th>
                       <th className="p-3.5">Trạng thái</th>
                       <th className="p-3.5">Thanh toán</th>
-                      <th className="p-3.5">Ngày đặt</th>
                       <th className="p-3.5">Phân Tài Xế</th>
                       <th className="p-3.5 text-center">Hành động</th>
                     </tr>
@@ -1548,37 +1575,9 @@ export function AdminDashboard({
                         <td className="p-3.5">
                           <p className="font-bold text-[#2D241E] dark:text-[#2D241E]">{order.customerName}</p>
                           <p className="text-[10px] text-[#8B7E74] dark:text-[#8B7E74]">{order.phone}</p>
-                          <p className="text-[10px] text-[#8B7E74] dark:text-[#8B7E74] max-w-[150px] truncate" title={order.address}>{order.address}</p>
-                        </td>
-                        <td className="p-3.5 space-y-1">
-                          {order.items.map((it, i) => (
-                            <p key={i} className="text-[10px] text-[#2D241E] dark:text-[#2D241E]">
-                              • <span className="font-bold">{it.quantity}x</span> {it.productName}
-                              {it.noodleType && <span className="text-red-700 dark:text-red-400"> [{it.noodleType}]</span>}
-                            </p>
-                          ))}
-                        </td>
-                        <td className="p-3.5 text-[10px]">
-                          {order.orderType === 'dine-in' ? '🍽️ Tại quán' :
-                            order.orderType === 'takeaway' ? '🛍️ Mang đi' :
-                              order.orderType === 'delivery' ? '🛵 Giao hàng' :
-                                order.orderType || '🛵 Giao hàng'}
-                          {order.tableNumber && <span className="block text-[9px] text-[#8B7E74]">Bàn {order.tableNumber}</span>}
-                        </td>
-                        <td className="p-3.5 text-right font-mono text-[10px] text-[#8B7E74]">
-                          {order.subtotal ? order.subtotal.toLocaleString('vi-VN') + 'đ' : '—'}
-                        </td>
-                        <td className="p-3.5 text-right font-mono text-[10px] text-emerald-600">
-                          {order.discountAmount > 0 ? '-' + order.discountAmount.toLocaleString('vi-VN') + 'đ' : '—'}
-                        </td>
-                        <td className="p-3.5 text-right font-mono text-[10px] text-[#8B7E74]">
-                          {order.shippingFee > 0 ? order.shippingFee.toLocaleString('vi-VN') + 'đ' : '—'}
                         </td>
                         <td className="p-3.5 text-right font-extrabold text-[#E74C3C] dark:text-red-400 whitespace-nowrap">
                           {order.totalAmount.toLocaleString('vi-VN')} đ
-                        </td>
-                        <td className="p-3.5 text-[10px] text-[#8B7E74] max-w-[120px] truncate" title={order.notes || ''}>
-                          {order.notes || '—'}
                         </td>
                         <td className="p-3.5">
                           <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded border ${getOrderStatusBadge(order.status)}`}>
@@ -1599,14 +1598,10 @@ export function AdminDashboard({
                                 order.paymentMethod || '-'}
                           </span>
                         </td>
-                        <td className="p-3.5 text-[10px] text-[#8B7E74] font-mono">
-                          {order.createdAt ? new Date(order.createdAt).toLocaleDateString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '-'}
-                        </td>
                         <td className="p-3.5">
                           {order.status === 'cancelled' || order.status === 'completed' ? (
                             <span className="text-[10px] text-[#8B7E74] dark:text-[#8B7E74]">-</span>
                           ) : order.driverId ? (
-                            // Mỗi đơn chỉ được phân đúng một tài xế — đã phân thì khoá, không đổi được.
                             <p className="text-[9px] text-[#E74C3C] dark:text-red-400 font-bold">
                               🏍️ {drivers.find(d => String(d.id) === String(order.driverId))?.name || `Tài xế #${order.driverId}`}
                               <span className="block text-[8px] text-[#8B7E74] font-normal mt-0.5">Đã phân công — không thể đổi</span>
@@ -1639,11 +1634,17 @@ export function AdminDashboard({
                           )}
                         </td>
                         <td className="p-3.5">
-                          <div className="flex flex-wrap gap-1 items-center justify-center">
+                          <div className="flex flex-col gap-1 items-stretch">
+                            <button
+                              onClick={() => setViewingOrderDetail(order)}
+                              className="bg-[#8B7E74] hover:bg-[#6B5E54] text-white font-bold px-2 py-1 rounded text-[10px] text-center cursor-pointer"
+                            >
+                              📋 Chi Tiết
+                            </button>
                             {order.status === 'pending' && (
                               <button
                                 onClick={() => onUpdateOrderStatus(order.id, 'preparing')}
-                                className="bg-red-600 hover:bg-red-700 text-white font-bold px-2 py-1 rounded text-[10px] text-center w-full cursor-pointer"
+                                className="bg-red-600 hover:bg-red-700 text-white font-bold px-2 py-1 rounded text-[10px] text-center cursor-pointer"
                               >
                                 Xác Nhận / Nấu Bánh
                               </button>
@@ -1651,7 +1652,7 @@ export function AdminDashboard({
                             {order.status === 'preparing' && (
                               <button
                                 onClick={() => order.driverId ? onUpdateOrderStatus(order.id, 'shipping') : null}
-                                className={`${order.driverId ? 'bg-sky-600 hover:bg-sky-700 cursor-pointer' : 'bg-sky-600/40 cursor-not-allowed'} text-white font-bold px-2 py-1 rounded text-[10px] text-center w-full`}
+                                className={`${order.driverId ? 'bg-sky-600 hover:bg-sky-700 cursor-pointer' : 'bg-sky-600/40 cursor-not-allowed'} text-white font-bold px-2 py-1 rounded text-[10px] text-center`}
                                 title={!order.driverId ? 'Vui lòng chọn tài xế trước khi lên xe' : ''}
                               >
                                 {order.driverId ? 'Xác Nhận Hoàn Tất Lên Xe' : '⚠️ Chọn tài xế trước'}
@@ -1660,23 +1661,20 @@ export function AdminDashboard({
                             {order.status === 'picked_up' && (
                               <button
                                 onClick={() => onUpdateOrderStatus(order.id, 'shipping')}
-                                className="bg-sky-600 hover:bg-sky-700 text-white font-bold px-2 py-1 rounded text-[10px] text-center w-full cursor-pointer"
+                                className="bg-sky-600 hover:bg-sky-700 text-white font-bold px-2 py-1 rounded text-[10px] text-center cursor-pointer"
                               >
                                 Bắt Đầu Giao Hàng
                               </button>
                             )}
                             {order.status === 'shipping' && (
                               <>
-                                {/* Tiến trình giao hàng: chỉ chọn được mốc CAO HƠN mốc hiện tại,
-                                    100% = đã đến nơi. Đơn hoàn tất khi shipper xác nhận giao
-                                    (delivered) rồi khách xác nhận đã nhận hàng (completed). */}
                                 {onUpdateOrderProgress && (() => {
                                   const currentProgress = order.deliveryProgress || 0;
                                   const milestoneStages: Record<number, string> = {
-                                    25: 'Xe đã lăn bánh ra đại lộ. Gió mát sầm sập, nước dùng củ nén sực nức thơm lừng.',
-                                    50: 'Đang chạy bon bon qua nhịp Cầu Trường Tiền bắc qua dòng sông Hương lững lờ.',
-                                    75: 'Đã đi vào ngõ hẻm tìm số nhà. Đang nhìn bảng chỉ đường chi tiết.',
-                                    100: 'Đang bấm chuông trước hiên nhà khách. Thố bánh khói tỏa nghi ngút đã cập bến.'
+                                    25: 'Xe đã lăn bánh ra đại lộ.',
+                                    50: 'Đang chạy bon bon qua nhịp Cầu Trường Tiền.',
+                                    75: 'Đã đi vào ngõ hẻm tìm số nhà.',
+                                    100: 'Đang bấm chuông trước hiên nhà khách.'
                                   };
                                   return (
                                     <div className="w-full space-y-1">
@@ -1692,7 +1690,7 @@ export function AdminDashboard({
                                                 ? 'bg-emerald-100 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-500 cursor-not-allowed'
                                                 : 'bg-[#E74C3C] hover:bg-[#E74C3C]/90 text-white cursor-pointer'
                                             }`}
-                                            title={m <= currentProgress ? 'Đã qua mốc này — không thể chọn lại mốc thấp hơn' : `Cập nhật tiến trình lên ${m}%`}
+                                            title={m <= currentProgress ? 'Đã qua mốc này' : `Cập nhật tiến trình lên ${m}%`}
                                           >
                                             {m}%
                                           </button>
@@ -1707,12 +1705,12 @@ export function AdminDashboard({
                               </>
                             )}
                             {order.status === 'delivered' && (
-                              <span className="text-[9px] text-teal-700 dark:text-teal-400 italic text-center w-full">📦 Shipper đã giao — chờ khách xác nhận nhận hàng</span>
+                              <span className="text-[9px] text-teal-700 dark:text-teal-400 italic text-center">📦 Shipper đã giao — chờ khách xác nhận nhận hàng</span>
                             )}
                             {order.status !== 'completed' && order.status !== 'cancelled' && order.status !== 'delivered' && (
                               <button
                                 onClick={() => setOrderIdToCancel(order.id)}
-                                className="text-red-600 dark:text-red-400 hover:text-white dark:hover:text-white hover:bg-red-600 dark:hover:bg-red-600 border border-red-200 dark:border-red-900/60 font-bold px-2 py-0.5 rounded text-[9px] text-center w-full cursor-pointer"
+                                className="text-red-600 dark:text-red-400 hover:text-white dark:hover:text-white hover:bg-red-600 dark:hover:bg-red-600 border border-red-200 dark:border-red-900/60 font-bold px-2 py-0.5 rounded text-[9px] text-center cursor-pointer"
                               >
                                 Hủy Đơn
                               </button>
@@ -1729,6 +1727,97 @@ export function AdminDashboard({
                 <Pagination page={ordersPagination.page} pageCount={ordersPagination.pageCount} onPageChange={ordersPagination.setPage} />
               </div>
             )}
+          </div>
+        )}
+
+        {/* Order Detail Modal */}
+        {viewingOrderDetail && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setViewingOrderDetail(null)}>
+            <div className="bg-[#FAF8F5] dark:bg-[#211715] rounded-3xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto shadow-2xl border border-[#E5E1D8] dark:border-[#2D2321]" onClick={e => e.stopPropagation()}>
+              <div className="sticky top-0 bg-[#FAF8F5] dark:bg-[#211715] z-10 flex justify-between items-center p-5 border-b border-[#E5E1D8] dark:border-[#2D2321]">
+                <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#FAF8F5]">📋 Chi Tiết Đơn Hàng #{viewingOrderDetail.id}</h3>
+                <button onClick={() => setViewingOrderDetail(null)} className="text-[#8B7E74] hover:text-[#E74C3C] text-xl cursor-pointer">✕</button>
+              </div>
+              <div className="p-5 space-y-4 text-xs text-[#3E2F26] dark:text-[#EAE3D2]">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <p><span className="font-bold text-[#8B7E74] uppercase text-[10px]">Khách hàng:</span><br/>{viewingOrderDetail.customerName}</p>
+                    <p><span className="font-bold text-[#8B7E74] uppercase text-[10px]">Số điện thoại:</span><br/>{viewingOrderDetail.phone}</p>
+                    <p><span className="font-bold text-[#8B7E74] uppercase text-[10px]">Địa chỉ:</span><br/>{viewingOrderDetail.address || '—'}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <p><span className="font-bold text-[#8B7E74] uppercase text-[10px]">Ngày đặt:</span><br/>{viewingOrderDetail.createdAt ? new Date(viewingOrderDetail.createdAt).toLocaleString('vi-VN') : '—'}</p>
+                    <p><span className="font-bold text-[#8B7E74] uppercase text-[10px]">Loại đơn:</span><br/>
+                      {viewingOrderDetail.orderType === 'dine-in' ? '🍽️ Tại quán' :
+                        viewingOrderDetail.orderType === 'takeaway' ? '🛍️ Mang đi' : '🛵 Giao hàng'}
+                      {viewingOrderDetail.tableNumber && <> · Bàn {viewingOrderDetail.tableNumber}</>}
+                    </p>
+                    <p><span className="font-bold text-[#8B7E74] uppercase text-[10px]">Trạng thái:</span><br/>
+                      <span className={`inline-block font-bold px-2 py-0.5 rounded border ${getOrderStatusBadge(viewingOrderDetail.status)}`}>
+                        {viewingOrderDetail.status === 'pending' ? 'Chờ xác nhận' :
+                          viewingOrderDetail.status === 'preparing' ? 'Đang chế biến' :
+                            viewingOrderDetail.status === 'picked_up' ? 'Đã lấy hàng' :
+                              viewingOrderDetail.status === 'shipping' ? 'Đang giao hàng' :
+                                viewingOrderDetail.status === 'completed' ? 'Thành công' : 'Đã hủy'}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="border-t border-[#E5E1D8] dark:border-[#2D2321] pt-4">
+                  <h4 className="font-bold text-sm mb-2">🍜 Chi Tiết Món</h4>
+                  <div className="space-y-2">
+                    {viewingOrderDetail.items.map((it: any, i: number) => (
+                      <div key={i} className="flex justify-between items-center bg-white dark:bg-[#1C1311] p-2.5 rounded-xl border border-[#E5E1D8] dark:border-[#2D2321]">
+                        <div>
+                          <span className="font-bold">{it.quantity}x</span> {it.productName}
+                          {it.noodleType && <span className="text-red-700 dark:text-red-400"> [{it.noodleType}]</span>}
+                          {it.toppings && it.toppings.length > 0 && (
+                            <span className="block text-[9px] text-[#8B7E74]">+ {it.toppings.join(', ')}</span>
+                          )}
+                        </div>
+                        <span className="font-mono font-bold">{(it.price * it.quantity).toLocaleString('vi-VN')}đ</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="border-t border-[#E5E1D8] dark:border-[#2D2321] pt-4">
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-[#8B7E74]">
+                      <span>Tạm tính</span>
+                      <span>{viewingOrderDetail.subtotal?.toLocaleString('vi-VN') || 0}đ</span>
+                    </div>
+                    {viewingOrderDetail.discountAmount > 0 && (
+                      <div className="flex justify-between text-emerald-600">
+                        <span>Giảm giá</span>
+                        <span>-{viewingOrderDetail.discountAmount.toLocaleString('vi-VN')}đ</span>
+                      </div>
+                    )}
+                    {viewingOrderDetail.shippingFee > 0 && (
+                      <div className="flex justify-between text-[#8B7E74]">
+                        <span>Phí giao hàng</span>
+                        <span>+{viewingOrderDetail.shippingFee.toLocaleString('vi-VN')}đ</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-bold text-[#E74C3C] text-sm border-t border-[#E5E1D8] dark:border-[#2D2321] pt-2 mt-2">
+                      <span>Tổng cộng</span>
+                      <span>{viewingOrderDetail.totalAmount.toLocaleString('vi-VN')}đ</span>
+                    </div>
+                  </div>
+                </div>
+
+                {viewingOrderDetail.notes && (
+                  <div className="border-t border-[#E5E1D8] dark:border-[#2D2321] pt-4">
+                    <p><span className="font-bold text-[#8B7E74] uppercase text-[10px]">Ghi chú:</span><br/>{viewingOrderDetail.notes}</p>
+                  </div>
+                )}
+
+                <div className="border-t border-[#E5E1D8] dark:border-[#2D2321] pt-4 flex justify-end">
+                  <button onClick={() => setViewingOrderDetail(null)} className="bg-[#8B7E74] hover:bg-[#6B5E54] text-white font-bold px-4 py-2 rounded-xl text-xs cursor-pointer">Đóng</button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 

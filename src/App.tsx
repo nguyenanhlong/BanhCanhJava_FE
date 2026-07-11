@@ -660,9 +660,22 @@ export default function App() {
     showToast(`Đơn hàng ${orderId} ${statusText}.`, toastType, 'Cập nhật đơn hàng');
   };
 
+  const handleRefreshDrivers = async () => {
+    if (!isBackendConnected) return;
+    try {
+      const refreshed = await ApiService.getDrivers();
+      if (refreshed) setDrivers(refreshed);
+    } catch (err) {
+      console.warn('Failed to refresh drivers:', err);
+    }
+  };
+
   const handleAssignDriver = async (orderId: string, driverId: string) => {
     const driver = drivers.find(d => d.id === driverId);
-    if (!driver) return;
+    if (!driver) {
+      showToast('Không tìm thấy tài xế trong danh sách. Hãy thử làm mới danh sách tài xế.', 'warning', 'Không tìm thấy tài xế');
+      return;
+    }
 
     let updatedOrder: Order | null = null;
     if (isBackendConnected) {
@@ -929,6 +942,7 @@ export default function App() {
             onAssignDriver={handleAssignDriver}
             onCreateDriver={handleCreateDriver}
             onUpdateDriverStatus={handleUpdateDriverStatus}
+            onRefreshDrivers={handleRefreshDrivers}
             onUpdateOrderProgress={handleUpdateOrderProgress}
             onCreateProduct={handleCreateProduct}
             onUpdateProduct={handleUpdateProduct}
@@ -1185,6 +1199,7 @@ export default function App() {
             onAssignDriver={handleAssignDriver}
             onCreateDriver={handleCreateDriver}
             onUpdateDriverStatus={handleUpdateDriverStatus}
+            onRefreshDrivers={handleRefreshDrivers}
             onUpdateOrderProgress={handleUpdateOrderProgress}
             onCreateProduct={handleCreateProduct}
             onUpdateProduct={handleUpdateProduct}
