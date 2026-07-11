@@ -29,7 +29,7 @@ export function CartDrawer({
   const [signedImageUrls, setSignedImageUrls] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
-    const urls = cartItems.map(item => item.product.imageUrl).filter((u): u is string => !!u && (u.includes('storageapi.dev') || u.includes('storage.supabase.co') || u.match(/^(product|avatar|review|category)_Image\//)));
+    const urls = cartItems.map(item => item.product.imageUrl).filter((u): u is string => !!u && (u.includes('storageapi.dev') || u.includes('storage.supabase.co') || !!u.match(/^(product|avatar|review|category)_Image\//)));
     if (urls.length === 0) return;
     ImageService.getPresignedUrlsBatch(urls).then(setSignedImageUrls);
   }, [cartItems]);
