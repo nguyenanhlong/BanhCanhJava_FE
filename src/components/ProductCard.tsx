@@ -46,9 +46,13 @@ export function ProductCard({ product, onAddToCart, reviews = [], productOptions
 
   const [selectedOptions, setSelectedOptions] = useState<Record<string, number[]>>({});
 
+  // Sentinel id for the "Không" (None) pseudo-option — not a real ProductOption, never sent to the
+  // backend as one (getSelectedPrice/getSelectedDetails skip it since thisOptions.find() returns undefined).
+  const NONE_OPTION_ID = -1;
+
   const toggleOption = (groupId: string, optionId: number) => {
     setSelectedOptions(prev => {
-      const current = prev[groupId] || [];
+      const current = (prev[groupId] || []).filter(id => id !== NONE_OPTION_ID);
       if (current.includes(optionId)) {
         return { ...prev, [groupId]: current.filter(id => id !== optionId) };
       }
@@ -58,6 +62,10 @@ export function ProductCard({ product, onAddToCart, reviews = [], productOptions
 
   const toggleSingleOption = (groupId: string, optionId: number) => {
     setSelectedOptions(prev => ({ ...prev, [groupId]: [optionId] }));
+  };
+
+  const selectNoneOption = (groupId: string) => {
+    setSelectedOptions(prev => ({ ...prev, [groupId]: [NONE_OPTION_ID] }));
   };
 
   const getSelectedPrice = () => {
@@ -252,43 +260,67 @@ export function ProductCard({ product, onAddToCart, reviews = [], productOptions
               </button>
             </div>
 
-            {groupedOptions.map(([group, opts]) => (
-              <div key={group} className="mb-3">
-                <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase block mb-1.5">
-                  {optionGroupLabels[group] || group.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                  {opts.some(o => o.isRequired) && <span className="text-red-500 ml-1">* (bắt buộc)</span>}
-                </label>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {opts.map(opt => {
-                    const groupSelected = selectedOptions[group] || [];
-                    const isSelected = groupSelected.includes(opt.id);
-                    return (
+            {groupedOptions.map(([group, opts]) => {
+              const isGroupRequired = opts.some(o => o.isRequired);
+              const groupSelected = selectedOptions[group] || [];
+              return (
+                <div key={group} className="mb-3">
+                  <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase block mb-1.5">
+                    {optionGroupLabels[group] || group.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                    {isGroupRequired && <span className="text-red-500 ml-1">* (bắt buộc)</span>}
+                  </label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {isGroupRequired && (
                       <button
-                        key={opt.id}
-                        onClick={() => group === 'topping' ? toggleOption(group, opt.id) : toggleSingleOption(group, opt.id)}
+                        onClick={() => selectNoneOption(group)}
                         className={`flex items-center gap-1.5 p-1.5 rounded-lg border text-left transition-all text-[10px] ${
-                          isSelected
+                          groupSelected.includes(NONE_OPTION_ID)
                             ? 'bg-amber-50 dark:bg-amber-950/20 text-[#D97706] border-[#D97706]'
                             : 'bg-[#FAF8F5] dark:bg-[#231A18] text-[#3E2F26] dark:text-[#EAE3D2] border-[#E5E1D8] dark:border-[#2D2321] hover:bg-amber-50/40 dark:hover:bg-amber-950/10'
                         }`}
                       >
                         <div className="truncate flex-1 min-w-0">
-                          <p className="font-bold leading-normal truncate">{opt.name}</p>
-                          {opt.price > 0 && <p className="text-[9px] text-[#8B7E74] dark:text-[#B2A496] mt-0.5 leading-none">+{formatPrice(opt.price)}</p>}
+                          <p className="font-bold leading-normal truncate">Không</p>
                         </div>
                         <div className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ${
-                          isSelected 
-                            ? 'bg-[#D97706] border-[#D97706] text-white' 
+                          groupSelected.includes(NONE_OPTION_ID)
+                            ? 'bg-[#D97706] border-[#D97706] text-white'
                             : 'border-gray-300 dark:border-gray-700'
                         }`}>
-                          {isSelected && <Check className="w-2 h-2 stroke-[3]" />}
+                          {groupSelected.includes(NONE_OPTION_ID) && <Check className="w-2 h-2 stroke-[3]" />}
                         </div>
                       </button>
-                    );
-                  })}
+                    )}
+                    {opts.map(opt => {
+                      const isSelected = groupSelected.includes(opt.id);
+                      return (
+                        <button
+                          key={opt.id}
+                          onClick={() => group === 'topping' ? toggleOption(group, opt.id) : toggleSingleOption(group, opt.id)}
+                          className={`flex items-center gap-1.5 p-1.5 rounded-lg border text-left transition-all text-[10px] ${
+                            isSelected
+                              ? 'bg-amber-50 dark:bg-amber-950/20 text-[#D97706] border-[#D97706]'
+                              : 'bg-[#FAF8F5] dark:bg-[#231A18] text-[#3E2F26] dark:text-[#EAE3D2] border-[#E5E1D8] dark:border-[#2D2321] hover:bg-amber-50/40 dark:hover:bg-amber-950/10'
+                          }`}
+                        >
+                          <div className="truncate flex-1 min-w-0">
+                            <p className="font-bold leading-normal truncate">{opt.name}</p>
+                            {opt.price > 0 && <p className="text-[9px] text-[#8B7E74] dark:text-[#B2A496] mt-0.5 leading-none">+{formatPrice(opt.price)}</p>}
+                          </div>
+                          <div className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ${
+                            isSelected
+                              ? 'bg-[#D97706] border-[#D97706] text-white'
+                              : 'border-gray-300 dark:border-gray-700'
+                          }`}>
+                            {isSelected && <Check className="w-2 h-2 stroke-[3]" />}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             <div>
               <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase block mb-1">Ghi chú:</label>

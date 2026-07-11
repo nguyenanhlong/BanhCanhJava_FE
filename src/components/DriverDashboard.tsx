@@ -169,13 +169,18 @@ export function DriverDashboard({
         if (stats) {
           setStats(prev => prev ? { ...prev, completedTrips: prev.completedTrips + 1, activeTrips: Math.max(0, prev.activeTrips - 1), totalEarnings: prev.totalEarnings + 15000 } : prev);
         }
+        // Giao xong → hệ thống giải phóng tài xế về trạng thái sẵn sàng.
+        setDriverStatus('available');
+        if (myDriver) onUpdateDriverStatus(myDriver.id, 'available');
       }
 
       const trip = myTrips.find(t => t.id === tripId);
       if (trip) {
         const order = orders.find(o => o.id === String(trip.orderId));
         if (order) {
-          const statusMap: Record<string, string> = { accepted: 'picked_up', picked_up: 'shipping', delivered: 'completed' };
+          // Shipper xác nhận giao xong → đơn sang 'delivered' (chờ KHÁCH xác nhận đã nhận
+          // hàng thì mới 'completed' — bước 5 của quy trình).
+          const statusMap: Record<string, string> = { accepted: 'picked_up', picked_up: 'shipping', delivered: 'delivered' };
           const mapped = statusMap[newStatus];
           if (mapped) onUpdateOrderStatus(order.id, mapped);
         }
@@ -283,15 +288,16 @@ export function DriverDashboard({
                  driverStatus === 'busy' ? 'Đang giao hàng' : 'Ngoại tuyến'}
               </span>
               <div className="flex gap-1">
-                <button onClick={() => handleStatusToggle('available')}
-                  className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
-                    driverStatus === 'available' ? 'bg-emerald-400 text-white shadow-lg' : 'bg-white/10 text-white/70 hover:bg-white/20'
+                {/* Đang giao hàng thì không được tự đổi trạng thái — hệ thống sẽ mở lại khi giao xong. */}
+                <button onClick={() => handleStatusToggle('available')} disabled={driverStatus === 'busy'}
+                  className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all ${
+                    driverStatus === 'available' ? 'bg-emerald-400 text-white shadow-lg' : driverStatus === 'busy' ? 'bg-white/5 text-white/30 cursor-not-allowed' : 'bg-white/10 text-white/70 hover:bg-white/20 cursor-pointer'
                   }`}>
                   Rảnh
                 </button>
-                <button onClick={() => handleStatusToggle('offline')}
-                  className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
-                    driverStatus === 'offline' ? 'bg-gray-400 text-white shadow-lg' : 'bg-white/10 text-white/70 hover:bg-white/20'
+                <button onClick={() => handleStatusToggle('offline')} disabled={driverStatus === 'busy'}
+                  className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all ${
+                    driverStatus === 'offline' ? 'bg-gray-400 text-white shadow-lg' : driverStatus === 'busy' ? 'bg-white/5 text-white/30 cursor-not-allowed' : 'bg-white/10 text-white/70 hover:bg-white/20 cursor-pointer'
                   }`}>
                   Off
                 </button>
@@ -581,21 +587,23 @@ export function DriverDashboard({
               <div className="flex items-center justify-between py-2 border-b border-[#E5E1D8] dark:border-[#2D2321]">
                 <span className="text-xs text-[#8B7E74]">Trạng thái</span>
                 <div className="flex gap-1">
+                  {/* Tài xế chỉ được tự chọn Rảnh/Nghỉ — "Đang giao" do hệ thống tự đặt khi được phân đơn. */}
                   <button onClick={() => handleStatusToggle('available')}
-                    className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
-                      driverStatus === 'available' ? 'bg-emerald-500 text-white shadow-lg' : 'bg-[#F3F0E9] dark:bg-[#2D2321] text-[#8B7E74]'
+                    disabled={driverStatus === 'busy'}
+                    className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all ${
+                      driverStatus === 'available' ? 'bg-emerald-500 text-white shadow-lg' : driverStatus === 'busy' ? 'bg-[#F3F0E9] dark:bg-[#2D2321] text-[#C5BBB2] cursor-not-allowed' : 'bg-[#F3F0E9] dark:bg-[#2D2321] text-[#8B7E74] cursor-pointer'
                     }`}>
                     Đang rảnh
                   </button>
-                  <button onClick={() => handleStatusToggle('busy')}
-                    className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
-                      driverStatus === 'busy' ? 'bg-amber-500 text-white shadow-lg' : 'bg-[#F3F0E9] dark:bg-[#2D2321] text-[#8B7E74]'
-                    }`}>
-                    Đang giao
-                  </button>
+                  {driverStatus === 'busy' && (
+                    <span className="px-3 py-1.5 rounded-xl text-[10px] font-bold bg-amber-500 text-white shadow-lg">
+                      Đang giao (tự động)
+                    </span>
+                  )}
                   <button onClick={() => handleStatusToggle('offline')}
-                    className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
-                      driverStatus === 'offline' ? 'bg-gray-500 text-white shadow-lg' : 'bg-[#F3F0E9] dark:bg-[#2D2321] text-[#8B7E74]'
+                    disabled={driverStatus === 'busy'}
+                    className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all ${
+                      driverStatus === 'offline' ? 'bg-gray-500 text-white shadow-lg' : driverStatus === 'busy' ? 'bg-[#F3F0E9] dark:bg-[#2D2321] text-[#C5BBB2] cursor-not-allowed' : 'bg-[#F3F0E9] dark:bg-[#2D2321] text-[#8B7E74] cursor-pointer'
                     }`}>
                     Ngoại tuyến
                   </button>

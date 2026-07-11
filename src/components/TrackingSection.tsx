@@ -11,17 +11,19 @@ interface TrackingSectionProps {
   onAddReview: (review: Omit<ProductReview, 'id' | 'createdAt'>) => void;
   currentUser: User | null;
   onCancelOrder?: (orderId: string) => void;
+  onConfirmReceived?: (orderId: string) => void;
   drivers?: Driver[];
 }
 
-export function TrackingSection({ 
-  activeOrders, 
-  onSendMessage, 
+export function TrackingSection({
+  activeOrders,
+  onSendMessage,
   chatHistory,
   reviews,
   onAddReview,
   currentUser,
   onCancelOrder,
+  onConfirmReceived,
   drivers = []
 }: TrackingSectionProps) {
   const [searchId, setSearchId] = useState('');
@@ -81,7 +83,7 @@ export function TrackingSection({
   const [errorMsg, setErrorMsg] = useState('');
 
   const getStepStatus = (current: OrderStatus, step: OrderStatus) => {
-    const sequence: OrderStatus[] = ['pending', 'preparing', 'picked_up', 'shipping', 'completed'];
+    const sequence: OrderStatus[] = ['pending', 'preparing', 'picked_up', 'shipping', 'delivered', 'completed'];
     const currentIndex = sequence.indexOf(current);
     const stepIndex = sequence.indexOf(step);
 
@@ -111,6 +113,7 @@ export function TrackingSection({
       case 'preparing': return 'Đang Chế Biến Sợi Bánh';
       case 'picked_up': return 'Đã Lấy Hàng, Đang Giao';
       case 'shipping': return 'Đang Giao Hàng';
+      case 'delivered': return 'Shipper Đã Giao — Chờ Bạn Xác Nhận';
       case 'completed': return 'Giao Hàng Thành Công ';
       case 'cancelled': return 'Đã Hủy';
     }
@@ -175,6 +178,7 @@ export function TrackingSection({
                       </div>
                       <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase ${
                         o.status === 'shipping' ? 'bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-900/30' :
+                        o.status === 'delivered' ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900/30' :
                         o.status === 'picked_up' ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-900/30' :
                         o.status === 'preparing' ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-900/30' :
                         'bg-[#F3F0E9] dark:bg-[#251A18] text-[#2D241E] dark:text-[#FAF8F5]'
@@ -451,9 +455,10 @@ export function TrackingSection({
                       <Clock className="w-3 h-3 text-[#D97706]" /> Thời gian nhận dự kiến
                     </p>
                     <p className="mt-0.5 font-bold text-[#D97706] font-sans">
-                      {(selectedOrder.status as string) === 'completed' ? 'Đã giao' : 
-                       selectedOrder.status === 'shipping' ? `Còn khoảng ${Math.max(2, Math.round(15 - (selectedOrder.deliveryProgress || 0) * 0.13))} phút` : 
-                       selectedOrder.status === 'preparing' ? 'Chuẩn bị thêm 5 phút' : 
+                      {(selectedOrder.status as string) === 'completed' ? 'Đã giao' :
+                       selectedOrder.status === 'delivered' ? 'Đã đến nơi — chờ bạn xác nhận' :
+                       selectedOrder.status === 'shipping' ? `Còn khoảng ${Math.max(2, Math.round(15 - (selectedOrder.deliveryProgress || 0) * 0.13))} phút` :
+                       selectedOrder.status === 'preparing' ? 'Chuẩn bị thêm 5 phút' :
                        selectedOrder.status === 'cancelled' ? 'Đơn hàng đã hủy' : 'Chờ xác nhận'}
                     </p>
                   </div>
@@ -498,9 +503,24 @@ export function TrackingSection({
                   </div>
                 ) : (
                   <div className="mt-4 p-3 bg-[#FAF8F5] dark:bg-[#1C1311] rounded-xl border border-[#E5E1D8] dark:border-[#2D2321] text-center text-xs text-[#8B7E74] dark:text-[#B2A496] font-sans">
-                    {selectedOrder.status === 'cancelled' 
-                      ? 'Đơn hàng này đã bị hủy bỏ.' 
+                    {selectedOrder.status === 'cancelled'
+                      ? 'Đơn hàng này đã bị hủy bỏ.'
                       : 'Chưa phân tài xế. Chủ quán đang chuẩn bị nguyên liệu lóc xương cá.'}
+                  </div>
+                )}
+
+                {/* Bước 5: khách xác nhận đã nhận hàng thì đơn mới được tính hoàn tất */}
+                {selectedOrder.status === 'delivered' && (
+                  <div className="mt-4 p-4 bg-emerald-50 dark:bg-emerald-950/20 rounded-xl border-2 border-emerald-300 dark:border-emerald-800 text-center space-y-3">
+                    <p className="text-xs font-bold text-emerald-800 dark:text-emerald-300">
+                      📦 Shipper đã xác nhận giao hàng. Bạn đã nhận được đơn hàng chưa?
+                    </p>
+                    <button
+                      onClick={() => onConfirmReceived?.(selectedOrder.id)}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6 py-2.5 rounded-xl text-xs cursor-pointer shadow-sm inline-flex items-center gap-1.5"
+                    >
+                      <Check className="w-3.5 h-3.5" /> Tôi đã nhận được hàng
+                    </button>
                   </div>
                 )}
 
@@ -520,7 +540,9 @@ export function TrackingSection({
                   </div>
 
                   <div className="space-y-4">
-                    {selectedOrder.items.map((item, idx) => {
+                    {/* Only the main dish is reviewable — toppings/options are flattened into their own
+                        pseudo line-items (tagged with optionsText) and shouldn't be rated individually. */}
+                    {selectedOrder.items.filter(item => !item.optionsText).map((item, idx) => {
                       const isReviewed = reviews.some(
                         r => r.orderId === selectedOrder.id && r.productName === item.productName
                       );

@@ -33,6 +33,10 @@ vi.mock('../services/api', () => ({
     deleteCategory: vi.fn(),
     uploadImage: vi.fn(),
   },
+  ImageService: {
+    getPresignedUrl: vi.fn().mockImplementation((url: string) => Promise.resolve(url)),
+    getPresignedUrlsBatch: vi.fn().mockResolvedValue(new Map()),
+  },
 }));
 
 const mockOrders: Order[] = [

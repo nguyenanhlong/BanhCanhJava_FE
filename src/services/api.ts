@@ -2,6 +2,34 @@ import { Product, Driver, Order, Category, Review, User, Invoice, DeliveryArea, 
 
 const BASE_URL = 'https://banhcanhjava-be.onrender.com/api';
 
+// === JWT token (Phase 3 auth) ===
+const TOKEN_KEY = 'banhcanh_token';
+
+export function getAuthToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function setAuthToken(token: string): void {
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+export function clearAuthToken(): void {
+  localStorage.removeItem(TOKEN_KEY);
+}
+
+/**
+ * Drop-in replacement for `fetch` that auto-attaches "Authorization: Bearer <token>" when a
+ * token is on hand. Every backend call in this file goes through this so login/logout is the
+ * only place that needs to touch the token.
+ */
+async function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
+  const token = getAuthToken();
+  if (!token) return fetch(input, init);
+  const headers = new Headers(init.headers || {});
+  headers.set('Authorization', `Bearer ${token}`);
+  return fetch(input, { ...init, headers });
+}
+
 export function resolveImageUrl(url: string): string {
   if (!url) return '';
   if (url.startsWith('http://') || url.startsWith('https://')) return url;
@@ -47,6 +75,7 @@ function mapDriver(d: any): Driver {
 function mapOrder(o: any): Order {
   return {
     id: String(o.id || o.orderId || ''),
+    userId: o.userId || o.user_id ? Number(o.userId || o.user_id) : undefined,
     customerName: o.customerName || o.customer_name || '',
     phone: o.phone || '',
     address: o.address || '',
@@ -110,7 +139,7 @@ export const ApiService = {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 1500);
-      const res = await fetch(`${BASE_URL}/products`, { signal: controller.signal });
+      const res = await apiFetch(`${BASE_URL}/products`, { signal: controller.signal });
       clearTimeout(timeoutId);
       return res.ok;
     } catch {
@@ -120,14 +149,14 @@ export const ApiService = {
 
   // 1. PRODUCTS API
   async getProducts(): Promise<Product[]> {
-    const res = await fetch(`${BASE_URL}/products`);
+    const res = await apiFetch(`${BASE_URL}/products`);
     if (!res.ok) throw new Error('Không thể tải danh sách sản phẩm');
     const data = await res.json();
     return Array.isArray(data) ? data.map(mapProduct) : [];
   },
 
   async getProductsByCategory(category: string): Promise<Product[]> {
-    const res = await fetch(`${BASE_URL}/products/category/${category}`);
+    const res = await apiFetch(`${BASE_URL}/products/category/${category}`);
     if (!res.ok) throw new Error('Không thể tải sản phẩm theo danh mục');
     const data = await res.json();
     return Array.isArray(data) ? data.map(mapProduct) : [];
@@ -135,14 +164,14 @@ export const ApiService = {
 
   // 2. ORDERS API
   async getOrders(): Promise<Order[]> {
-    const res = await fetch(`${BASE_URL}/orders`);
+    const res = await apiFetch(`${BASE_URL}/orders`);
     if (!res.ok) throw new Error('Không thể tải danh sách đơn hàng');
     const data = await res.json();
     return Array.isArray(data) ? data.map(mapOrder) : [];
   },
 
   async createOrder(order: any): Promise<Order> {
-    const res = await fetch(`${BASE_URL}/orders`, {
+    const res = await apiFetch(`${BASE_URL}/orders`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(order)
@@ -153,13 +182,20 @@ export const ApiService = {
   },
 
   async getOrderById(orderId: string | number): Promise<Order> {
-    const res = await fetch(`${BASE_URL}/orders/${orderId}`);
+    const res = await apiFetch(`${BASE_URL}/orders/${orderId}`);
     if (!res.ok) throw new Error('Không thể tải chi tiết đơn hàng');
     return mapOrder(await res.json());
   },
 
+  async getOrdersByUser(userId: string | number): Promise<Order[]> {
+    const res = await apiFetch(`${BASE_URL}/orders/user/${userId}`);
+    if (!res.ok) throw new Error('Không thể tải đơn hàng của bạn');
+    const data = await res.json();
+    return Array.isArray(data) ? data.map(mapOrder) : [];
+  },
+
   async updateOrderStatus(orderId: string | number, status: string): Promise<Order> {
-    const res = await fetch(`${BASE_URL}/orders/${orderId}/status?status=${status}`, {
+    const res = await apiFetch(`${BASE_URL}/orders/${orderId}/status?status=${status}`, {
       method: 'PUT'
     });
     if (!res.ok) throw new Error('Không thể cập nhật trạng thái đơn hàng');
@@ -167,18 +203,37 @@ export const ApiService = {
     return mapOrder(data);
   },
 
-  async assignDriverToOrder(orderId: string | number, driverId: string | number): Promise<Order> {
-    const res = await fetch(`${BASE_URL}/orders/${orderId}/assign-driver/${driverId}`, {
+  async updateOrderProgress(orderId: string | number, progress: number, stage?: string): Promise<Order> {
+    const params = new URLSearchParams({ progress: String(progress) });
+    if (stage) params.set('stage', stage);
+    const res = await apiFetch(`${BASE_URL}/orders/${orderId}/progress?${params.toString()}`, {
       method: 'PUT'
     });
-    if (!res.ok) throw new Error('Không thể điều phối shipper nhận đơn');
+    if (!res.ok) {
+      let msg = 'Không thể cập nhật tiến trình giao hàng';
+      try { const j = await res.json(); if (j.error) msg = j.error; } catch {}
+      throw new Error(msg);
+    }
+    const data = await res.json();
+    return mapOrder(data);
+  },
+
+  async assignDriverToOrder(orderId: string | number, driverId: string | number): Promise<Order> {
+    const res = await apiFetch(`${BASE_URL}/orders/${orderId}/assign-driver/${driverId}`, {
+      method: 'PUT'
+    });
+    if (!res.ok) {
+      let msg = 'Không thể điều phối shipper nhận đơn';
+      try { const j = await res.json(); if (j.error) msg = j.error; } catch {}
+      throw new Error(msg);
+    }
     const data = await res.json();
     return mapOrder(data);
   },
 
   // 3. PRODUCT CRUD (Admin)
   async createProduct(product: any): Promise<Product> {
-    const res = await fetch(`${BASE_URL}/products`, {
+    const res = await apiFetch(`${BASE_URL}/products`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(product)
@@ -189,7 +244,7 @@ export const ApiService = {
   },
 
   async updateProduct(id: string | number, product: any): Promise<Product> {
-    const res = await fetch(`${BASE_URL}/products/${id}`, {
+    const res = await apiFetch(`${BASE_URL}/products/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(product)
@@ -200,7 +255,7 @@ export const ApiService = {
   },
 
   async deleteProduct(id: string | number): Promise<void> {
-    const res = await fetch(`${BASE_URL}/products/${id}`, {
+    const res = await apiFetch(`${BASE_URL}/products/${id}`, {
       method: 'DELETE'
     });
     if (!res.ok) throw new Error('Không thể xóa sản phẩm');
@@ -208,14 +263,14 @@ export const ApiService = {
 
   // 4. DRIVERS API
   async getDrivers(): Promise<Driver[]> {
-    const res = await fetch(`${BASE_URL}/drivers`);
+    const res = await apiFetch(`${BASE_URL}/drivers`);
     if (!res.ok) throw new Error('Không thể tải danh sách tài xế');
     const data = await res.json();
     return Array.isArray(data) ? data.map(mapDriver) : [];
   },
 
   async registerDriver(driver: any): Promise<{ user: any; driver: Driver }> {
-    const res = await fetch(`${BASE_URL}/drivers/register`, {
+    const res = await apiFetch(`${BASE_URL}/drivers/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(driver)
@@ -231,7 +286,7 @@ export const ApiService = {
   },
 
   async createDriver(driver: any): Promise<Driver> {
-    const res = await fetch(`${BASE_URL}/drivers`, {
+    const res = await apiFetch(`${BASE_URL}/drivers`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(driver)
@@ -242,30 +297,34 @@ export const ApiService = {
   },
 
   async updateDriverStatus(driverId: string | number, status: string): Promise<Driver> {
-    const res = await fetch(`${BASE_URL}/drivers/${driverId}/status?status=${status}`, {
+    const res = await apiFetch(`${BASE_URL}/drivers/${driverId}/status?status=${status}`, {
       method: 'PUT'
     });
-    if (!res.ok) throw new Error('Không thể cập nhật trạng thái tài xế');
+    if (!res.ok) {
+      let msg = 'Không thể cập nhật trạng thái tài xế';
+      try { const j = await res.json(); if (j.error) msg = j.error; } catch {}
+      throw new Error(msg);
+    }
     const data = await res.json();
     return mapDriver(data);
   },
 
   // 5. USERS & STATS API
   async getUsers(): Promise<User[]> {
-    const res = await fetch(`${BASE_URL}/users`);
+    const res = await apiFetch(`${BASE_URL}/users`);
     if (!res.ok) throw new Error('Không thể tải danh sách người dùng');
     return res.json();
   },
 
   async getStats(): Promise<any> {
-    const res = await fetch(`${BASE_URL}/orders/stats`);
+    const res = await apiFetch(`${BASE_URL}/orders/stats`);
     if (!res.ok) return { totalOrders: 0, totalRevenue: 0 };
     return res.json();
   },
 
   // 6. AUTH API
   async register(user: any): Promise<any> {
-    const res = await fetch(`${BASE_URL}/auth/register`, {
+    const res = await apiFetch(`${BASE_URL}/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(user)
@@ -278,7 +337,7 @@ export const ApiService = {
   },
 
   async login(credentials: any): Promise<any> {
-    const res = await fetch(`${BASE_URL}/auth/login`, {
+    const res = await apiFetch(`${BASE_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(credentials)
@@ -292,14 +351,14 @@ export const ApiService = {
 
   // 7. CATEGORIES API
   async getCategories(): Promise<Category[]> {
-    const res = await fetch(`${BASE_URL}/categories`);
+    const res = await apiFetch(`${BASE_URL}/categories`);
     if (!res.ok) throw new Error('Không thể tải danh mục');
     const data = await res.json();
     return Array.isArray(data) ? data.map(mapCategory) : [];
   },
 
   async createCategory(data: { name: string; slug: string }): Promise<Category> {
-    const res = await fetch(`${BASE_URL}/categories`, {
+    const res = await apiFetch(`${BASE_URL}/categories`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -309,7 +368,7 @@ export const ApiService = {
   },
 
   async updateCategory(id: number, data: { name?: string; slug?: string }): Promise<Category> {
-    const res = await fetch(`${BASE_URL}/categories/${id}`, {
+    const res = await apiFetch(`${BASE_URL}/categories/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -319,20 +378,20 @@ export const ApiService = {
   },
 
   async deleteCategory(id: number): Promise<void> {
-    const res = await fetch(`${BASE_URL}/categories/${id}`, { method: 'DELETE' });
+    const res = await apiFetch(`${BASE_URL}/categories/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('Không thể xóa danh mục');
   },
 
   // 8. REVIEWS API
   async getReviews(): Promise<Review[]> {
-    const res = await fetch(`${BASE_URL}/reviews`);
+    const res = await apiFetch(`${BASE_URL}/reviews`);
     if (!res.ok) throw new Error('Không thể tải đánh giá');
     const data = await res.json();
     return Array.isArray(data) ? data.map(mapReview) : [];
   },
 
   async createReview(review: any): Promise<Review> {
-    const res = await fetch(`${BASE_URL}/reviews`, {
+    const res = await apiFetch(`${BASE_URL}/reviews`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(review)
@@ -343,7 +402,7 @@ export const ApiService = {
   },
 
   async updateReview(id: string, data: any): Promise<Review> {
-    const res = await fetch(`${BASE_URL}/reviews/${id}`, {
+    const res = await apiFetch(`${BASE_URL}/reviews/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -354,19 +413,19 @@ export const ApiService = {
   },
 
   async deleteReview(id: string): Promise<void> {
-    const res = await fetch(`${BASE_URL}/reviews/${id}`, { method: 'DELETE' });
+    const res = await apiFetch(`${BASE_URL}/reviews/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('Không thể xóa đánh giá');
   },
 
   // 9. USER PROFILE API
   async getUser(id: string): Promise<any> {
-    const res = await fetch(`${BASE_URL}/users/${id}`);
+    const res = await apiFetch(`${BASE_URL}/users/${id}`);
     if (!res.ok) throw new Error('Không thể tải thông tin người dùng');
     return res.json();
   },
 
   async updateUser(id: string, data: { fullName?: string; phone?: string; address?: string; email?: string }): Promise<any> {
-    const res = await fetch(`${BASE_URL}/users/${id}`, {
+    const res = await apiFetch(`${BASE_URL}/users/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -376,7 +435,7 @@ export const ApiService = {
   },
 
   async changePassword(id: string, oldPassword: string, newPassword: string): Promise<any> {
-    const res = await fetch(`${BASE_URL}/users/${id}/password`, {
+    const res = await apiFetch(`${BASE_URL}/users/${id}/password`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ oldPassword, newPassword })
@@ -395,7 +454,7 @@ export const ApiService = {
     formData.append('folder', folder);
     if (entityId) formData.append('id', entityId);
     if (entityName) formData.append('name', entityName);
-    const res = await fetch(`${BASE_URL}/upload/image`, {
+    const res = await apiFetch(`${BASE_URL}/upload/image`, {
       method: 'POST',
       body: formData
     });
@@ -413,7 +472,7 @@ export const ApiService = {
 
   // 10. MOMO PAYMENT API
   async createMoMoPayment(orderId: number, amount: number, orderInfo?: string): Promise<any> {
-    const res = await fetch(`${BASE_URL}/payments/momo/create`, {
+    const res = await apiFetch(`${BASE_URL}/payments/momo/create`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ orderId, amount, orderInfo: orderInfo || 'Thanh toan don hang' })
@@ -423,13 +482,13 @@ export const ApiService = {
   },
 
   async getMoMoPaymentStatus(orderId: number): Promise<any> {
-    const res = await fetch(`${BASE_URL}/payments/momo/status/${orderId}`);
+    const res = await apiFetch(`${BASE_URL}/payments/momo/status/${orderId}`);
     if (!res.ok) return { status: 'not_found' };
     return res.json();
   },
 
   async createPaymentTransaction(data: any): Promise<any> {
-    const res = await fetch(`${BASE_URL}/payments`, {
+    const res = await apiFetch(`${BASE_URL}/payments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -440,21 +499,21 @@ export const ApiService = {
 
   // 11. RBAC API
   async getRoles(): Promise<any[]> {
-    const res = await fetch(`${BASE_URL}/roles`);
+    const res = await apiFetch(`${BASE_URL}/roles`);
     if (!res.ok) return [];
     const data = await res.json();
     return Array.isArray(data) ? data : [];
   },
 
   async getPermissions(): Promise<any[]> {
-    const res = await fetch(`${BASE_URL}/permissions`);
+    const res = await apiFetch(`${BASE_URL}/permissions`);
     if (!res.ok) return [];
     const data = await res.json();
     return Array.isArray(data) ? data : [];
   },
 
   async assignPermissionToRole(roleId: number, permissionId: number): Promise<void> {
-    await fetch(`${BASE_URL}/role-permissions`, {
+    await apiFetch(`${BASE_URL}/role-permissions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ roleId, permissionId })
@@ -462,7 +521,7 @@ export const ApiService = {
   },
 
   async removePermissionFromRole(roleId: number, permissionId: number): Promise<void> {
-    await fetch(`${BASE_URL}/role-permissions`, {
+    await apiFetch(`${BASE_URL}/role-permissions`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ roleId, permissionId })
@@ -470,7 +529,7 @@ export const ApiService = {
   },
 
   async assignRoleToUser(userId: number, roleId: number): Promise<void> {
-    await fetch(`${BASE_URL}/users/${userId}/roles`, {
+    await apiFetch(`${BASE_URL}/users/${userId}/roles`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ roleId })
@@ -478,19 +537,19 @@ export const ApiService = {
   },
 
   async removeRoleFromUser(userId: number, roleId: number): Promise<void> {
-    await fetch(`${BASE_URL}/users/${userId}/roles/${roleId}`, {
+    await apiFetch(`${BASE_URL}/users/${userId}/roles/${roleId}`, {
       method: 'DELETE'
     });
   },
 
   async getUserRoles(userId: number): Promise<any[]> {
-    const res = await fetch(`${BASE_URL}/users/${userId}/roles`);
+    const res = await apiFetch(`${BASE_URL}/users/${userId}/roles`);
     if (!res.ok) return [];
     return res.json();
   },
 
   async createRole(role: any): Promise<any> {
-    const res = await fetch(`${BASE_URL}/roles`, {
+    const res = await apiFetch(`${BASE_URL}/roles`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(role)
@@ -500,7 +559,7 @@ export const ApiService = {
   },
 
   async updateRole(id: number, role: any): Promise<any> {
-    const res = await fetch(`${BASE_URL}/roles/${id}`, {
+    const res = await apiFetch(`${BASE_URL}/roles/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(role)
@@ -510,25 +569,25 @@ export const ApiService = {
   },
 
   async deleteRole(id: number): Promise<void> {
-    const res = await fetch(`${BASE_URL}/roles/${id}`, { method: 'DELETE' });
+    const res = await apiFetch(`${BASE_URL}/roles/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('Không thể xoá vai trò');
   },
 
   async getRolePermissions(roleId: number): Promise<any[]> {
-    const res = await fetch(`${BASE_URL}/roles/${roleId}/permissions`);
+    const res = await apiFetch(`${BASE_URL}/roles/${roleId}/permissions`);
     if (!res.ok) return [];
     return res.json();
   },
 
   // 11. INVOICES API
   async getInvoices(): Promise<Invoice[]> {
-    const res = await fetch(`${BASE_URL}/invoices`);
+    const res = await apiFetch(`${BASE_URL}/invoices`);
     if (!res.ok) throw new Error('Không thể tải hóa đơn');
     return res.json();
   },
 
   async createInvoice(orderId: number): Promise<Invoice> {
-    const res = await fetch(`${BASE_URL}/invoices`, {
+    const res = await apiFetch(`${BASE_URL}/invoices`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ orderId })
@@ -538,20 +597,20 @@ export const ApiService = {
   },
 
   async cancelInvoice(id: number): Promise<Invoice> {
-    const res = await fetch(`${BASE_URL}/invoices/${id}/cancel`, { method: 'PUT' });
+    const res = await apiFetch(`${BASE_URL}/invoices/${id}/cancel`, { method: 'PUT' });
     if (!res.ok) throw new Error('Không thể hủy hóa đơn');
     return res.json();
   },
 
   // 12. DELIVERY AREAS API
   async getDeliveryAreas(): Promise<DeliveryArea[]> {
-    const res = await fetch(`${BASE_URL}/delivery-areas`);
+    const res = await apiFetch(`${BASE_URL}/delivery-areas`);
     if (!res.ok) throw new Error('Không thể tải khu vực giao hàng');
     return res.json();
   },
 
   async createDeliveryArea(area: Partial<DeliveryArea>): Promise<DeliveryArea> {
-    const res = await fetch(`${BASE_URL}/delivery-areas`, {
+    const res = await apiFetch(`${BASE_URL}/delivery-areas`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(area)
@@ -561,7 +620,7 @@ export const ApiService = {
   },
 
   async updateDeliveryArea(id: number, area: Partial<DeliveryArea>): Promise<DeliveryArea> {
-    const res = await fetch(`${BASE_URL}/delivery-areas/${id}`, {
+    const res = await apiFetch(`${BASE_URL}/delivery-areas/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(area)
@@ -571,31 +630,31 @@ export const ApiService = {
   },
 
   async deleteDeliveryArea(id: number): Promise<void> {
-    const res = await fetch(`${BASE_URL}/delivery-areas/${id}`, { method: 'DELETE' });
+    const res = await apiFetch(`${BASE_URL}/delivery-areas/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('Không thể xóa khu vực giao hàng');
   },
 
   // 13. DELIVERY TRIPS API
   async getDeliveryTrips(): Promise<DeliveryTrip[]> {
-    const res = await fetch(`${BASE_URL}/delivery-trips`);
+    const res = await apiFetch(`${BASE_URL}/delivery-trips`);
     if (!res.ok) throw new Error('Không thể tải chuyến giao hàng');
     return res.json();
   },
 
   async getDeliveryTripsByDriver(driverId: number): Promise<DeliveryTrip[]> {
-    const res = await fetch(`${BASE_URL}/delivery-trips/driver/${driverId}`);
+    const res = await apiFetch(`${BASE_URL}/delivery-trips/driver/${driverId}`);
     if (!res.ok) throw new Error('Không thể tải chuyến giao của tài xế');
     return res.json();
   },
 
   async getDeliveryTripsByOrder(orderId: number): Promise<DeliveryTrip[]> {
-    const res = await fetch(`${BASE_URL}/delivery-trips/order/${orderId}`);
+    const res = await apiFetch(`${BASE_URL}/delivery-trips/order/${orderId}`);
     if (!res.ok) throw new Error('Không thể tải chuyến giao của đơn hàng');
     return res.json();
   },
 
   async createDeliveryTrip(orderId: number, driverId: number): Promise<DeliveryTrip> {
-    const res = await fetch(`${BASE_URL}/delivery-trips`, {
+    const res = await apiFetch(`${BASE_URL}/delivery-trips`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ orderId, driverId })
@@ -607,27 +666,27 @@ export const ApiService = {
   async updateDeliveryTripStatus(id: number, status: string, lat?: number, lng?: number): Promise<DeliveryTrip> {
     let url = `${BASE_URL}/delivery-trips/${id}/status?status=${status}`;
     if (lat !== undefined && lng !== undefined) url += `&lat=${lat}&lng=${lng}`;
-    const res = await fetch(url, { method: 'PUT' });
+    const res = await apiFetch(url, { method: 'PUT' });
     if (!res.ok) throw new Error('Không thể cập nhật trạng thái chuyến giao');
     return res.json();
   },
 
   async updateDeliveryTripLocation(id: number, lat: number, lng: number): Promise<DeliveryTrip> {
-    const res = await fetch(`${BASE_URL}/delivery-trips/${id}/location?lat=${lat}&lng=${lng}`, { method: 'PUT' });
+    const res = await apiFetch(`${BASE_URL}/delivery-trips/${id}/location?lat=${lat}&lng=${lng}`, { method: 'PUT' });
     if (!res.ok) throw new Error('Không thể cập nhật vị trí');
     return res.json();
   },
 
   // 14. MEMBERSHIPS API
   async getMembership(userId: number): Promise<UserMembership | null> {
-    const res = await fetch(`${BASE_URL}/memberships/${userId}`);
+    const res = await apiFetch(`${BASE_URL}/memberships/${userId}`);
     if (!res.ok) return null;
     const data = await res.json();
     return data || null;
   },
 
   async createOrUpdateMembership(userId: number, data: { tierId: number; currentPoints?: number; totalOrders?: number }): Promise<UserMembership> {
-    const res = await fetch(`${BASE_URL}/memberships/${userId}`, {
+    const res = await apiFetch(`${BASE_URL}/memberships/${userId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -637,39 +696,39 @@ export const ApiService = {
   },
 
   async getVouchers(userId: number): Promise<MembershipVoucher[]> {
-    const res = await fetch(`${BASE_URL}/memberships/${userId}/vouchers`);
+    const res = await apiFetch(`${BASE_URL}/memberships/${userId}/vouchers`);
     if (!res.ok) throw new Error('Không thể tải voucher');
     return res.json();
   },
 
   async claimVoucher(userId: number, tierId: number): Promise<MembershipVoucher> {
-    const res = await fetch(`${BASE_URL}/memberships/${userId}/vouchers/claim?tierId=${tierId}`, { method: 'POST' });
+    const res = await apiFetch(`${BASE_URL}/memberships/${userId}/vouchers/claim?tierId=${tierId}`, { method: 'POST' });
     if (!res.ok) throw new Error('Không thể nhận voucher');
     return res.json();
   },
 
   async useVoucher(voucherId: number): Promise<MembershipVoucher> {
-    const res = await fetch(`${BASE_URL}/memberships/vouchers/${voucherId}/use`, { method: 'PUT' });
+    const res = await apiFetch(`${BASE_URL}/memberships/vouchers/${voucherId}/use`, { method: 'PUT' });
     if (!res.ok) throw new Error('Không thể sử dụng voucher');
     return res.json();
   },
 
   // --- Admin Membership ---
   async getAllMemberships(): Promise<UserMembership[]> {
-    const res = await fetch(`${BASE_URL}/memberships/admin/all`);
+    const res = await apiFetch(`${BASE_URL}/memberships/admin/all`);
     if (!res.ok) return [];
     return res.json();
   },
 
   async getAllVouchers(tierId?: number): Promise<MembershipVoucher[]> {
     const url = tierId ? `${BASE_URL}/memberships/admin/vouchers?tierId=${tierId}` : `${BASE_URL}/memberships/admin/vouchers`;
-    const res = await fetch(url);
+    const res = await apiFetch(url);
     if (!res.ok) return [];
     return res.json();
   },
 
   async adminCreateVoucher(data: { userId: number; tierId: number; discountPercent?: number; maxDiscount?: number; minOrderAmount?: number }): Promise<MembershipVoucher> {
-    const res = await fetch(`${BASE_URL}/memberships/admin/vouchers`, {
+    const res = await apiFetch(`${BASE_URL}/memberships/admin/vouchers`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -679,7 +738,7 @@ export const ApiService = {
   },
 
   async adminCreateVouchersBatch(data: { userIds: number[]; tierId: number; discountPercent?: number; maxDiscount?: number; minOrderAmount?: number; code?: string; status?: string; expiresAt?: string }): Promise<{ created: number }> {
-    const res = await fetch(`${BASE_URL}/memberships/admin/vouchers/batch`, {
+    const res = await apiFetch(`${BASE_URL}/memberships/admin/vouchers/batch`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -690,27 +749,27 @@ export const ApiService = {
 
   // 15. ORDER HISTORY API
   async getOrderHistory(orderId: number): Promise<OrderStatusHistory[]> {
-    const res = await fetch(`${BASE_URL}/order-history/order/${orderId}`);
+    const res = await apiFetch(`${BASE_URL}/order-history/order/${orderId}`);
     if (!res.ok) return [];
     return res.json();
   },
 
   // 16. PAYMENT TRANSACTIONS API
   async getPaymentTransactions(orderId: number): Promise<PaymentTransaction[]> {
-    const res = await fetch(`${BASE_URL}/payments/order/${orderId}`);
+    const res = await apiFetch(`${BASE_URL}/payments/order/${orderId}`);
     if (!res.ok) return [];
     return res.json();
   },
 
   // 17. INVOICE DETAILS API
   async getInvoiceDetails(invoiceId: number): Promise<InvoiceDetail[]> {
-    const res = await fetch(`${BASE_URL}/invoice-details/invoice/${invoiceId}`);
+    const res = await apiFetch(`${BASE_URL}/invoice-details/invoice/${invoiceId}`);
     if (!res.ok) throw new Error('Không thể tải chi tiết hóa đơn');
     return res.json();
   },
 
   async createInvoiceDetail(detail: Partial<InvoiceDetail>): Promise<InvoiceDetail> {
-    const res = await fetch(`${BASE_URL}/invoice-details`, {
+    const res = await apiFetch(`${BASE_URL}/invoice-details`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(detail)
@@ -721,18 +780,18 @@ export const ApiService = {
 
   // 18. DRIVER EXTENDED API
   async getDriver(id: number): Promise<Driver> {
-    const res = await fetch(`${BASE_URL}/drivers/${id}`);
+    const res = await apiFetch(`${BASE_URL}/drivers/${id}`);
     if (!res.ok) throw new Error('Không thể tải thông tin tài xế');
     return res.json();
   },
 
   async deleteDriver(id: number): Promise<void> {
-    const res = await fetch(`${BASE_URL}/drivers/${id}`, { method: 'DELETE' });
+    const res = await apiFetch(`${BASE_URL}/drivers/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('Không thể xóa tài xế');
   },
 
   async updateDriver(id: number, data: Partial<Driver>): Promise<Driver> {
-    const res = await fetch(`${BASE_URL}/drivers/${id}`, {
+    const res = await apiFetch(`${BASE_URL}/drivers/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -742,32 +801,32 @@ export const ApiService = {
   },
 
   async updateDriverLocation(id: number, lat: number, lng: number): Promise<Driver> {
-    const res = await fetch(`${BASE_URL}/drivers/${id}/location?lat=${lat}&lng=${lng}`, { method: 'PUT' });
+    const res = await apiFetch(`${BASE_URL}/drivers/${id}/location?lat=${lat}&lng=${lng}`, { method: 'PUT' });
     if (!res.ok) throw new Error('Không thể cập nhật vị trí tài xế');
     return res.json();
   },
 
   async getDriverStats(id: number): Promise<{ totalTrips: number; activeTrips: number; completedTrips: number; totalEarnings: number; rating: number }> {
-    const res = await fetch(`${BASE_URL}/drivers/${id}/stats`);
+    const res = await apiFetch(`${BASE_URL}/drivers/${id}/stats`);
     if (!res.ok) return { totalTrips: 0, activeTrips: 0, completedTrips: 0, totalEarnings: 0, rating: 5 };
     return res.json();
   },
 
   async getDriverTrips(id: number): Promise<DeliveryTrip[]> {
-    const res = await fetch(`${BASE_URL}/drivers/${id}/trips`);
+    const res = await apiFetch(`${BASE_URL}/drivers/${id}/trips`);
     if (!res.ok) throw new Error('Không thể tải chuyến giao của tài xế');
     return res.json();
   },
 
   // 19. PROMOTIONS API
   async getPromotions(): Promise<Promotion[]> {
-    const res = await fetch(`${BASE_URL}/promotions`);
+    const res = await apiFetch(`${BASE_URL}/promotions`);
     if (!res.ok) throw new Error('Không thể tải khuyến mãi');
     return res.json();
   },
 
   async createPromotion(promo: any): Promise<Promotion> {
-    const res = await fetch(`${BASE_URL}/promotions`, {
+    const res = await apiFetch(`${BASE_URL}/promotions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(promo)
@@ -783,7 +842,7 @@ export const ApiService = {
   },
 
   async updatePromotion(id: number, promo: any): Promise<Promotion> {
-    const res = await fetch(`${BASE_URL}/promotions/${id}`, {
+    const res = await apiFetch(`${BASE_URL}/promotions/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(promo)
@@ -793,25 +852,25 @@ export const ApiService = {
   },
 
   async deletePromotion(id: number): Promise<void> {
-    const res = await fetch(`${BASE_URL}/promotions/${id}`, { method: 'DELETE' });
+    const res = await apiFetch(`${BASE_URL}/promotions/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('Không thể xóa khuyến mãi');
   },
 
   async validatePromotion(code: string, orderAmount: number): Promise<{ valid: boolean; promo?: Promotion; error?: string }> {
-    const res = await fetch(`${BASE_URL}/promotions/${encodeURIComponent(code)}/validate?orderAmount=${orderAmount}`);
+    const res = await apiFetch(`${BASE_URL}/promotions/${encodeURIComponent(code)}/validate?orderAmount=${orderAmount}`);
     const data = await res.json();
     return data;
   },
 
   // 20. PRODUCT OPTIONS (TOPPINGS) API
   async getProductOptions(): Promise<ProductOption[]> {
-    const res = await fetch(`${BASE_URL}/product-options`);
+    const res = await apiFetch(`${BASE_URL}/product-options`);
     if (!res.ok) throw new Error('Không thể tải tuỳ chọn sản phẩm');
     return res.json();
   },
 
   async createProductOption(opt: any): Promise<ProductOption> {
-    const res = await fetch(`${BASE_URL}/product-options`, {
+    const res = await apiFetch(`${BASE_URL}/product-options`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(opt)
@@ -821,7 +880,7 @@ export const ApiService = {
   },
 
   async updateProductOption(id: number, opt: any): Promise<ProductOption> {
-    const res = await fetch(`${BASE_URL}/product-options/${id}`, {
+    const res = await apiFetch(`${BASE_URL}/product-options/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(opt)
@@ -831,19 +890,19 @@ export const ApiService = {
   },
 
   async deleteProductOption(id: number): Promise<void> {
-    const res = await fetch(`${BASE_URL}/product-options/${id}`, { method: 'DELETE' });
+    const res = await apiFetch(`${BASE_URL}/product-options/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('Không thể xóa tuỳ chọn');
   },
 
   // 21. MEMBERSHIP TIERS API
   async getMembershipTiers(): Promise<MembershipTier[]> {
-    const res = await fetch(`${BASE_URL}/membership-tiers`);
+    const res = await apiFetch(`${BASE_URL}/membership-tiers`);
     if (!res.ok) throw new Error('Không thể tải hạng thành viên');
     return res.json();
   },
 
   async createMembershipTier(tier: any): Promise<MembershipTier> {
-    const res = await fetch(`${BASE_URL}/membership-tiers`, {
+    const res = await apiFetch(`${BASE_URL}/membership-tiers`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(tier)
@@ -853,7 +912,7 @@ export const ApiService = {
   },
 
   async updateMembershipTier(id: number, tier: any): Promise<MembershipTier> {
-    const res = await fetch(`${BASE_URL}/membership-tiers/${id}`, {
+    const res = await apiFetch(`${BASE_URL}/membership-tiers/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(tier)
@@ -863,20 +922,20 @@ export const ApiService = {
   },
 
   async deleteMembershipTier(id: number): Promise<void> {
-    const res = await fetch(`${BASE_URL}/membership-tiers/${id}`, { method: 'DELETE' });
+    const res = await apiFetch(`${BASE_URL}/membership-tiers/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('Không thể xóa hạng thành viên');
   },
 
   // === Admin User Operations ===
 
   async adminDeleteUser(id: number): Promise<any> {
-    const res = await fetch(`${BASE_URL}/users/${id}`, { method: 'DELETE' });
+    const res = await apiFetch(`${BASE_URL}/users/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('Không thể xoá tài khoản');
     return res.json();
   },
 
   async adminChangeUserRole(id: number, role: string): Promise<any> {
-    const res = await fetch(`${BASE_URL}/users/${id}/role`, {
+    const res = await apiFetch(`${BASE_URL}/users/${id}/role`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ role })
@@ -886,7 +945,7 @@ export const ApiService = {
   },
 
   async adminToggleUserActive(id: number): Promise<any> {
-    const res = await fetch(`${BASE_URL}/users/${id}/toggle-active`, {
+    const res = await apiFetch(`${BASE_URL}/users/${id}/toggle-active`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' }
     });
@@ -895,7 +954,7 @@ export const ApiService = {
   },
 
   async adminResetUserPassword(id: number, newPassword: string): Promise<any> {
-    const res = await fetch(`${BASE_URL}/users/${id}/admin-reset-password`, {
+    const res = await apiFetch(`${BASE_URL}/users/${id}/admin-reset-password`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ newPassword })
@@ -964,7 +1023,7 @@ export const ImageService = {
     const key = extractS3Key(imageUrl);
     if (!key) return imageUrl;
     try {
-      const res = await fetch(`${BASE_URL}/upload/presigned?key=${encodeURIComponent(key)}&expireHours=24`);
+      const res = await apiFetch(`${BASE_URL}/upload/presigned?key=${encodeURIComponent(key)}&expireHours=24`);
       if (!res.ok) return imageUrl;
       const data = await res.json();
       const signed = data.url || imageUrl;
@@ -987,7 +1046,7 @@ export const ImageService = {
     }
     await Promise.all(uncached.map(async ({ url, key }) => {
       try {
-        const res = await fetch(`${BASE_URL}/upload/presigned?key=${encodeURIComponent(key)}&expireHours=24`);
+        const res = await apiFetch(`${BASE_URL}/upload/presigned?key=${encodeURIComponent(key)}&expireHours=24`);
         if (res.ok) {
           const data = await res.json();
           const signed = data.url || url;

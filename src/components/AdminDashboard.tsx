@@ -3,6 +3,8 @@ import { Order, Driver, OrderStatus, Product, MembershipTier, MembershipVoucher,
 import { JAVA_BACKEND_FILES, MYSQL_DATABASE_SQL, FRONTEND_INTEGRATION_FILES } from '../data';
 import { FileCode, Check, Copy, AlertTriangle, Plus, Edit3, Trash2, X, FileText, RefreshCw } from 'lucide-react';
 import { ApiService, ImageService } from '../services/api';
+import { Pagination } from './Pagination';
+import { usePagination } from '../hooks/usePagination';
 
 function toSlug(str: string): string {
   return str
@@ -308,6 +310,9 @@ export function AdminDashboard({
   // Preview for the currently-stored image (edit mode) — resolved to a signed URL for display only.
   useEffect(() => {
     if (!productForm.imageUrl) { setExistingImagePreview(''); return; }
+    // Show the raw value immediately (already correct for plain http(s) URLs); S3 keys get
+    // replaced with a signed URL once the presign call resolves.
+    setExistingImagePreview(productForm.imageUrl);
     ImageService.getPresignedUrl(productForm.imageUrl).then(setExistingImagePreview).catch(() => setExistingImagePreview(productForm.imageUrl));
   }, [productForm.imageUrl]);
 
@@ -323,10 +328,21 @@ export function AdminDashboard({
   const [driverVehicleColor, setDriverVehicleColor] = useState('');
   const [driverAvatarUrl, setDriverAvatarUrl] = useState('');
   const [uploadingDriverAvatar, setUploadingDriverAvatar] = useState(false);
+  const [pendingDriverAvatarFile, setPendingDriverAvatarFile] = useState<File | null>(null);
+  const [driverAvatarPreviewUrl, setDriverAvatarPreviewUrl] = useState('');
   const [driverSuccess, setDriverSuccess] = useState('');
   const [editingDriverId, setEditingDriverId] = useState<string | null>(null);
   const [driverEditModal, setDriverEditModal] = useState<any | null>(null);
   const [driverEditForm, setDriverEditForm] = useState({ name: '', phone: '', vehicle: '', vehicleType: 'Xe máy', vehiclePlate: '', vehicleColor: '', avatarUrl: '', password: '' });
+  const [pendingDriverEditAvatarFile, setPendingDriverEditAvatarFile] = useState<File | null>(null);
+  const [driverEditAvatarPreviewUrl, setDriverEditAvatarPreviewUrl] = useState('');
+  const [existingDriverEditAvatarPreview, setExistingDriverEditAvatarPreview] = useState('');
+
+  useEffect(() => {
+    if (!driverEditForm.avatarUrl) { setExistingDriverEditAvatarPreview(''); return; }
+    setExistingDriverEditAvatarPreview(driverEditForm.avatarUrl);
+    ImageService.getPresignedUrl(driverEditForm.avatarUrl).then(setExistingDriverEditAvatarPreview).catch(() => setExistingDriverEditAvatarPreview(driverEditForm.avatarUrl));
+  }, [driverEditForm.avatarUrl]);
 
   // Source code state
   const [selectedJavaFile, setSelectedJavaFile] = useState(0);
@@ -344,6 +360,16 @@ export function AdminDashboard({
   });
   const [categoryForm, setCategoryForm] = useState<{ name: string; slug: string; description?: string; imageUrl?: string; displayOrder?: number; isActive?: boolean }>({ name: '', slug: '', description: '', imageUrl: '', displayOrder: 0, isActive: true });
   const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null);
+  const [uploadingCategoryImage, setUploadingCategoryImage] = useState(false);
+  const [pendingCategoryImageFile, setPendingCategoryImageFile] = useState<File | null>(null);
+  const [categoryImagePreviewUrl, setCategoryImagePreviewUrl] = useState('');
+  const [existingCategoryImagePreview, setExistingCategoryImagePreview] = useState('');
+
+  useEffect(() => {
+    if (!categoryForm.imageUrl) { setExistingCategoryImagePreview(''); return; }
+    setExistingCategoryImagePreview(categoryForm.imageUrl);
+    ImageService.getPresignedUrl(categoryForm.imageUrl).then(setExistingCategoryImagePreview).catch(() => setExistingCategoryImagePreview(categoryForm.imageUrl!));
+  }, [categoryForm.imageUrl]);
 
   // Toppings / Product Options CRUD
   const [toppings, setToppings] = useState<ToppingItem[]>([]);
@@ -672,6 +698,7 @@ export function AdminDashboard({
       description: productForm.description,
       price: Number(productForm.price),
       categoryName: productForm.categoryName,
+      categoryId: categories.find(c => c.name === productForm.categoryName)?.id,
       isBestSeller: productForm.isBestSeller,
       isAvailable: productForm.isAvailable,
       preparationTime: Number(productForm.preparationTime),
@@ -737,9 +764,22 @@ export function AdminDashboard({
     }
   };
 
+  const clearPendingDriverAvatar = () => {
+    if (driverAvatarPreviewUrl) URL.revokeObjectURL(driverAvatarPreviewUrl);
+    setPendingDriverAvatarFile(null);
+    setDriverAvatarPreviewUrl('');
+  };
+
+  const clearPendingDriverEditAvatar = () => {
+    if (driverEditAvatarPreviewUrl) URL.revokeObjectURL(driverEditAvatarPreviewUrl);
+    setPendingDriverEditAvatarFile(null);
+    setDriverEditAvatarPreviewUrl('');
+  };
+
   const handleAddDriverSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!driverName || !driverPhone || !driverUsername || !driverPassword || !driverEmail) return;
+    let avatarKey = driverAvatarUrl || undefined;
     const driverData = {
       username: driverUsername,
       password: driverPassword,
@@ -751,12 +791,20 @@ export function AdminDashboard({
       vehicleType: driverVehicleType,
       vehiclePlate: driverVehiclePlate,
       vehicleColor: driverVehicleColor,
-      avatarUrl: driverAvatarUrl || undefined,
+      avatarUrl: avatarKey,
     };
     if (isBackendConnected) {
       try {
-        await ApiService.registerDriver(driverData);
+        const result = await ApiService.registerDriver(driverData);
+        // Upload only now, using the driver's real id/name, so the record is complete when saved.
+        if (pendingDriverAvatarFile && result?.driver?.id) {
+          setUploadingDriverAvatar(true);
+          avatarKey = await ApiService.uploadImage(pendingDriverAvatarFile, 'avatar_Image', String(result.driver.id), driverName);
+          setUploadingDriverAvatar(false);
+          await ApiService.updateDriver(Number(result.driver.id), { avatarUrl: avatarKey });
+        }
       } catch (err) {
+        setUploadingDriverAvatar(false);
         console.error('API register driver failed:', err);
         alert('Lỗi đăng ký tài xế: ' + err);
         return;
@@ -765,6 +813,7 @@ export function AdminDashboard({
     onCreateDriver(driverName, driverPhone, driverVehicle || `${driverVehicleType} - ${driverVehiclePlate}`);
     setDriverName(''); setDriverPhone(''); setDriverUsername(''); setDriverPassword(''); setDriverEmail('');
     setDriverVehicle(''); setDriverVehicleType('Xe máy'); setDriverVehiclePlate(''); setDriverVehicleColor(''); setDriverAvatarUrl('');
+    clearPendingDriverAvatar();
     setDriverSuccess('Đã đăng ký shipper mới thành công!');
     setTimeout(() => setDriverSuccess(''), 3000);
   };
@@ -782,11 +831,22 @@ export function AdminDashboard({
     });
     setEditingDriverId(d.id);
     setDriverEditModal(d);
+    clearPendingDriverEditAvatar();
   };
 
   const handleEditDriverSave = async () => {
     if (!editingDriverId) return;
-    const payload: any = { ...driverEditForm };
+    let avatarKey = driverEditForm.avatarUrl;
+    if (pendingDriverEditAvatarFile && isBackendConnected) {
+      setUploadingDriverAvatar(true);
+      try {
+        avatarKey = await ApiService.uploadImage(pendingDriverEditAvatarFile, 'avatar_Image', editingDriverId, driverEditForm.name);
+      } catch (err: any) {
+        onShowToast?.(err.message || 'Không thể tải ảnh lên', 'error', 'Avatar');
+      }
+      setUploadingDriverAvatar(false);
+    }
+    const payload: any = { ...driverEditForm, avatarUrl: avatarKey };
     if (!payload.password) delete payload.password;
     if (isBackendConnected) {
       try {
@@ -795,6 +855,7 @@ export function AdminDashboard({
     }
     setEditingDriverId(null);
     setDriverEditModal(null);
+    clearPendingDriverEditAvatar();
     setDriverSuccess('Đã cập nhật thông tin tài xế!');
     setTimeout(() => setDriverSuccess(''), 3000);
   };
@@ -820,6 +881,8 @@ export function AdminDashboard({
         return 'bg-red-100 text-red-800 border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-900/50';
       case 'shipping':
         return 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-950/30 dark:text-purple-400 dark:border-purple-900/50';
+      case 'delivered':
+        return 'bg-teal-100 text-teal-800 border-teal-200 dark:bg-teal-950/30 dark:text-teal-400 dark:border-teal-900/50';
       case 'completed':
         return 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/50';
       case 'cancelled':
@@ -828,6 +891,12 @@ export function AdminDashboard({
   };
 
   // Category handlers
+  const clearPendingCategoryImage = () => {
+    if (categoryImagePreviewUrl) URL.revokeObjectURL(categoryImagePreviewUrl);
+    setPendingCategoryImageFile(null);
+    setCategoryImagePreviewUrl('');
+  };
+
   const handleCategorySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!categoryForm.name) return;
@@ -839,32 +908,49 @@ export function AdminDashboard({
       alert(`Slug "${finalSlug}" đã tồn tại! Vui lòng đặt tên khác.`);
       return;
     }
-    const catPayload = {
+    const buildCatPayload = (imageValue: string | undefined) => ({
       name: categoryForm.name,
       slug: finalSlug,
       description: categoryForm.description || undefined,
-      imageUrl: categoryForm.imageUrl || undefined,
+      imageUrl: imageValue || undefined,
       displayOrder: categoryForm.displayOrder ?? 0,
       isActive: categoryForm.isActive !== false,
-    };
+    });
     try {
+      let imageKey = categoryForm.imageUrl || undefined;
+
       if (editingCategoryId !== null) {
-        if (isBackendConnected) {
-          await ApiService.updateCategory(editingCategoryId, catPayload);
+        // Update: the category already has a real id/name, so upload straight to its folder now.
+        if (pendingCategoryImageFile && isBackendConnected) {
+          setUploadingCategoryImage(true);
+          imageKey = await ApiService.uploadImage(pendingCategoryImageFile, 'category_Image', String(editingCategoryId), categoryForm.name);
+          setUploadingCategoryImage(false);
         }
-        setCategories(categories.map(c => c.id === editingCategoryId ? { ...c, name: categoryForm.name, slug: finalSlug, description: categoryForm.description, imageUrl: categoryForm.imageUrl, displayOrder: categoryForm.displayOrder, isActive: categoryForm.isActive } : c));
-      } else {
         if (isBackendConnected) {
-          const created = await ApiService.createCategory(catPayload);
-          setCategories([...categories, { id: Number(created.id), name: created.name, slug: created.slug, description: created.description, imageUrl: created.imageUrl, displayOrder: created.displayOrder, isActive: created.isActive, count: 0 }]);
+          await ApiService.updateCategory(editingCategoryId, buildCatPayload(imageKey));
+        }
+        setCategories(categories.map(c => c.id === editingCategoryId ? { ...c, name: categoryForm.name, slug: finalSlug, description: categoryForm.description, imageUrl: imageKey, displayOrder: categoryForm.displayOrder, isActive: categoryForm.isActive } : c));
+      } else {
+        // Add: save the category first to get its real id, then upload using that id/name.
+        if (isBackendConnected) {
+          const created = await ApiService.createCategory(buildCatPayload(imageKey));
+          if (pendingCategoryImageFile) {
+            setUploadingCategoryImage(true);
+            imageKey = await ApiService.uploadImage(pendingCategoryImageFile, 'category_Image', String(created.id), categoryForm.name);
+            setUploadingCategoryImage(false);
+            await ApiService.updateCategory(Number(created.id), buildCatPayload(imageKey));
+          }
+          setCategories([...categories, { id: Number(created.id), name: created.name, slug: created.slug, description: created.description, imageUrl: imageKey, displayOrder: created.displayOrder, isActive: created.isActive, count: 0 }]);
         } else {
           const newId = Math.max(...categories.map(c => c.id), 0) + 1;
-          setCategories([...categories, { id: newId, name: categoryForm.name, slug: finalSlug, description: categoryForm.description, imageUrl: categoryForm.imageUrl, displayOrder: categoryForm.displayOrder, isActive: categoryForm.isActive, count: 0 }]);
+          setCategories([...categories, { id: newId, name: categoryForm.name, slug: finalSlug, description: categoryForm.description, imageUrl: imageKey, displayOrder: categoryForm.displayOrder, isActive: categoryForm.isActive, count: 0 }]);
         }
       }
       setCategoryForm({ name: '', slug: '', description: '', imageUrl: '', displayOrder: 0, isActive: true });
       setEditingCategoryId(null);
+      clearPendingCategoryImage();
     } catch (err) {
+      setUploadingCategoryImage(false);
       console.error('Lỗi khi lưu danh mục:', err);
       alert('Lỗi khi lưu danh mục!');
     }
@@ -873,6 +959,7 @@ export function AdminDashboard({
   const handleEditCategory = (cat: { id: number; name: string; slug: string; description?: string; imageUrl?: string; displayOrder?: number; isActive?: boolean }) => {
     setCategoryForm({ name: cat.name, slug: cat.slug, description: cat.description || '', imageUrl: cat.imageUrl || '', displayOrder: cat.displayOrder ?? 0, isActive: cat.isActive !== false });
     setEditingCategoryId(cat.id);
+    clearPendingCategoryImage();
   };
 
   const handleDeleteCategory = async (id: number) => {
@@ -1364,6 +1451,23 @@ export function AdminDashboard({
         : 'bg-[#E74C3C] dark:bg-[#E74C3C] text-white dark:text-white shadow-xs'
       : 'text-[#3E2F26] dark:text-[#3E2F26] hover:bg-[#E5E1D8] dark:hover:bg-[#E8E0D8]'
     }`;
+
+  // Pagination — 7 rows per page for every data-management table.
+  const historyOrders = useMemo(() => orders.filter(o => o.status === 'completed' || o.status === 'cancelled'), [orders]);
+  const ordersPagination = usePagination(orders, 7);
+  const productsPagination = usePagination(products, 7);
+  const categoriesPagination = usePagination(categories, 7);
+  const toppingsPagination = usePagination(toppings, 7);
+  const promotionsPagination = usePagination(promotions, 7);
+  const reviewsPagination = usePagination(reviews, 7);
+  const invoicesPagination = usePagination(invoices, 7);
+  const accountUsersPagination = usePagination(accountUsers, 7);
+  const apiUsersPagination = usePagination(apiUsers, 7);
+  const localUsersPagination = usePagination(localUsers, 7);
+  const deliveryTripsPagination = usePagination(deliveryTrips, 7);
+  const paymentTransactionsPagination = usePagination(paymentTransactions, 7);
+  const historyOrdersPagination = usePagination(historyOrders, 7);
+
   return (
     <div className="bg-white dark:bg-[#FFF8F0] rounded-3xl border border-[#E5E1D8] dark:border-[#E0D8D0] shadow-sm select-none text-[#3E2F26] dark:text-[#3E2F26] overflow-hidden">
 
@@ -1438,7 +1542,7 @@ export function AdminDashboard({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#E5E1D8] dark:divide-[#E0D8D0] bg-white dark:bg-[#FFF8F0]">
-                    {orders.map((order) => (
+                    {ordersPagination.paged.map((order) => (
                       <tr key={order.id} className="hover:bg-[#FAF8F5]/80 dark:hover:bg-[#E5DDD5]/50 transition-colors">
                         <td className="p-3.5 font-mono font-black text-[#2D241E] dark:text-[#2D241E]">{order.id}</td>
                         <td className="p-3.5">
@@ -1501,9 +1605,15 @@ export function AdminDashboard({
                         <td className="p-3.5">
                           {order.status === 'cancelled' || order.status === 'completed' ? (
                             <span className="text-[10px] text-[#8B7E74] dark:text-[#8B7E74]">-</span>
+                          ) : order.driverId ? (
+                            // Mỗi đơn chỉ được phân đúng một tài xế — đã phân thì khoá, không đổi được.
+                            <p className="text-[9px] text-[#E74C3C] dark:text-red-400 font-bold">
+                              🏍️ {drivers.find(d => String(d.id) === String(order.driverId))?.name || `Tài xế #${order.driverId}`}
+                              <span className="block text-[8px] text-[#8B7E74] font-normal mt-0.5">Đã phân công — không thể đổi</span>
+                            </p>
                           ) : (
                             <select
-                              value={order.driverId || ''}
+                              value=""
                               onChange={(e) => {
                                 if (e.target.value) {
                                   onAssignDriver(order.id, e.target.value);
@@ -1526,9 +1636,6 @@ export function AdminDashboard({
                                   ))
                               )}
                             </select>
-                          )}
-                          {order.driverId && (
-                            <p className="text-[9px] text-[#E74C3C] dark:text-red-400 font-bold mt-1">🏍️ Đã chỉ định tài xế (ID: {order.driverId})</p>
                           )}
                         </td>
                         <td className="p-3.5">
@@ -1560,45 +1667,49 @@ export function AdminDashboard({
                             )}
                             {order.status === 'shipping' && (
                               <>
-                                <button
-                                  onClick={() => onUpdateOrderStatus(order.id, 'completed')}
-                                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2 py-1 rounded text-[10px] text-center w-full cursor-pointer"
-                                >
-                                  Xác Nhận Giao Xong ✅
-                                </button>
-                                {onUpdateOrderProgress && (
-                                  <button
-                                    onClick={() => {
-                                      const routeMilestones = [
-                                        { progress: 10, stage: 'Đang xếp cẩn thận thố bánh canh cá lóc nóng hổi lót lá chuối vào thùng giữ nhiệt.' },
-                                        { progress: 25, stage: 'Xe đã lăn bánh ra đại lộ. Gió mát sầm sập, nước dùng củ nén sực nức thơm lừng.' },
-                                        { progress: 45, stage: 'Đang chạy bon bon qua nhịp Cầu Trường Tiền bắc qua dòng sông Hương lững lờ.' },
-                                        { progress: 65, stage: 'Đã bọc rẽ sang đoạn ngã năm tấp nập. Shipper ôm cua điệu nghệ.' },
-                                        { progress: 85, stage: 'Đã đi vào ngõ hẻm tìm số nhà. Đang nhìn bảng chỉ đường chi tiết.' },
-                                        { progress: 100, stage: 'Đang bấm chuông trước hiên nhà khách. Thố bánh khói tỏa nghi ngút đã cập bến.' }
-                                      ];
-                                      const currentProgress = order.deliveryProgress || 0;
-                                      const nextMilestone = routeMilestones.find(m => m.progress > currentProgress);
-                                      if (nextMilestone) {
-                                        onUpdateOrderProgress(order.id, nextMilestone.progress, nextMilestone.stage);
-                                      }
-                                    }}
-                                    className="bg-[#E74C3C] hover:bg-[#E74C3C]/90 text-white font-bold px-2 py-1 rounded text-[10px] text-center w-full mt-1 flex items-center justify-center gap-0.5 cursor-pointer"
-                                    title="Tăng nhanh tiến trình giao hàng theo từng mốc bản đồ định vị"
-                                  >
-                                    ⚡ Ship Nhanh ({
-                                      (() => {
-                                        const currentProgress = order.deliveryProgress || 0;
-                                        const routeMilestones = [10, 25, 45, 65, 85, 100];
-                                        const next = routeMilestones.find(p => p > currentProgress);
-                                        return next ? `lên ${next}%` : '100%';
-                                      })()
-                                    })
-                                  </button>
-                                )}
+                                {/* Tiến trình giao hàng: chỉ chọn được mốc CAO HƠN mốc hiện tại,
+                                    100% = đã đến nơi. Đơn hoàn tất khi shipper xác nhận giao
+                                    (delivered) rồi khách xác nhận đã nhận hàng (completed). */}
+                                {onUpdateOrderProgress && (() => {
+                                  const currentProgress = order.deliveryProgress || 0;
+                                  const milestoneStages: Record<number, string> = {
+                                    25: 'Xe đã lăn bánh ra đại lộ. Gió mát sầm sập, nước dùng củ nén sực nức thơm lừng.',
+                                    50: 'Đang chạy bon bon qua nhịp Cầu Trường Tiền bắc qua dòng sông Hương lững lờ.',
+                                    75: 'Đã đi vào ngõ hẻm tìm số nhà. Đang nhìn bảng chỉ đường chi tiết.',
+                                    100: 'Đang bấm chuông trước hiên nhà khách. Thố bánh khói tỏa nghi ngút đã cập bến.'
+                                  };
+                                  return (
+                                    <div className="w-full space-y-1">
+                                      <p className="text-[9px] text-[#8B7E74] font-bold text-center">🚚 Tiến trình: {currentProgress}%</p>
+                                      <div className="grid grid-cols-4 gap-0.5">
+                                        {[25, 50, 75, 100].map(m => (
+                                          <button
+                                            key={m}
+                                            disabled={m <= currentProgress}
+                                            onClick={() => onUpdateOrderProgress(order.id, m, milestoneStages[m])}
+                                            className={`font-bold px-1 py-1 rounded text-[9px] text-center ${
+                                              m <= currentProgress
+                                                ? 'bg-emerald-100 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-500 cursor-not-allowed'
+                                                : 'bg-[#E74C3C] hover:bg-[#E74C3C]/90 text-white cursor-pointer'
+                                            }`}
+                                            title={m <= currentProgress ? 'Đã qua mốc này — không thể chọn lại mốc thấp hơn' : `Cập nhật tiến trình lên ${m}%`}
+                                          >
+                                            {m}%
+                                          </button>
+                                        ))}
+                                      </div>
+                                      {currentProgress >= 100 && (
+                                        <p className="text-[9px] text-teal-700 dark:text-teal-400 italic text-center">📍 Đã đến nơi — chờ shipper xác nhận giao hàng</p>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
                               </>
                             )}
-                            {order.status !== 'completed' && order.status !== 'cancelled' && (
+                            {order.status === 'delivered' && (
+                              <span className="text-[9px] text-teal-700 dark:text-teal-400 italic text-center w-full">📦 Shipper đã giao — chờ khách xác nhận nhận hàng</span>
+                            )}
+                            {order.status !== 'completed' && order.status !== 'cancelled' && order.status !== 'delivered' && (
                               <button
                                 onClick={() => setOrderIdToCancel(order.id)}
                                 className="text-red-600 dark:text-red-400 hover:text-white dark:hover:text-white hover:bg-red-600 dark:hover:bg-red-600 border border-red-200 dark:border-red-900/60 font-bold px-2 py-0.5 rounded text-[9px] text-center w-full cursor-pointer"
@@ -1615,6 +1726,7 @@ export function AdminDashboard({
                     ))}
                   </tbody>
                 </table>
+                <Pagination page={ordersPagination.page} pageCount={ordersPagination.pageCount} onPageChange={ordersPagination.setPage} />
               </div>
             )}
           </div>
@@ -1780,7 +1892,7 @@ export function AdminDashboard({
                 <tbody className="divide-y divide-[#E5E1D8] dark:divide-[#E0D8D0] bg-white dark:bg-[#FFF8F0]">
                   {products.length === 0 ? (
                     <tr><td colSpan={8} className="p-6 text-center text-[#8B7E74] dark:text-[#8B7E74] italic">Chưa có sản phẩm nào.</td></tr>
-                  ) : (products.map((p) => (
+                  ) : (productsPagination.paged.map((p) => (
                     <tr key={p.id} className="hover:bg-[#FAF8F5]/80 dark:hover:bg-[#E5DDD5]/50 transition-colors">
                       <td className="p-3">
                         <span className="text-2xl">{p.imageUrl ? <img src={signedImageUrls.get(p.id) || p.imageUrl} alt={p.name} className="w-10 h-10 rounded-lg object-cover" referrerPolicy="no-referrer" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; const p = (e.currentTarget as HTMLElement).parentElement; if (p) p.innerText = '🍲'; }} /> : '🍲'}</span>
@@ -1817,6 +1929,7 @@ export function AdminDashboard({
                   )))}
                 </tbody>
               </table>
+              <Pagination page={productsPagination.page} pageCount={productsPagination.pageCount} onPageChange={productsPagination.setPage} />
             </div>
           </div>
         )}
@@ -1843,22 +1956,15 @@ export function AdminDashboard({
                       <p className="text-[9px] text-[#8B7E74] dark:text-[#8B7E74] font-mono">{d.vehicleType || 'Xe máy'} | {d.vehiclePlate || 'Chưa có BS'}</p>
 
                       <div className="mt-3 flex gap-1.5 items-center flex-wrap">
-                        <span className="text-[9px] text-[#8B7E74] dark:text-[#8B7E74]">Trạng thái:</span>
-                        <select
-                          value={d.status}
-                          onChange={async (e) => {
-                            const newStatus = e.target.value as Driver['status'];
-                            if (isBackendConnected) {
-                              try { await ApiService.updateDriverStatus(d.id, newStatus); } catch (err) { console.error(err); }
-                            }
-                            onUpdateDriverStatus(d.id, newStatus);
-                          }}
-                          className="text-[9px] p-1.5 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] bg-white dark:bg-[#FFF8F0] text-[#2D241E] dark:text-[#2D241E] focus:outline-none"
-                        >
-                          <option value="available" className="dark:bg-[#FFF8F0]">🟢 Rảnh rỗi</option>
-                          <option value="busy" className="dark:bg-[#FFF8F0]">🔴 Bận chở bánh</option>
-                          <option value="offline" className="dark:bg-[#FFF8F0]">⚫ Nghỉ phép/Offline</option>
-                        </select>
+                        {/* Trạng thái tài xế do shipper tự chọn (Rảnh/Nghỉ) hoặc hệ thống tự đặt
+                            khi phân đơn (Bận) — admin chỉ xem, không chỉnh được. */}
+                        <span className={`text-[9px] font-bold px-2 py-1 rounded-lg border ${
+                          d.status === 'available' ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/50' :
+                          d.status === 'busy' ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-900/50' :
+                          'bg-gray-100 dark:bg-gray-100/30 text-gray-600 border-gray-200 dark:border-gray-200/50'
+                        }`}>
+                          {d.status === 'available' ? '🟢 Sẵn sàng' : d.status === 'busy' ? '🔴 Đang giao hàng' : '⚫ Nghỉ / Offline'}
+                        </span>
                         <button onClick={() => handleEditDriverOpen(d)}
                           className="ml-1 p-1.5 rounded-lg bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-950/50 cursor-pointer"
                           title="Sửa tài xế"><Edit3 className="w-3 h-3" /></button>
@@ -1952,28 +2058,22 @@ export function AdminDashboard({
                   <label className="block text-[10px] font-bold text-[#3E2F26] dark:text-[#3E2F26] uppercase">Ảnh Đại Diện:</label>
                   <div className="flex gap-2 items-center">
                     <input type="text" placeholder="https://... hoặc upload file"
-                      value={driverAvatarUrl} onChange={(e) => setDriverAvatarUrl(e.target.value)}
+                      value={driverAvatarUrl} onChange={(e) => { setDriverAvatarUrl(e.target.value); clearPendingDriverAvatar(); }}
                       className="flex-1 text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] bg-white dark:bg-[#FFF8F0] text-[#2D241E] dark:text-[#2D241E] focus:outline-[#E74C3C]" />
                     <input type="file" accept="image/*" id="driverAvatarUpload" className="hidden"
-                      onChange={async (e) => {
+                      onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (!file) return;
-                        setUploadingDriverAvatar(true);
-                        try {
-                          const url = await ApiService.uploadImage(file, 'avatar_Image', undefined, driverName);
-                          setDriverAvatarUrl(url);
-                          onShowToast?.('Tải ảnh lên S3 thành công', 'success', 'Avatar');
-                        } catch (err: any) {
-                          onShowToast?.(err.message || 'Không thể tải ảnh lên S3', 'error', 'Avatar');
-                        } finally {
-                          setUploadingDriverAvatar(false);
-                          e.target.value = '';
-                        }
+                        // Only stage the file locally — it's uploaded when the shipper is actually saved.
+                        if (driverAvatarPreviewUrl) URL.revokeObjectURL(driverAvatarPreviewUrl);
+                        setPendingDriverAvatarFile(file);
+                        setDriverAvatarPreviewUrl(URL.createObjectURL(file));
+                        e.target.value = '';
                       }} />
                     <label htmlFor="driverAvatarUpload" className="px-3 py-2.5 rounded-lg border border-[#E5E1D8] text-xs font-bold cursor-pointer hover:bg-gray-50">
-                      {uploadingDriverAvatar ? '⏳' : '📁'}
+                      📁
                     </label>
-                    {driverAvatarUrl && <img src={driverAvatarUrl} alt="" className="w-8 h-8 rounded-full object-cover border" />}
+                    {(driverAvatarPreviewUrl || driverAvatarUrl) && <img src={driverAvatarPreviewUrl || driverAvatarUrl} alt="" className="w-8 h-8 rounded-full object-cover border" />}
                   </div>
                 </div>
 
@@ -1984,9 +2084,9 @@ export function AdminDashboard({
                     className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] bg-white dark:bg-[#FFF8F0] text-[#2D241E] dark:text-[#2D241E] focus:outline-[#E74C3C]" />
                 </div>
 
-                <button type="submit"
-                  className="w-full bg-[#E74C3C] hover:bg-[#C0392B] dark:bg-[#E74C3C] dark:hover:bg-[#C0392B] text-white dark:text-white text-center py-3 rounded-xl font-bold text-xs shadow-md transition-all cursor-pointer">
-                  🚀 Thêm Shipper Vào Hệ Thống
+                <button type="submit" disabled={uploadingDriverAvatar}
+                  className={`w-full text-white dark:text-white text-center py-3 rounded-xl font-bold text-xs shadow-md transition-all ${uploadingDriverAvatar ? 'bg-gray-400 dark:bg-gray-400 cursor-not-allowed' : 'bg-[#E74C3C] hover:bg-[#C0392B] dark:bg-[#E74C3C] dark:hover:bg-[#C0392B] cursor-pointer'}`}>
+                  {uploadingDriverAvatar ? '⏳ Đang lưu...' : '🚀 Thêm Shipper Vào Hệ Thống'}
                 </button>
               </form>
             </div>
@@ -1997,8 +2097,8 @@ export function AdminDashboard({
               <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-[#E74C3C]/60 backdrop-blur-xs animate-fade-in">
                 <div className="bg-white dark:bg-[#FFF5EB] rounded-2xl max-w-md w-full p-6 border border-[#E5E1D8] dark:border-[#E0D8D0] shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
                   <div className="flex items-center gap-3 border-b border-[#E5E1D8] pb-3">
-                    {driverEditForm.avatarUrl ? (
-                      <img src={driverEditForm.avatarUrl} alt="" className="w-10 h-10 rounded-full object-cover border-2 border-[#E74C3C]" />
+                    {(driverEditAvatarPreviewUrl || existingDriverEditAvatarPreview) ? (
+                      <img src={driverEditAvatarPreviewUrl || existingDriverEditAvatarPreview} alt="" className="w-10 h-10 rounded-full object-cover border-2 border-[#E74C3C]" />
                     ) : (
                       <div className="w-10 h-10 rounded-full bg-[#F3F0E9] flex items-center justify-center text-lg">🛵</div>
                     )}
@@ -2053,22 +2153,20 @@ export function AdminDashboard({
                       <label className="text-[10px] font-bold text-[#8B7E74] uppercase">Ảnh đại diện</label>
                       <div className="flex gap-2 items-center mt-1">
                         <input type="text" placeholder="URL ảnh..."
-                          value={driverEditForm.avatarUrl} onChange={e => setDriverEditForm(p => ({ ...p, avatarUrl: e.target.value }))}
+                          value={driverEditForm.avatarUrl} onChange={e => { setDriverEditForm(p => ({ ...p, avatarUrl: e.target.value })); clearPendingDriverEditAvatar(); }}
                           className="flex-1 text-xs p-2.5 rounded-lg border border-[#E5E1D8] bg-white text-[#2D241E] focus:outline-[#E74C3C]" />
                         <input type="file" accept="image/*" id="driverEditAvatarUpload" className="hidden"
-                          onChange={async (e) => {
+                          onChange={(e) => {
                             const file = e.target.files?.[0];
                             if (!file) return;
-                            try {
-                              const url = await ApiService.uploadImage(file, 'avatar_Image', editingDriverId || undefined, driverEditForm.name);
-                              setDriverEditForm(p => ({ ...p, avatarUrl: url }));
-                              onShowToast?.('Tải ảnh lên S3 thành công', 'success', 'Avatar');
-                            } catch (err: any) {
-                              onShowToast?.(err.message || 'Không thể tải ảnh lên S3', 'error', 'Avatar');
-                            }
+                            // Only stage the file locally — it's uploaded when the edit is saved.
+                            if (driverEditAvatarPreviewUrl) URL.revokeObjectURL(driverEditAvatarPreviewUrl);
+                            setPendingDriverEditAvatarFile(file);
+                            setDriverEditAvatarPreviewUrl(URL.createObjectURL(file));
                             e.target.value = '';
                           }} />
                         <label htmlFor="driverEditAvatarUpload" className="px-3 py-2.5 rounded-lg border border-[#E5E1D8] text-xs font-bold cursor-pointer hover:bg-gray-50">📁</label>
+                        {(driverEditAvatarPreviewUrl) && <img src={driverEditAvatarPreviewUrl} alt="" className="w-8 h-8 rounded-full object-cover border" />}
                       </div>
                     </div>
                     <div className="border-t border-[#E5E1D8] pt-3">
@@ -2080,10 +2178,12 @@ export function AdminDashboard({
                     </div>
                   </div>
                   <div className="flex gap-2 pt-2">
-                    <button onClick={() => { setEditingDriverId(null); setDriverEditModal(null); }}
+                    <button onClick={() => { setEditingDriverId(null); setDriverEditModal(null); clearPendingDriverEditAvatar(); }}
                       className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-2.5 rounded-xl text-xs font-bold cursor-pointer">Hủy</button>
-                    <button onClick={handleEditDriverSave}
-                      className="flex-1 bg-[#E74C3C] hover:bg-[#C0392B] text-white py-2.5 rounded-xl text-xs font-bold cursor-pointer shadow-sm">Lưu thay đổi</button>
+                    <button onClick={handleEditDriverSave} disabled={uploadingDriverAvatar}
+                      className={`flex-1 text-white py-2.5 rounded-xl text-xs font-bold shadow-sm ${uploadingDriverAvatar ? 'bg-gray-400 cursor-not-allowed' : 'bg-[#E74C3C] hover:bg-[#C0392B] cursor-pointer'}`}>
+                      {uploadingDriverAvatar ? '⏳ Đang lưu...' : 'Lưu thay đổi'}
+                    </button>
                   </div>
                 </div>
               </div>
@@ -2135,11 +2235,31 @@ export function AdminDashboard({
                       className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] bg-white dark:bg-[#FFF8F0] text-[#2D241E] dark:text-[#2D241E] focus:outline-[#E74C3C]" />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#3E2F26] uppercase">Ảnh URL</label>
-                    <input type="text" placeholder="https://..."
-                      value={categoryForm.imageUrl || ''}
-                      onChange={(e) => setCategoryForm(prev => ({ ...prev, imageUrl: e.target.value }))}
-                      className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] bg-white dark:bg-[#FFF8F0] text-[#2D241E] dark:text-[#2D241E] focus:outline-[#E74C3C]" />
+                    <label className="text-[10px] font-bold text-[#3E2F26] dark:text-[#3E2F26] uppercase">Hình Ảnh</label>
+                    <div className="flex items-center gap-1.5">
+                      <input type="text" placeholder="https://... hoặc upload file bên cạnh"
+                        value={categoryForm.imageUrl || ''}
+                        onChange={(e) => { setCategoryForm(prev => ({ ...prev, imageUrl: e.target.value })); clearPendingCategoryImage(); }}
+                        className="w-full text-xs p-2.5 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] bg-white dark:bg-[#FFF8F0] text-[#2D241E] dark:text-[#2D241E] focus:outline-[#E74C3C]" />
+                      <input type="file" accept="image/*" id="categoryImageUpload" className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          if (categoryImagePreviewUrl) URL.revokeObjectURL(categoryImagePreviewUrl);
+                          setPendingCategoryImageFile(file);
+                          setCategoryImagePreviewUrl(URL.createObjectURL(file));
+                          e.target.value = '';
+                        }} />
+                      <label htmlFor="categoryImageUpload"
+                        className="px-3 py-2.5 rounded-lg text-xs font-bold cursor-pointer transition-all whitespace-nowrap border bg-[#E74C3C] text-white border-[#E74C3C] hover:bg-[#E74C3C]/90 shrink-0">
+                        📁
+                      </label>
+                      {(categoryImagePreviewUrl || existingCategoryImagePreview) && (
+                        <div className="w-9 h-9 rounded-lg overflow-hidden border border-[#E5E1D8] dark:border-[#D0C8C0] bg-[#FAF8F5] dark:bg-[#FFFBF5] shrink-0 flex items-center justify-center">
+                          <img src={categoryImagePreviewUrl || existingCategoryImagePreview} alt="preview" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; const p = (e.currentTarget as HTMLElement).parentElement; if (p) p.innerHTML = '📂'; }} />
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center gap-2 pt-5">
                     <label className="flex items-center gap-1.5 cursor-pointer">
@@ -2152,14 +2272,14 @@ export function AdminDashboard({
                 </div>
                 <div className="flex gap-2 pt-1">
                   {editingCategoryId !== null && (
-                    <button type="button" onClick={() => { setEditingCategoryId(null); setCategoryForm({ name: '', slug: '', description: '', imageUrl: '', displayOrder: 0, isActive: true }); }}
+                    <button type="button" onClick={() => { setEditingCategoryId(null); setCategoryForm({ name: '', slug: '', description: '', imageUrl: '', displayOrder: 0, isActive: true }); clearPendingCategoryImage(); }}
                       className="px-4 py-2.5 rounded-xl border border-[#E5E1D8] dark:border-[#D0C8C0] text-xs font-bold text-[#3E2F26] dark:text-[#3E2F26] hover:bg-[#E5E1D8] dark:hover:bg-[#E8E0D8] cursor-pointer">
                       <X className="w-3.5 h-3.5 inline mr-1" />Hủy
                     </button>
                   )}
-                  <button type="submit"
-                    className="px-6 py-2.5 rounded-xl bg-[#E74C3C] dark:bg-[#E74C3C] text-white dark:text-white text-xs font-bold hover:opacity-90 cursor-pointer">
-                    {editingCategoryId !== null ? 'Cập Nhật' : 'Thêm Danh Mục'}
+                  <button type="submit" disabled={uploadingCategoryImage}
+                    className={`px-6 py-2.5 rounded-xl text-white dark:text-white text-xs font-bold hover:opacity-90 ${uploadingCategoryImage ? 'bg-gray-400 dark:bg-gray-400 cursor-not-allowed' : 'bg-[#E74C3C] dark:bg-[#E74C3C] cursor-pointer'}`}>
+                    {uploadingCategoryImage ? '⏳ Đang lưu...' : (editingCategoryId !== null ? 'Cập Nhật' : 'Thêm Danh Mục')}
                   </button>
                 </div>
               </form>
@@ -2178,7 +2298,7 @@ export function AdminDashboard({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E5E1D8] dark:divide-[#E0D8D0] bg-white dark:bg-[#FFF8F0]">
-                  {categories.map(cat => (
+                  {categoriesPagination.paged.map(cat => (
                     <tr key={cat.id} className="hover:bg-[#FAF8F5]/80 dark:hover:bg-[#E5DDD5]/50 transition-colors">
                       <td className="p-3 font-bold text-[#2D241E] dark:text-[#2D241E]">{cat.name}</td>
                       <td className="p-3 text-[10px] text-[#8B7E74] max-w-[200px] truncate">{cat.description || '—'}</td>
@@ -2203,6 +2323,7 @@ export function AdminDashboard({
                   ))}
                 </tbody>
               </table>
+              <Pagination page={categoriesPagination.page} pageCount={categoriesPagination.pageCount} onPageChange={categoriesPagination.setPage} />
             </div>
           </div>
         )}
@@ -2324,7 +2445,7 @@ export function AdminDashboard({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E5E1D8] dark:divide-[#E0D8D0] bg-white dark:bg-[#FFF8F0]">
-                  {toppings.map(t => (
+                  {toppingsPagination.paged.map(t => (
                     <tr key={t.id} className="hover:bg-[#FAF8F5]/80 dark:hover:bg-[#E5DDD5]/50 transition-colors">
                       <td className="p-3 text-[#2D241E] dark:text-[#2D241E] font-medium">{t.productName}</td>
                       <td className="p-3 font-bold text-[#2D241E] dark:text-[#2D241E]">{t.name}</td>
@@ -2353,6 +2474,7 @@ export function AdminDashboard({
                   ))}
                 </tbody>
               </table>
+              <Pagination page={toppingsPagination.page} pageCount={toppingsPagination.pageCount} onPageChange={toppingsPagination.setPage} />
             </div>
           </div>
         )}
@@ -2521,7 +2643,7 @@ export function AdminDashboard({
                 <tbody className="divide-y divide-[#E5E1D8] dark:divide-[#E0D8D0] bg-white dark:bg-[#FFF8F0]">
                   {promotions.length === 0 ? (
                     <tr><td colSpan={6} className="p-6 text-center text-[#8B7E74] italic">Chưa có khuyến mãi nào.</td></tr>
-                  ) : (promotions.map(p => {
+                  ) : (promotionsPagination.paged.map(p => {
                     const now = new Date();
                     const end = p.end_date ? new Date(p.end_date) : null;
                     const expired = end && end < now;
@@ -2564,6 +2686,7 @@ export function AdminDashboard({
                   }))}
                 </tbody>
               </table>
+              <Pagination page={promotionsPagination.page} pageCount={promotionsPagination.pageCount} onPageChange={promotionsPagination.setPage} />
             </div>
           </div>
         )}
@@ -2592,7 +2715,7 @@ export function AdminDashboard({
                 <tbody className="divide-y divide-[#E5E1D8] dark:divide-[#E0D8D0] bg-white dark:bg-[#FFF8F0]">
                   {reviews.length === 0 ? (
                     <tr><td colSpan={9} className="p-6 text-center text-[#8B7E74] dark:text-[#8B7E74] italic">Chưa có đánh giá nào.</td></tr>
-                  ) : (reviews.map(r => (
+                  ) : (reviewsPagination.paged.map(r => (
                     <tr key={r.id} className="hover:bg-[#FAF8F5]/80 dark:hover:bg-[#E5DDD5]/50 transition-colors">
                       <td className="p-3 font-bold text-[#2D241E] dark:text-[#2D241E]">{r.customer}</td>
                       <td className="p-3">{r.product}</td>
@@ -2643,6 +2766,7 @@ export function AdminDashboard({
                   )))}
                 </tbody>
               </table>
+              <Pagination page={reviewsPagination.page} pageCount={reviewsPagination.pageCount} onPageChange={reviewsPagination.setPage} />
             </div>
           </div>
         )}
@@ -2679,7 +2803,7 @@ export function AdminDashboard({
                 <tbody className="divide-y divide-[#E5E1D8] dark:divide-[#E0D8D0] bg-white dark:bg-[#FFF8F0]">
                   {invoices.length === 0 ? (
                     <tr><td colSpan={9} className="p-6 text-center text-[#8B7E74] dark:text-[#8B7E74] italic">Chưa có hóa đơn nào.</td></tr>
-                  ) : (invoices.map(inv => (
+                  ) : (invoicesPagination.paged.map(inv => (
                     <tr key={inv.id} className="hover:bg-[#FAF8F5]/80 dark:hover:bg-[#E5DDD5]/50 transition-colors">
                       <td className="p-3 font-mono font-bold text-[#E74C3C] text-[11px]">{inv.invoiceNumber}</td>
                       <td className="p-3 font-bold text-[#2D241E] dark:text-[#2D241E]">
@@ -2725,6 +2849,7 @@ export function AdminDashboard({
                   )))}
                 </tbody>
               </table>
+              <Pagination page={invoicesPagination.page} pageCount={invoicesPagination.pageCount} onPageChange={invoicesPagination.setPage} />
             </div>
 
             <div className="bg-[#FAF8F5] dark:bg-[#FFFAF3] p-4 rounded-2xl border border-[#E5E1D8] dark:border-[#E0D8D0]">
@@ -3414,7 +3539,7 @@ export function AdminDashboard({
                       <tr><th className="p-2">Username</th><th className="p-2">Họ tên</th><th className="p-2">Email</th><th className="p-2">Vai trò</th></tr>
                     </thead>
                     <tbody className="divide-y divide-[#E5E1D8] dark:divide-[#E0D8D0] bg-white dark:bg-[#FFF8F0]">
-                      {accountUsers.map(u => (
+                      {accountUsersPagination.paged.map(u => (
                         <tr key={u.id} className="hover:bg-[#FAF8F5]/80 dark:hover:bg-[#E5DDD5]/50">
                           <td className="p-2 font-bold text-[#2D241E] dark:text-[#2D241E]">{u.username}</td>
                           <td className="p-2">{u.fullName || '-'}</td>
@@ -3424,6 +3549,7 @@ export function AdminDashboard({
                       ))}
                     </tbody>
                   </table>
+                  <Pagination page={accountUsersPagination.page} pageCount={accountUsersPagination.pageCount} onPageChange={accountUsersPagination.setPage} />
                 </div>
               )}
             </div>
@@ -3660,7 +3786,7 @@ export function AdminDashboard({
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-[#2D2321]">
-                          {apiUsers.map((u: any) => (
+                          {apiUsersPagination.paged.map((u: any) => (
                             <tr key={u.id}
                               onClick={() => {
                                 setUserEditForm({ fullName: u.fullName || '', phone: u.phone || '', address: u.address || '', email: u.email || '' });
@@ -3693,6 +3819,7 @@ export function AdminDashboard({
                           ))}
                         </tbody>
                       </table>
+                      <Pagination page={apiUsersPagination.page} pageCount={apiUsersPagination.pageCount} onPageChange={apiUsersPagination.setPage} />
                     </div>
                   )}
                 </div>
@@ -3729,7 +3856,7 @@ export function AdminDashboard({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#2D2321]">
-                        {localUsers.map((u: any) => (
+                        {localUsersPagination.paged.map((u: any) => (
                           <tr key={u.id}
                             onClick={() => {
                               setUserEditForm({ fullName: u.fullName || u.name || '', phone: u.phone || '', address: u.address || '', email: u.email || '' });
@@ -3759,6 +3886,7 @@ export function AdminDashboard({
                         ))}
                       </tbody>
                     </table>
+                    <Pagination page={localUsersPagination.page} pageCount={localUsersPagination.pageCount} onPageChange={localUsersPagination.setPage} />
                     <div className="p-2 text-[8px] text-[#5A4A40] text-center border-t border-[#2D2321]">
                       Tổng số: {localUsers.length} tài khoản
                     </div>
@@ -3792,7 +3920,7 @@ export function AdminDashboard({
                 <tbody className="divide-y divide-[#E5E1D8] dark:divide-[#E0D8D0] bg-white dark:bg-[#FFF8F0]">
                   {deliveryTrips.length === 0 ? (
                     <tr><td colSpan={5} className="p-6 text-center text-[#8B7E74] dark:text-[#8B7E74] italic">Chưa có chuyến giao hàng nào.</td></tr>
-                  ) : (deliveryTrips.map(trip => (
+                  ) : (deliveryTripsPagination.paged.map(trip => (
                     <tr key={trip.id} className="hover:bg-[#FAF8F5]/80 dark:hover:bg-[#E5DDD5]/50 transition-colors">
                       <td className="p-3.5 font-mono font-black text-[#2D241E] dark:text-[#2D241E]">{trip.id}</td>
                       <td className="p-3.5 font-mono font-bold text-[#E74C3C] dark:text-red-400">{trip.orderId}</td>
@@ -3816,6 +3944,7 @@ export function AdminDashboard({
                   )))}
                 </tbody>
               </table>
+              <Pagination page={deliveryTripsPagination.page} pageCount={deliveryTripsPagination.pageCount} onPageChange={deliveryTripsPagination.setPage} />
             </div>
           </div>
         )}
@@ -3843,7 +3972,7 @@ export function AdminDashboard({
                 <tbody className="divide-y divide-[#E5E1D8] dark:divide-[#E0D8D0] bg-white dark:bg-[#FFF8F0]">
                   {paymentTransactions.length === 0 ? (
                     <tr><td colSpan={7} className="p-6 text-center text-[#8B7E74] dark:text-[#8B7E74] italic">Chưa có giao dịch thanh toán nào.</td></tr>
-                  ) : (paymentTransactions.map(tx => (
+                  ) : (paymentTransactionsPagination.paged.map(tx => (
                     <tr key={tx.id} className="hover:bg-[#FAF8F5]/80 dark:hover:bg-[#E5DDD5]/50 transition-colors">
                       <td className="p-3.5 font-mono font-black text-[#2D241E] dark:text-[#2D241E]">{tx.id}</td>
                       <td className="p-3.5 font-mono font-bold text-[#E74C3C] dark:text-red-400">{tx.orderId}</td>
@@ -3875,6 +4004,7 @@ export function AdminDashboard({
                   )))}
                 </tbody>
               </table>
+              <Pagination page={paymentTransactionsPagination.page} pageCount={paymentTransactionsPagination.pageCount} onPageChange={paymentTransactionsPagination.setPage} />
             </div>
           </div>
         )}
@@ -3886,7 +4016,7 @@ export function AdminDashboard({
               <h3 className="font-serif text-lg font-bold text-[#2D241E] dark:text-[#2D241E]">📜 Lịch Sử Đơn Hàng</h3>
               <span className="text-xs text-[#8B7E74] dark:text-[#8B7E74]">Tra cứu lịch sử đơn hàng</span>
             </div>
-            {orders.filter(o => o.status === 'completed' || o.status === 'cancelled').length === 0 ? (
+            {historyOrders.length === 0 ? (
               <p className="text-center py-12 text-xs text-[#8B7E74] dark:text-[#8B7E74] italic">Chưa có đơn hàng hoàn thành hoặc đã hủy.</p>
             ) : (
               <div className="overflow-x-auto border border-[#E5E1D8] dark:border-[#E0D8D0] rounded-2xl bg-[#FAF8F5] dark:bg-[#FFF5EB]">
@@ -3903,7 +4033,7 @@ export function AdminDashboard({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#E5E1D8] dark:divide-[#E0D8D0] bg-white dark:bg-[#FFF8F0]">
-                    {orders.filter(o => o.status === 'completed' || o.status === 'cancelled').map(order => (
+                    {historyOrdersPagination.paged.map(order => (
                       <tr key={order.id} className="hover:bg-[#FAF8F5]/80 dark:hover:bg-[#E5DDD5]/50 transition-colors">
                         <td className="p-3.5 font-mono font-black text-[#2D241E] dark:text-[#2D241E]">{order.id}</td>
                         <td className="p-3.5">
@@ -3938,6 +4068,7 @@ export function AdminDashboard({
                     ))}
                   </tbody>
                 </table>
+                <Pagination page={historyOrdersPagination.page} pageCount={historyOrdersPagination.pageCount} onPageChange={historyOrdersPagination.setPage} />
               </div>
             )}
           </div>
