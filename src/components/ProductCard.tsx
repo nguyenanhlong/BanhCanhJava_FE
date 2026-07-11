@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Product, ProductReview, ProductOption } from '../types';
 import { Plus, ShoppingCart, Star, MessageSquare, Check } from 'lucide-react';
+import { ImageService } from '../services/api';
 
 interface ProductCardProps {
   key?: string;
@@ -85,6 +86,19 @@ export function ProductCard({ product, onAddToCart, reviews = [], productOptions
   const isOutOfStock = !product.isAvailable;
   const hasOptions = thisOptions.length > 0;
 
+  const [signedImageUrl, setSignedImageUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!product.imageUrl) return;
+    if (!product.imageUrl.includes('storageapi.dev') && !product.imageUrl.includes('storage.supabase.co') && !product.imageUrl.match(/^(product|avatar|review|category)_Image\//)) {
+      setSignedImageUrl(product.imageUrl);
+      return;
+    }
+    ImageService.getPresignedUrl(product.imageUrl).then(url => {
+      setSignedImageUrl(url || product.imageUrl);
+    }).catch(() => setSignedImageUrl(product.imageUrl));
+  }, [product.imageUrl]);
+
   const handleQuickAdd = () => {
     if (!product.isAvailable) return;
     if (isMain || hasOptions) {
@@ -135,7 +149,7 @@ export function ProductCard({ product, onAddToCart, reviews = [], productOptions
     return p.categoryName || 'Khác';
   };
 
-  const hasImage = !!product.imageUrl;
+  const hasImage = !!(signedImageUrl || product.imageUrl);
 
   return (
     <div className={`bg-white dark:bg-[#1C1311] rounded-2xl border border-[#E5E1D8] dark:border-[#2D2321] shadow-xs hover:shadow-xl hover:-translate-y-1 hover:scale-[1.02] transition-colors duration-300 ease-out flex flex-col overflow-hidden relative group ${isOutOfStock ? 'opacity-60' : ''}`}>
@@ -154,7 +168,7 @@ export function ProductCard({ product, onAddToCart, reviews = [], productOptions
       <div className="aspect-video bg-[#FAF8F5] dark:bg-[#1E1715] flex items-center justify-center relative select-none border-b border-[#E5E1D8] dark:border-[#2D2321] group-hover:scale-105 transition-transform duration-300 overflow-hidden">
         {hasImage ? (
           <img 
-            src={product.imageUrl}
+            src={signedImageUrl || product.imageUrl || ''}
             alt={product.name} 
             className="w-full h-full object-cover" 
             referrerPolicy="no-referrer"

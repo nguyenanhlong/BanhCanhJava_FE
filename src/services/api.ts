@@ -904,3 +904,102 @@ export const ApiService = {
     return res.json();
   },
 };
+
+// === Image Service (Presigned URLs from Supabase Storage / T3 Storage) ===
+const presignedCache = new Map<string, string>();
+
+const S3_FOLDERS = ['product_Image', 'avatar_Image', 'review_Image', 'category_Image', 'payment_Image'];
+
+function extractS3Key(imageUrl: string): string | null {
+  if (!imageUrl) return null;
+
+  // Plain key: "product_Image/slug/uuid.jpg" — no protocol
+  if (!imageUrl.includes('://')) {
+    if (S3_FOLDERS.some(f => imageUrl.startsWith(f + '/'))) return imageUrl;
+    return null;
+  }
+
+  try {
+    const url = new URL(imageUrl);
+    let key = url.pathname.startsWith('/') ? url.pathname.slice(1) : url.pathname;
+
+    // Supabase path-style: .../storage/v1/s3/<bucket>/<key> or .../object/authenticated/<bucket>/<key>
+    // T3 path-style:       https://t3.storageapi.dev/<bucket>/<key>
+    // Virtual-hosted:      https://<bucket>.t3.storageapi.dev/<key>
+    const bucketNames = ['Image', 'collapsible-burrito-tvsjvu'];
+    for (const b of bucketNames) {
+      if (key.startsWith(b + '/')) {
+        key = key.slice(b.length + 1);
+        break;
+      }
+    }
+
+    // Supabase: key might contain "object/public/" or "object/authenticated/" prefix
+    for (const prefix of ['object/public/', 'object/authenticated/']) {
+      if (key.startsWith(prefix)) {
+        key = key.slice(prefix.length);
+        for (const b of bucketNames) {
+          if (key.startsWith(b + '/')) { key = key.slice(b.length + 1); break; }
+        }
+      }
+    }
+
+    return key || null;
+  } catch {
+    return null;
+  }
+}
+
+function needsPresign(url: string): boolean {
+  if (!url) return false;
+  if (url.includes('storageapi.dev')) return true;
+  if (url.includes('storage.supabase.co')) return true;
+  if (S3_FOLDERS.some(f => url.startsWith(f + '/'))) return true;
+  return false;
+}
+
+export const ImageService = {
+  async getPresignedUrl(imageUrl: string): Promise<string> {
+    if (!imageUrl) return '';
+    if (!needsPresign(imageUrl)) return imageUrl;
+    if (presignedCache.has(imageUrl)) return presignedCache.get(imageUrl)!;
+    const key = extractS3Key(imageUrl);
+    if (!key) return imageUrl;
+    try {
+      const res = await fetch(`${BASE_URL}/upload/presigned?key=${encodeURIComponent(key)}&expireHours=24`);
+      if (!res.ok) return imageUrl;
+      const data = await res.json();
+      const signed = data.url || imageUrl;
+      presignedCache.set(imageUrl, signed);
+      return signed;
+    } catch {
+      return imageUrl;
+    }
+  },
+
+  async getPresignedUrlsBatch(imageUrls: string[]): Promise<Map<string, string>> {
+    const result = new Map<string, string>();
+    const uncached: { url: string; key: string }[] = [];
+    for (const u of imageUrls) {
+      if (!needsPresign(u)) { result.set(u, u); continue; }
+      if (presignedCache.has(u)) { result.set(u, presignedCache.get(u)!); continue; }
+      const key = extractS3Key(u);
+      if (key) uncached.push({ url: u, key });
+      else result.set(u, u);
+    }
+    await Promise.all(uncached.map(async ({ url, key }) => {
+      try {
+        const res = await fetch(`${BASE_URL}/upload/presigned?key=${encodeURIComponent(key)}&expireHours=24`);
+        if (res.ok) {
+          const data = await res.json();
+          const signed = data.url || url;
+          presignedCache.set(url, signed);
+          result.set(url, signed);
+        } else {
+          result.set(url, url);
+        }
+      } catch { result.set(url, url); }
+    }));
+    return result;
+  },
+};
