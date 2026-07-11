@@ -388,7 +388,7 @@ export const ApiService = {
     return res.json();
   },
 
-  // 10. IMAGE UPLOAD (Railway Bucket)
+  // 10. IMAGE UPLOAD (Railway Bucket / S3 Storage)
   async uploadImage(file: File, folder: string, entityId?: string, entityName?: string): Promise<string> {
     const formData = new FormData();
     formData.append('file', file);
@@ -399,7 +399,14 @@ export const ApiService = {
       method: 'POST',
       body: formData
     });
-    if (!res.ok) throw new Error('Không thể tải ảnh lên');
+    if (!res.ok) {
+      let errMsg = 'Không thể tải ảnh lên';
+      try {
+        const errData = await res.json();
+        if (errData.error) errMsg = errData.error;
+      } catch {}
+      throw new Error(errMsg);
+    }
     const data = await res.json();
     return resolveImageUrl(data.url);
   },
