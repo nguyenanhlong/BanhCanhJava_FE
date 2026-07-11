@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { X, ShieldAlert, CheckCircle2, UserCheck, Wifi, WifiOff } from 'lucide-react';
-import { ApiService } from '../services/api';
+import { ApiService, setAuthToken } from '../services/api';
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onLoginSuccess: (user: { id: string; username: string; email: string; role: 'customer' | 'admin' | 'super_admin' | 'driver'; fullName?: string; phone?: string; address?: string; isActive?: boolean }) => void;
+  onLoginSuccess: (user: { id: string; username: string; email: string; role: 'customer' | 'admin' | 'super_admin' | 'driver'; fullName?: string; phone?: string; address?: string; avatarUrl?: string; isActive?: boolean }) => void;
 }
 
 export function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModalProps) {
@@ -113,11 +113,16 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModalProps) {
           const response = await ApiService.login(payload);
           
           if (response && response.id) {
+            if (response.token) setAuthToken(response.token);
             const u = {
               id: String(response.id),
               username: response.username,
               email: response.email,
-              role: response.role as 'customer' | 'admin' | 'super_admin' | 'driver'
+              role: response.role as 'customer' | 'admin' | 'super_admin' | 'driver',
+              fullName: response.fullName,
+              phone: response.phone,
+              address: response.address,
+              avatarUrl: response.avatarUrl
             };
             onLoginSuccess(u);
             onClose();
@@ -218,7 +223,10 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModalProps) {
               id: matchedUser.id,
               username: matchedUser.username,
               email: matchedUser.email,
-              role: matchedUser.role
+              role: matchedUser.role,
+              fullName: matchedUser.fullName,
+              phone: matchedUser.phone,
+              address: matchedUser.address
             };
             onLoginSuccess(u);
             onClose();

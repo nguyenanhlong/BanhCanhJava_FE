@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
 import { AboutUs } from './components/AboutUs';
@@ -12,8 +12,8 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { DriverDashboard } from './components/DriverDashboard';
 import { AuthModal } from './components/AuthModal';
 
-import { Product, CartItem, User, Order, Driver, OrderStatus, ProductReview, OrderItem, ProductOption, Promotion } from './types';
-import { ApiService } from './services/api';
+import { Product, CartItem, User, Order, Driver, OrderStatus, ProductReview, OrderItem, ProductOption, Promotion, Category } from './types';
+import { ApiService, clearAuthToken } from './services/api';
 import { Sparkles, Utensils, MessageCircle, Heart, Info, Clock, CheckCircle2, ShoppingCart } from 'lucide-react';
 import { Toaster, Toast } from './components/Toaster';
 
@@ -24,6 +24,7 @@ export default function App() {
   
   // Products, drivers, orders list
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [productOptions, setProductOptions] = useState<ProductOption[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [orders, setOrders] = useState<Order[]>(() => {
@@ -38,28 +39,42 @@ export default function App() {
     return [];
   });
 
+  // Đơn hàng do chính trình duyệt này tạo (dùng cho khách chưa đăng nhập) — để lọc
+  // màn hình theo dõi đơn: mỗi khách chỉ thấy đơn của mình, không thấy đơn người khác.
+  const [myOrderIds, setMyOrderIds] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('banhcanh_my_order_ids') || '[]'); } catch { return []; }
+  });
+  const rememberMyOrder = (id: string) => {
+    setMyOrderIds(prev => {
+      const next = prev.includes(id) ? prev : [...prev, id];
+      localStorage.setItem('banhcanh_my_order_ids', JSON.stringify(next));
+      return next;
+    });
+  };
+
   const [isBackendConnected, setIsBackendConnected] = useState<boolean>(false);
   const [isLoadingBackend, setIsLoadingBackend] = useState<boolean>(true);
 
-  // Load real data from Spring Boot if online
+  // Load real data from Spring Boot if online.
+  // Products/categories/options are public and always fetched together. Drivers/orders now
+  // require a logged-in JWT (Phase 3 auth) — fetched separately below so an anonymous visitor's
+  // 401 on those doesn't sink the whole Promise.all and break the public storefront.
   useEffect(() => {
     async function synchronizeWithBackend() {
       try {
         setIsLoadingBackend(true);
         const connected = await ApiService.checkConnection();
         if (connected) {
-          const [backendProducts, backendDrivers, backendOrders, backendOptions] = await Promise.all([
+          const [backendProducts, backendOptions, backendCategories] = await Promise.all([
             ApiService.getProducts(),
-            ApiService.getDrivers(),
-            ApiService.getOrders(),
-            ApiService.getProductOptions()
+            ApiService.getProductOptions(),
+            ApiService.getCategories()
           ]);
-          
+
           setProducts(backendProducts || []);
           setProductOptions(backendOptions || []);
-          if (backendDrivers) setDrivers(backendDrivers);
-          if (backendOrders) setOrders(backendOrders);
-          
+          setCategories(backendCategories || []);
+
           setIsBackendConnected(true);
           showToast('🔌 Đã kết nối đến database MySQL & Spring Boot!', 'success', 'Cơ sở dữ liệu Live');
         } else {
@@ -77,6 +92,14 @@ export default function App() {
 
   // Auth User
   const [user, setUser] = useState<User | null>(null);
+
+  // Dữ liệu cần đăng nhập: tải khi vừa kết nối được backend (token cũ trong localStorage, nếu
+  // còn hiệu lực) và mỗi khi user đăng nhập/đăng xuất. 401 (khách chưa đăng nhập) bị bỏ qua lặng lẽ.
+  useEffect(() => {
+    if (!isBackendConnected) return;
+    ApiService.getDrivers().then(setDrivers).catch(() => {});
+    ApiService.getOrders().then(setOrders).catch(() => {});
+  }, [isBackendConnected, user]);
 
   // SECURITY: Force redirect away from admin tab if user is not admin/super_admin
   useEffect(() => {
@@ -114,14 +137,18 @@ export default function App() {
   // Chat message simulation state
   const [chatHistory, setChatHistory] = useState<Record<string, { sender: string; text: string; timestamp: string }[]>>({});
 
-  const CATEGORY_FILTER_MAP: Record<string, string> = {
-    all: 'all',
-    bestsellers: 'bestsellers',
-    main: 'Bánh Canh Cá Lóc',
-    extra: 'Đồ Ăn Kèm',
-    drink: 'Đồ Uống'
-  };
+  // 'all' | 'bestsellers' | a real category id (as string) — categories are loaded live
+  // from the backend so this always reflects whatever exists in Quản Lý Danh Mục, not a hardcoded list.
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const menuTabsRef = useRef<HTMLDivElement>(null);
+  const menuTabs = useMemo(() => [
+    { id: 'all', label: 'Tất cả' },
+    { id: 'bestsellers', label: 'Bán chạy' },
+    ...categories
+      .filter(c => c.isActive !== false)
+      .sort((a, b) => a.displayOrder - b.displayOrder)
+      .map(c => ({ id: String(c.id), label: c.name }))
+  ], [categories]);
 
   // Reviews State
   const [reviews, setReviews] = useState<ProductReview[]>([]);
@@ -185,8 +212,11 @@ export default function App() {
     }
   }, []);
 
-  // Automated background progress simulation for 'shipping' orders
+  // Automated background progress simulation for 'shipping' orders.
+  // Chỉ chạy ở chế độ demo offline — khi có backend, tiến trình do admin cập nhật và
+  // được lưu vào DB (không tự tăng, không tự hoàn tất đơn).
   useEffect(() => {
+    if (isBackendConnected) return;
     const routeMilestones = [
       { progress: 10, stage: 'Đang xếp cẩn thận thố bánh canh cá lóc nóng hổi lót lá chuối vào thùng giữ nhiệt.' },
       { progress: 25, stage: 'Xe đã lăn bánh ra đại lộ. Gió mát sầm sập, nước dùng củ nén sực nức thơm lừng.' },
@@ -240,7 +270,7 @@ export default function App() {
     }, 12000); // Check and advance every 12 seconds for automatic realistic simulation
 
     return () => clearInterval(timer);
-  }, []);
+  }, [isBackendConnected]);
 
   const handleAddReview = async (reviewData: Omit<ProductReview, 'id' | 'createdAt'>) => {
     if (isBackendConnected) {
@@ -283,6 +313,9 @@ export default function App() {
   const handleLogout = () => {
     setUser(null);
     localStorage.removeItem('banhcanh_user');
+    clearAuthToken();
+    setDrivers([]);
+    setOrders([]);
     setActiveTab('home');
   };
 
@@ -426,6 +459,7 @@ export default function App() {
       return list;
     });
     const orderPayload = {
+      userId: user?.id && /^\d+$/.test(String(user.id)) ? Number(user.id) : undefined,
       customerName: details.customerName,
       phone: details.phone,
       address: details.address,
@@ -445,6 +479,7 @@ export default function App() {
     };
     try {
       const savedOrder = await ApiService.createOrder(orderPayload);
+      rememberMyOrder(savedOrder.id);
       const updatedOrders = [savedOrder, ...orders];
       setOrders(updatedOrders);
       setPendingCheckoutDetails({ ...details, orderId: Number(savedOrder.id) });
@@ -502,6 +537,7 @@ export default function App() {
       momo: 'momo'
     };
     const orderPayload = {
+      userId: user?.id && /^\d+$/.test(String(user.id)) ? Number(user.id) : undefined,
       customerName: details.customerName,
       phone: details.phone,
       address: details.address,
@@ -542,6 +578,7 @@ export default function App() {
     }
 
     // Add to top of orders list
+    rememberMyOrder(savedOrder.id);
     const updatedOrders = [savedOrder, ...orders];
     setOrders(updatedOrders);
 
@@ -631,8 +668,10 @@ export default function App() {
       try {
         updatedOrder = await ApiService.assignDriverToOrder(orderId, driverId);
       } catch (err: any) {
+        // Backend từ chối (đơn đã có tài xế / tài xế không sẵn sàng) — không cập nhật gì cả.
         console.error('Lỗi khi phân công tài xế lên Spring Boot:', err);
-        showToast('Không thể phân công tài xế lên Spring Boot. Đang xử lý offline!', 'warning');
+        showToast(err.message || 'Không thể phân công tài xế', 'error', 'Phân công thất bại');
+        return;
       }
     }
 
@@ -739,27 +778,48 @@ export default function App() {
     }
   };
 
-  const handleUpdateOrderProgress = (orderId: string, progress: number, stage: string) => {
+  const handleUpdateOrderProgress = async (orderId: string, progress: number, stage: string) => {
+    // Tiến trình được lưu vào DB (không mất khi F5) và chỉ được tăng, không được giảm.
+    // Đạt 100% nghĩa là đã đến nơi — đơn CHƯA hoàn tất: còn chờ shipper xác nhận giao
+    // và khách xác nhận đã nhận hàng (quy trình 5 bước).
+    if (isBackendConnected && /^\d+$/.test(orderId)) {
+      try {
+        await ApiService.updateOrderProgress(orderId, progress, stage);
+      } catch (err: any) {
+        showToast(err.message || 'Không thể cập nhật tiến trình', 'error', 'Tiến trình giao hàng');
+        return;
+      }
+    }
     setOrders(prev => prev.map(o => {
       if (o.id === orderId) {
-        return {
-          ...o,
-          deliveryProgress: progress,
-          deliveryStage: stage,
-          status: progress >= 100 ? 'completed' as const : 'shipping' as const
-        };
+        return { ...o, deliveryProgress: progress, deliveryStage: stage };
       }
       return o;
     }));
+  };
+
+  // Khách hàng xác nhận đã nhận hàng — bước cuối cùng để đơn được tính là hoàn tất.
+  const handleConfirmReceived = async (orderId: string) => {
+    await handleUpdateOrderStatus(orderId, 'completed');
+    showToast('Cảm ơn bạn đã xác nhận nhận hàng! Chúc ngon miệng 🍲', 'success', 'Hoàn tất đơn hàng');
   };
 
   const filteredProducts = products.filter(p => {
     if (!p.isAvailable) return false;
     if (selectedCategory === 'all') return true;
     if (selectedCategory === 'bestsellers') return p.isBestSeller;
-    const categoryName = CATEGORY_FILTER_MAP[selectedCategory];
-    return p.categoryName === categoryName;
+    const cat = categories.find(c => String(c.id) === selectedCategory);
+    if (!cat) return false;
+    return p.categoryId === cat.id || p.categoryName === cat.name;
   });
+
+  // Mỗi khách chỉ thấy đơn của chính mình: theo userId (đã đăng nhập) hoặc theo danh
+  // sách đơn đã tạo trên trình duyệt này (khách vãng lai). Admin thấy tất cả.
+  const myOrders = useMemo(() => {
+    if (user && (user.role === 'admin' || user.role === 'super_admin')) return orders;
+    const uid = user?.id && /^\d+$/.test(String(user.id)) ? Number(user.id) : undefined;
+    return orders.filter(o => (uid !== undefined && o.userId === uid) || myOrderIds.includes(o.id));
+  }, [orders, user, myOrderIds]);
 
   if (user && user.role === 'driver') {
     return (
@@ -989,27 +1049,34 @@ export default function App() {
               </p>
             </div>
 
-            {/* Categories filter segment */}
-            <div className="flex flex-wrap gap-2.5 justify-center">
-              {[
-                { id: 'all', label: 'Tất cả sản phẩm' },
-                { id: 'bestsellers', label: 'Bán chạy nhất' },
-                { id: 'main', label: 'Bánh canh chính' },
-                { id: 'extra', label: 'Toppings thêm' },
-                { id: 'drink', label: 'Nước giải nhiệt' }
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setSelectedCategory(tab.id)}
-                  className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    selectedCategory === tab.id
-                      ? 'bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] border-[#2D241E] dark:border-[#FAF8F5]'
-                      : 'bg-white dark:bg-[#1C1311] text-[#3E2F26] dark:text-[#EAE3D2] border border-[#E5E1D8] dark:border-[#2D2321] hover:bg-[#F3F0E9] dark:hover:bg-[#251A18]'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
+            {/* Categories filter segment — horizontally scrollable with prev/next arrows */}
+            <div className="relative flex items-center gap-2 max-w-full">
+              <button
+                onClick={() => { const el = document.getElementById('menu-tabs-scroll'); if (el) el.scrollBy({ left: -200, behavior: 'smooth' }); }}
+                className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] text-sm font-bold hover:opacity-90 transition shadow-sm"
+                aria-label="Danh mục trước"
+              >‹</button>
+              <div id="menu-tabs-scroll" ref={menuTabsRef}
+                className="flex gap-2.5 overflow-x-auto scroll-smooth py-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                {menuTabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setSelectedCategory(tab.id)}
+                    className={`shrink-0 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                      selectedCategory === tab.id
+                        ? 'bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] border-[#2D241E] dark:border-[#FAF8F5]'
+                        : 'bg-white dark:bg-[#1C1311] text-[#3E2F26] dark:text-[#EAE3D2] border border-[#E5E1D8] dark:border-[#2D2321] hover:bg-[#F3F0E9] dark:hover:bg-[#251A18]'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => { const el = document.getElementById('menu-tabs-scroll'); if (el) el.scrollBy({ left: 200, behavior: 'smooth' }); }}
+                className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-[#2D241E] dark:bg-[#FAF8F5] text-white dark:text-[#2D241E] text-sm font-bold hover:opacity-90 transition shadow-sm"
+                aria-label="Danh mục sau"
+              >›</button>
             </div>
 
             {/* Grid display products */}
@@ -1057,14 +1124,15 @@ export default function App() {
         {/* VIEW 4: REAL-TIME SECURE SHIPPER TRACKING */}
         {activeTab === 'tracking' && (
           user ? (
-            <TrackingSection 
-              activeOrders={orders}
+            <TrackingSection
+              activeOrders={myOrders}
               onSendMessage={handleSendMessage}
               chatHistory={chatHistory}
               reviews={reviews}
               onAddReview={handleAddReview}
               currentUser={user}
               drivers={drivers}
+              onConfirmReceived={handleConfirmReceived}
             />
           ) : (
             <div className="max-w-7xl mx-auto px-4 py-20 text-center">
