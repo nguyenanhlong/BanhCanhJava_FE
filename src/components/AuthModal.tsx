@@ -87,7 +87,7 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModalProps) {
     try {
       const res = await ApiService.forgotPassword(trimmedEmail);
       setResetToken(res.resetToken || '');
-      setSuccessMsg('Mã đặt lại mật khẩu đã được gửi. Vui lòng kiểm tra email hoặc sử dụng mã bên dưới.');
+      setSuccessMsg(res.message || 'Mã OTP đã được gửi đến email của bạn.');
       setIsResetStep(true);
       setIsForgotStep(false);
     } catch (err: any) {
