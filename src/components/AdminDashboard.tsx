@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Order, Driver, OrderStatus, Product, MembershipTier, MembershipVoucher, UserMembership, DeliveryTrip, PaymentTransaction } from '../types';
 import { JAVA_BACKEND_FILES, MYSQL_DATABASE_SQL, FRONTEND_INTEGRATION_FILES } from '../data';
 import { FileCode, Check, Copy, AlertTriangle, Plus, Edit3, Trash2, X, FileText, RefreshCw } from 'lucide-react';
-import { ApiService } from '../services/api';
+import { ApiService, ImageService } from '../services/api';
 
 function toSlug(str: string): string {
   return str
@@ -287,6 +287,13 @@ export function AdminDashboard({
   const [productError, setProductError] = useState('');
   const [pendingNewCategory, setPendingNewCategory] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+
+  const [signedImageUrls, setSignedImageUrls] = useState<Map<string, string>>(new Map());
+  useEffect(() => {
+    const s3Urls = products.filter(p => p.imageUrl && (p.imageUrl.includes('storageapi.dev') || p.imageUrl.includes('storage.supabase.co') || p.imageUrl.match(/^(product|avatar|review|category)_Image\//))).map(p => p.imageUrl!);
+    if (s3Urls.length === 0) { setSignedImageUrls(new Map()); return; }
+    ImageService.getPresignedUrlsBatch(s3Urls).then(setSignedImageUrls);
+  }, [products]);
 
   // New Driver Form State
   const [driverName, setDriverName] = useState('');
@@ -1659,9 +1666,13 @@ export function AdminDashboard({
                           if (!file) return;
                           setUploadingImage(true);
                           try {
-                            const url = await ApiService.uploadImage(file, 'product_Image', editingProductId || undefined, productForm.name);
-                            setProductForm(prev => ({ ...prev, imageUrl: url }));
-                          } catch (err: any) {
+                              const key = await ApiService.uploadImage(file, 'product_Image', editingProductId || undefined, productForm.name);
+                              setProductForm(prev => ({ ...prev, imageUrl: key }));
+                              // Fetch presigned URL immediately for preview
+                              ImageService.getPresignedUrl(key).then(signed => {
+                                if (signed) setProductForm(prev => ({ ...prev, imageUrl: signed }));
+                              });
+                            } catch (err: any) {
                             onShowToast?.(err.message || 'Lỗi upload ảnh', 'error', 'Sản phẩm');
                             setProductError(err.message || 'Lỗi upload ảnh');
                           } finally {
@@ -1738,7 +1749,7 @@ export function AdminDashboard({
                   ) : (products.map((p) => (
                     <tr key={p.id} className="hover:bg-[#FAF8F5]/80 dark:hover:bg-[#E5DDD5]/50 transition-colors">
                       <td className="p-3">
-                        <span className="text-2xl">{p.imageUrl ? <img src={p.imageUrl} alt={p.name} className="w-10 h-10 rounded-lg object-cover" referrerPolicy="no-referrer" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; const p = (e.currentTarget as HTMLElement).parentElement; if (p) p.innerText = '🍲'; }} /> : '🍲'}</span>
+                        <span className="text-2xl">{p.imageUrl ? <img src={signedImageUrls.get(p.id) || p.imageUrl} alt={p.name} className="w-10 h-10 rounded-lg object-cover" referrerPolicy="no-referrer" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; const p = (e.currentTarget as HTMLElement).parentElement; if (p) p.innerText = '🍲'; }} /> : '🍲'}</span>
                       </td>
                       <td className="p-3 font-bold text-[#2D241E] dark:text-[#2D241E]">{p.name}</td>
                       <td className="p-3">

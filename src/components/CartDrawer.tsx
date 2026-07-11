@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { CartItem, User } from '../types';
 import { getUserTier, calculateAutoDiscount } from '../services/membership';
+import { ImageService } from '../services/api';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faBowlFood } from '@fortawesome/free-solid-svg-icons';
 import { X, Trash2, ShoppingBag, Award, AlertTriangle } from 'lucide-react';
@@ -25,6 +26,13 @@ export function CartDrawer({
   onOpenConfirmation
 }: CartDrawerProps) {
   const [itemIndexToConfirmRemove, setItemIndexToConfirmRemove] = useState<number | null>(null);
+  const [signedImageUrls, setSignedImageUrls] = useState<Map<string, string>>(new Map());
+
+  useEffect(() => {
+    const urls = cartItems.map(item => item.product.imageUrl).filter((u): u is string => !!u && (u.includes('storageapi.dev') || u.includes('storage.supabase.co') || u.match(/^(product|avatar|review|category)_Image\//)));
+    if (urls.length === 0) return;
+    ImageService.getPresignedUrlsBatch(urls).then(setSignedImageUrls);
+  }, [cartItems]);
 
   if (!isOpen) return null;
 
@@ -83,7 +91,7 @@ export function CartDrawer({
                   <div key={idx} className="bg-white dark:bg-[#1C1311] p-4 rounded-xl border border-[#E5E1D8] dark:border-[#2D2321] flex gap-3.5 relative shadow-xs">
                     <div className="w-12 h-12 rounded-xl bg-[#F3F0E9] dark:bg-[#251A18] flex items-center justify-center text-2xl border border-[#E5E1D8] dark:border-[#2D2321] overflow-hidden shrink-0">
                       {item.product.imageUrl ? (
-                        <img src={item.product.imageUrl} alt={item.product.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; const p = (e.currentTarget as HTMLElement).parentElement; if (p) p.innerText = '🍲'; }} />
+                        <img src={signedImageUrls.get(item.product.imageUrl) || item.product.imageUrl} alt={item.product.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; const p = (e.currentTarget as HTMLElement).parentElement; if (p) p.innerText = '🍲'; }} />
                       ) : '🍲'}
                     </div>
                     <div className="flex-1">
