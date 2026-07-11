@@ -349,7 +349,34 @@ export const ApiService = {
     return res.json();
   },
 
-  // 7. CATEGORIES API
+  // 7. FORGOT PASSWORD API
+  async forgotPassword(email: string): Promise<any> {
+    const res = await apiFetch(`${BASE_URL}/auth/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Không thể gửi yêu cầu đặt lại mật khẩu');
+    }
+    return res.json();
+  },
+
+  async resetPassword(token: string, newPassword: string): Promise<any> {
+    const res = await apiFetch(`${BASE_URL}/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, newPassword })
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Không thể đặt lại mật khẩu');
+    }
+    return res.json();
+  },
+
+  // 8. CATEGORIES API
   async getCategories(): Promise<Category[]> {
     const res = await apiFetch(`${BASE_URL}/categories`);
     if (!res.ok) throw new Error('Không thể tải danh mục');

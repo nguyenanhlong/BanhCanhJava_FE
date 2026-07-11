@@ -10,6 +10,8 @@ interface AuthModalProps {
 
 export function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModalProps) {
   const [isRegisterStep, setIsRegisterStep] = useState(false);
+  const [isForgotStep, setIsForgotStep] = useState(false);
+  const [isResetStep, setIsResetStep] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [email, setEmail] = useState('');
@@ -17,6 +19,9 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModalProps) {
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
   const [selectedRole, setSelectedRole] = useState<'customer' | 'admin' | 'driver'>('customer');
+  const [resetToken, setResetToken] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -69,6 +74,58 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModalProps) {
   }, [isOpen]);
 
   if (!isOpen) return null;
+
+  const handleForgotPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+    setSuccessMsg('');
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      setErrorMsg('Vui lòng nhập email đã đăng ký');
+      return;
+    }
+    try {
+      const res = await ApiService.forgotPassword(trimmedEmail);
+      setResetToken(res.resetToken || '');
+      setSuccessMsg('Mã đặt lại mật khẩu đã được gửi. Vui lòng kiểm tra email hoặc sử dụng mã bên dưới.');
+      setIsResetStep(true);
+      setIsForgotStep(false);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Không thể gửi yêu cầu');
+    }
+  };
+
+  const handleResetPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+    setSuccessMsg('');
+    const token = resetToken.trim();
+    const newPw = newPassword.trim();
+    const confirmPw = confirmPassword.trim();
+    if (!token || !newPw) {
+      setErrorMsg('Vui lòng nhập mã token và mật khẩu mới');
+      return;
+    }
+    if (newPw.length < 6) {
+      setErrorMsg('Mật khẩu phải có ít nhất 6 ký tự');
+      return;
+    }
+    if (newPw !== confirmPw) {
+      setErrorMsg('Mật khẩu xác nhận không khớp');
+      return;
+    }
+    try {
+      await ApiService.resetPassword(token, newPw);
+      setSuccessMsg('Mật khẩu đã được đặt lại thành công! Vui lòng đăng nhập.');
+      setIsResetStep(false);
+      setIsForgotStep(false);
+      setNewPassword('');
+      setConfirmPassword('');
+      setResetToken('');
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Không thể đặt lại mật khẩu');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -250,7 +307,7 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModalProps) {
         {/* Header Close info */}
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-xl font-serif font-bold text-[#2D241E] dark:text-[#FAF8F5]">
-            {isRegisterStep ? 'Đăng Ký Thành Viên' : 'Đăng Nhập Tài Khoản'}
+            {isResetStep ? 'Đặt Lại Mật Khẩu' : isForgotStep ? 'Quên Mật Khẩu' : isRegisterStep ? 'Đăng Ký Thành Viên' : 'Đăng Nhập Tài Khoản'}
           </h3>
           <button 
             onClick={onClose}
@@ -310,7 +367,99 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModalProps) {
           </div>
         )}
 
+        {/* Forgot password step: enter email */}
+        {isForgotStep && (
+          <form onSubmit={handleForgotPasswordSubmit} className="space-y-4">
+            <div>
+              <label className="block text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase mb-1">Email Đã Đăng Ký:</label>
+              <input
+                type="email"
+                placeholder="sales@banhcanhcaloc.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full text-xs p-3 rounded-xl border border-[#E5E1D8] dark:border-[#2D2321] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]"
+                required
+              />
+            </div>
+            <button
+              type="submit"
+              className="w-full bg-[#D97706] hover:bg-[#D97706]/90 text-white font-bold py-3 rounded-xl text-xs shadow-md transition-all"
+            >
+              GỬI YÊU CẦU ĐẶT LẠI MẬT KHẨU
+            </button>
+            <button
+              type="button"
+              onClick={() => { setIsForgotStep(false); setErrorMsg(''); setSuccessMsg(''); }}
+              className="w-full text-center text-xs font-bold text-[#8B7E74] hover:text-[#D97706] py-2 cursor-pointer"
+            >
+              ← Quay lại đăng nhập
+            </button>
+          </form>
+        )}
+
+        {/* Reset password step: enter token + new password */}
+        {isResetStep && (
+          <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
+            {resetToken && (
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-xl">
+                <p className="text-[9px] text-amber-700 dark:text-amber-400 font-bold mb-1">Mã đặt lại mật khẩu của bạn:</p>
+                <p className="text-xs font-mono font-bold text-[#2D241E] dark:text-[#FAF8F5] break-all select-all">{resetToken}</p>
+                <p className="text-[8px] text-[#8B7E74] mt-1">Mã có hiệu lực trong 15 phút. Copy và dán vào ô bên dưới.</p>
+              </div>
+            )}
+            <div>
+              <label className="block text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase mb-1">Mã Đặt Lại:</label>
+              <input
+                type="text"
+                placeholder="Nhập mã token"
+                value={resetToken}
+                onChange={(e) => setResetToken(e.target.value)}
+                className="w-full text-xs p-3 rounded-xl border border-[#E5E1D8] dark:border-[#2D2321] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase mb-1">Mật Khẩu Mới:</label>
+              <input
+                type="password"
+                placeholder="Tối thiểu 6 ký tự"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="w-full text-xs p-3 rounded-xl border border-[#E5E1D8] dark:border-[#2D2321] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]"
+                required
+                minLength={6}
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-[#3E2F26] dark:text-[#EAE3D2] uppercase mb-1">Xác Nhận Mật Khẩu:</label>
+              <input
+                type="password"
+                placeholder="Nhập lại mật khẩu mới"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full text-xs p-3 rounded-xl border border-[#E5E1D8] dark:border-[#2D2321] bg-white dark:bg-[#1C1311] text-[#2D241E] dark:text-[#FAF8F5] focus:outline-[#D97706]"
+                required
+                minLength={6}
+              />
+            </div>
+            <button
+              type="submit"
+              className="w-full bg-[#D97706] hover:bg-[#D97706]/90 text-white font-bold py-3 rounded-xl text-xs shadow-md transition-all"
+            >
+              ĐẶT LẠI MẬT KHẨU
+            </button>
+            <button
+              type="button"
+              onClick={() => { setIsResetStep(false); setIsForgotStep(false); setErrorMsg(''); setSuccessMsg(''); setResetToken(''); setNewPassword(''); setConfirmPassword(''); }}
+              className="w-full text-center text-xs font-bold text-[#8B7E74] hover:text-[#D97706] py-2 cursor-pointer"
+            >
+              ← Quay lại đăng nhập
+            </button>
+          </form>
+        )}
+
         {/* Form elements */}
+        {!isForgotStep && !isResetStep && (
         <form onSubmit={handleSubmit} className="space-y-4">
           
           <div>
@@ -383,6 +532,16 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModalProps) {
           </div>
 
 
+          {!isRegisterStep && (
+            <button
+              type="button"
+              onClick={() => { setIsForgotStep(true); setErrorMsg(''); setSuccessMsg(''); }}
+              className="w-full text-center text-[10px] font-bold text-[#8B7E74] hover:text-[#D97706] py-1.5 -mt-1 cursor-pointer"
+            >
+              Quên mật khẩu?
+            </button>
+          )}
+
           <button
             type="submit"
             className="w-full bg-[#D97706] hover:bg-[#D97706]/90 text-white font-bold py-3 rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-1.5 mt-2"
@@ -391,8 +550,10 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModalProps) {
             <span>{isRegisterStep ? 'ĐĂNG KÝ NGAY' : 'ĐĂNG NHẬP HỆ THỐNG'}</span>
           </button>
         </form>
+        )}
 
         {/* Toggle steps */}
+        {!isForgotStep && !isResetStep && (
         <div className="border-t border-[#E5E1D8] dark:border-[#2D2321] mt-6 pt-4 text-center">
           <button
             onClick={() => {
@@ -418,6 +579,7 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModalProps) {
                     • Đăng nhập <strong>Tài xế:</strong> gõ <code className="font-mono text-[#D97706]">driver</code> - mật khẩu <code className="font-mono text-[#D97706]">driver</code>.
           </div>
         </div>
+        )}
 
       </div>
     </div>
