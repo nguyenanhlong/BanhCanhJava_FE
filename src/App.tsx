@@ -13,7 +13,7 @@ import { DriverDashboard } from './components/DriverDashboard';
 import { AuthModal } from './components/AuthModal';
 
 import { Product, CartItem, User, Order, Driver, OrderStatus, ProductReview, OrderItem, ProductOption, Promotion, Category } from './types';
-import { ApiService, clearAuthToken } from './services/api';
+import { ApiService, clearAuthToken, getAuthToken } from './services/api';
 import { Sparkles, Utensils, MessageCircle, Heart, Info, Clock, CheckCircle2, ShoppingCart } from 'lucide-react';
 import { Toaster, Toast } from './components/Toaster';
 
@@ -319,6 +319,20 @@ export default function App() {
     setOrders([]);
     setActiveTab('home');
   };
+
+  // Phát hiện phiên quản trị/tài xế "cũ" còn trong localStorage nhưng KHÔNG có JWT token
+  // (ví dụ đăng nhập bằng lối tắt mock offline, hoặc token đã bị xoá) trong khi backend vẫn
+  // kết nối được. Phiên kiểu này hiển thị đúng vai trò trên UI nhưng mọi thao tác admin sẽ bị
+  // 403. Dọn phiên và mời đăng nhập lại để lấy token thật.
+  useEffect(() => {
+    if (!isBackendConnected || !user) return;
+    const privileged = user.role === 'admin' || user.role === 'super_admin' || user.role === 'driver';
+    if (privileged && !getAuthToken()) {
+      showToast('Phiên đăng nhập quản trị thiếu xác thực máy chủ. Vui lòng đăng nhập lại để tiếp tục.', 'warning', 'Cần đăng nhập lại');
+      handleLogout();
+      setAuthOpen(true);
+    }
+  }, [isBackendConnected, user]);
 
   // Cart actions
   const handleAddToCart = (product: Product, noodleType?: string, notes?: string, toppings?: Product[], selectedOptions?: { optionId: number; name: string; optionGroup: string; price: number }[]) => {
