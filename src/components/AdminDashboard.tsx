@@ -1496,7 +1496,11 @@ export function AdminDashboard({
   const reviewsPagination = usePagination(reviews, 7);
   const invoicesPagination = usePagination(invoices, 7);
   const accountUsersPagination = usePagination(accountUsers, 7);
-  const apiUsersPagination = usePagination(apiUsers, 7);
+  const visibleApiUsers = useMemo(() => {
+    if (isSuperAdmin) return apiUsers;
+    return apiUsers.filter((u: any) => u.role !== 'super_admin');
+  }, [apiUsers, isSuperAdmin]);
+  const apiUsersPagination = usePagination(visibleApiUsers, 7);
   const localUsersPagination = usePagination(localUsers, 7);
   const deliveryTripsPagination = usePagination(deliveryTrips, 7);
   const paymentTransactionsPagination = usePagination(paymentTransactions, 7);
@@ -3705,16 +3709,18 @@ export function AdminDashboard({
                     <div className="text-[8px] text-[#8B7E74] mt-0.5">Họ tên, SĐT, địa chỉ, email</div>
                   </button>
 
-                  <button disabled={!selectedUser}
-                    onClick={() => { setShowUserRoleForm(true); setShowUserEditForm(false); setShowUserPasswordForm(false); }}
-                    className={`p-3 rounded-xl text-[10px] font-bold text-left transition-all border ${selectedUser
-                        ? 'bg-[#241A18] border-amber-700/40 text-[#FAF8F5] hover:bg-amber-900/30 hover:border-amber-500/60 cursor-pointer'
-                        : 'bg-[#1A1412] border-[#2D2321] text-[#5A4A40] cursor-not-allowed'
-                      }`}>
-                    <div className="text-lg mb-1">🔄</div>
-                    <div>Đổi vai trò</div>
-                    <div className="text-[8px] text-[#8B7E74] mt-0.5">customer / driver / admin</div>
-                  </button>
+                  {isSuperAdmin && (
+                    <button disabled={!selectedUser}
+                      onClick={() => { setShowUserRoleForm(true); setShowUserEditForm(false); setShowUserPasswordForm(false); }}
+                      className={`p-3 rounded-xl text-[10px] font-bold text-left transition-all border ${selectedUser
+                          ? 'bg-[#241A18] border-amber-700/40 text-[#FAF8F5] hover:bg-amber-900/30 hover:border-amber-500/60 cursor-pointer'
+                          : 'bg-[#1A1412] border-[#2D2321] text-[#5A4A40] cursor-not-allowed'
+                        }`}>
+                      <div className="text-lg mb-1">🔄</div>
+                      <div>Đổi vai trò</div>
+                      <div className="text-[8px] text-[#8B7E74] mt-0.5">customer / driver / admin</div>
+                    </button>
+                  )}
 
                   <button disabled={!selectedUser}
                     onClick={handleToggleUserActive}
@@ -3844,7 +3850,7 @@ export function AdminDashboard({
                       <h4 className="font-serif font-bold text-sm text-[#FAF8F5]">
                         👥 Người Dùng Từ Database {loadingUsers && <span className="text-[9px] text-[#B2A496] font-sans">(đang tải...)</span>}
                       </h4>
-                      <p className="text-[10px] text-[#8B7E74]">Spring Boot + MySQL — {apiUsers.length} tài khoản</p>
+                      <p className="text-[10px] text-[#8B7E74]">Spring Boot + MySQL — {visibleApiUsers.length} tài khoản</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-[9px] font-mono px-2 py-1 rounded border bg-[#241A18] border-[#2D2321] text-[#B2A496]">
@@ -3889,11 +3895,12 @@ export function AdminDashboard({
                               <td className="p-2 font-bold text-red-500">{u.username}</td>
                               <td className="p-2 text-[#B2A496]">{u.email}</td>
                               <td className="p-2">
-                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${u.role === 'admin' ? 'bg-red-950/30 text-red-400 border-red-900/40' :
+                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${u.role === 'super_admin' ? 'bg-purple-950/30 text-purple-400 border-purple-900/40' :
+                                    u.role === 'admin' ? 'bg-red-950/30 text-red-400 border-red-900/40' :
                                     u.role === 'driver' ? 'bg-blue-950/30 text-blue-400 border-blue-900/40' :
                                       'bg-emerald-950/30 text-emerald-400 border-emerald-900/40'
                                   }`}>
-                                  {u.role === 'admin' ? 'Quản trị' : u.role === 'driver' ? 'Tài xế' : 'Khách hàng'}
+                                  {u.role === 'super_admin' ? 'Super Admin' : u.role === 'admin' ? 'Quản trị' : u.role === 'driver' ? 'Tài xế' : 'Khách hàng'}
                                 </span>
                                 {u.isActive === false && (
                                   <span className="ml-1 text-[8px] bg-red-950/50 text-red-300 px-1 rounded">khoá</span>
