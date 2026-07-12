@@ -609,12 +609,20 @@ export default function App() {
 
   // Admin and driver operations
   const handleUpdateOrderStatus = async (orderId: string, status: OrderStatus) => {
-    // Must select driver before shipping
-    if (status === 'shipping') {
-      const order = orders.find(o => o.id === orderId);
-      if (!order?.driverId) {
-        showToast('Vui lòng chọn tài xế trước khi chuyển sang giao hàng!', 'warning', 'Thiếu tài xế');
-        return;
+    // Tự động gán tài xế khi chuyển sang preparing
+    let autoAssignedDriverId: string | null = null;
+    if (status === 'preparing') {
+      const currentOrder = orders.find(o => o.id === orderId);
+      if (!currentOrder?.driverId) {
+        const availableDrivers = drivers.filter(d => d.status === 'available');
+        if (availableDrivers.length > 0) {
+          const driver = availableDrivers[0];
+          autoAssignedDriverId = driver.id;
+          if (isBackendConnected) {
+            try { await ApiService.assignDriverToOrder(orderId, driver.id); } catch (_) {}
+          }
+          setDrivers(prev => prev.map(d => d.id === driver.id ? { ...d, status: 'busy' as const } : d));
+        }
       }
     }
 
@@ -624,35 +632,20 @@ export default function App() {
         updatedOrder = await ApiService.updateOrderStatus(orderId, status);
       } catch (err: any) {
         console.error('Lỗi khi cập nhật trạng thái lên Spring Boot:', err);
-        showToast('Không thể cập nhật trạng thái lên Spring Boot. Đang xử lý offline!', 'warning');
       }
     }
 
     const updated = orders.map(o => {
       if (o.id === orderId) {
-        if (updatedOrder) {
-          // Backend trả về đơn đã cập nhật (bao gồm cả tài xế tự động nếu có)
-          return updatedOrder;
-        }
+        if (updatedOrder) return updatedOrder;
         const nextOrderState = { ...o, status };
-        if (status === 'shipping') {
-          nextOrderState.deliveryProgress = 10;
-          nextOrderState.deliveryStage = 'Đã xếp hàng lên xe, chuẩn bị lăn bánh!';
-        }
+        if (status === 'shipping') nextOrderState.deliveryProgress = 50;
         if (status === 'completed') {
           nextOrderState.paymentStatus = 'paid' as const;
           nextOrderState.deliveryProgress = 100;
-          nextOrderState.deliveryStage = 'Món ăn đã được giao hoàn tất!';
         }
-        // Offline: tự động phân công tài xế rảnh khi chuyển sang chế biến
-        if (status === 'preparing' && !nextOrderState.driverId) {
-          const availableDrivers = drivers.filter(d => d.status === 'available');
-          if (availableDrivers.length > 0) {
-            const driver = availableDrivers[0];
-            nextOrderState.driverId = driver.id;
-            setDrivers(prev => prev.map(d => d.id === driver.id ? { ...d, status: 'busy' as const } : d));
-            showToast(`Tự động phân công tài xế ${driver.name} cho đơn hàng ${orderId}!`, 'info', 'Tự động phân công 🛵');
-          }
+        if (autoAssignedDriverId && !nextOrderState.driverId) {
+          nextOrderState.driverId = autoAssignedDriverId;
         }
         return nextOrderState;
       }
@@ -661,35 +654,19 @@ export default function App() {
 
     const targetOrder = orders.find(o => o.id === orderId);
     if (targetOrder && targetOrder.driverId && (status === 'completed' || status === 'cancelled')) {
-      // Free the driver
       setDrivers(prev => prev.map(d => d.id === targetOrder.driverId ? { ...d, status: 'available' as const } : d));
-    }
-
-    // Backend tự động phân công tài xế: cập nhật trạng thái local
-    if (status === 'preparing' && updatedOrder?.driverId && updatedOrder.driverId !== targetOrder?.driverId) {
-      setDrivers(prev => prev.map(d => d.id === updatedOrder.driverId ? { ...d, status: 'busy' as const } : d));
     }
 
     setOrders(updated);
 
-    // Trigger a Toast
-    let statusText = '';
-    let toastType: 'success' | 'info' | 'warning' | 'error' = 'info';
-    switch (status) {
-      case 'pending': statusText = 'đang chờ xác nhận'; break;
-      case 'preparing': statusText = 'đang được chế biến'; break;
-      case 'picked_up': statusText = 'đã được lấy hàng'; break;
-      case 'shipping': statusText = 'đang được giao đi'; break;
-      case 'completed': 
-        statusText = 'đã giao xong xuôi!'; 
-        toastType = 'success';
-        break;
-      case 'cancelled': 
-        statusText = 'đã bị hủy'; 
-        toastType = 'error';
-        break;
-    }
-    showToast(`Đơn hàng ${orderId} ${statusText}.`, toastType, 'Cập nhật đơn hàng');
+    const labels: Record<string, string> = {
+      pending: 'đang chờ xác nhận',
+      preparing: 'đang được chế biến',
+      shipping: 'đang được giao đi',
+      completed: 'đã hoàn thành!',
+      cancelled: 'đã bị hủy',
+    };
+    showToast(`Đơn hàng ${orderId} ${labels[status] || status}.`, status === 'completed' ? 'success' : status === 'cancelled' ? 'error' : 'info', 'Cập nhật đơn hàng');
   };
 
   const handleRefreshDrivers = async () => {
@@ -971,7 +948,6 @@ export default function App() {
             isBackendConnected={isBackendConnected}
             userRole={user.role}
             onUpdateOrderStatus={handleUpdateOrderStatus}
-            onAssignDriver={handleAssignDriver}
             onCreateDriver={handleCreateDriver}
             onUpdateDriverStatus={handleUpdateDriverStatus}
             onRefreshDrivers={handleRefreshDrivers}
@@ -1195,7 +1171,6 @@ export default function App() {
               onAddReview={handleAddReview}
               currentUser={user}
               drivers={drivers}
-              onConfirmReceived={handleConfirmReceived}
             />
           ) : (
             <div className="max-w-7xl mx-auto px-4 py-20 text-center">
@@ -1228,7 +1203,6 @@ export default function App() {
             isBackendConnected={isBackendConnected}
             userRole={user?.role}
             onUpdateOrderStatus={handleUpdateOrderStatus}
-            onAssignDriver={handleAssignDriver}
             onCreateDriver={handleCreateDriver}
             onUpdateDriverStatus={handleUpdateDriverStatus}
             onRefreshDrivers={handleRefreshDrivers}

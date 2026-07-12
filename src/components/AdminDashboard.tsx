@@ -23,7 +23,6 @@ interface AdminDashboardProps {
   isBackendConnected: boolean;
   userRole?: string;
   onUpdateOrderStatus: (orderId: string, status: OrderStatus) => void;
-  onAssignDriver: (orderId: string, driverId: string) => void;
   onCreateDriver: (name: string, phone: string, vehicle: string) => void;
   onUpdateDriverStatus: (driverId: string, status: Driver['status']) => void;
   onRefreshDrivers?: () => void;
@@ -77,7 +76,6 @@ export function AdminDashboard({
   isBackendConnected,
   userRole,
   onUpdateOrderStatus,
-  onAssignDriver,
   onCreateDriver,
   onUpdateDriverStatus,
   onRefreshDrivers,
@@ -907,20 +905,11 @@ export function AdminDashboard({
 
   const getOrderStatusBadge = (status: OrderStatus) => {
     switch (status) {
-      case 'pending':
-        return 'bg-red-100 text-red-800 border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-900/50';
-      case 'preparing':
-        return 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900/50';
-      case 'picked_up':
-        return 'bg-red-100 text-red-800 border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-900/50';
-      case 'shipping':
-        return 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-950/30 dark:text-purple-400 dark:border-purple-900/50';
-      case 'delivered':
-        return 'bg-teal-100 text-teal-800 border-teal-200 dark:bg-teal-950/30 dark:text-teal-400 dark:border-teal-900/50';
-      case 'completed':
-        return 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/50';
-      case 'cancelled':
-        return 'bg-red-100 text-red-800 border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-900/50';
+      case 'pending': return 'bg-red-100 text-red-800 border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-900/50';
+      case 'preparing': return 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900/50';
+      case 'shipping': return 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-950/30 dark:text-purple-400 dark:border-purple-900/50';
+      case 'completed': return 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/50';
+      case 'cancelled': return 'bg-red-100 text-red-800 border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-900/50';
     }
   };
 
@@ -1587,9 +1576,8 @@ export function AdminDashboard({
                           <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded border ${getOrderStatusBadge(order.status)}`}>
                             {order.status === 'pending' ? 'Chờ xác nhận' :
                               order.status === 'preparing' ? 'Đang chế biến' :
-                                order.status === 'picked_up' ? 'Đã lấy hàng' :
-                                  order.status === 'shipping' ? 'Đang giao hàng' :
-                                    order.status === 'completed' ? 'Thành công' : 'Đã hủy'}
+                                order.status === 'shipping' ? 'Đang giao hàng' :
+                                  order.status === 'completed' ? 'Hoàn thành' : 'Đã hủy'}
                           </span>
                         </td>
                         <td className="p-3.5 text-[10px]">
@@ -1608,33 +1596,10 @@ export function AdminDashboard({
                           ) : order.driverId ? (
                             <p className="text-[9px] text-[#E74C3C] dark:text-red-400 font-bold">
                               🏍️ {drivers.find(d => String(d.id) === String(order.driverId))?.name || `Tài xế #${order.driverId}`}
-                              <span className="block text-[8px] text-[#8B7E74] font-normal mt-0.5">Đã phân công — không thể đổi</span>
+                              <span className="block text-[8px] text-[#8B7E74] font-normal mt-0.5">Đã phân công tự động</span>
                             </p>
                           ) : (
-                            <select
-                              value=""
-                              onChange={(e) => {
-                                if (e.target.value) {
-                                  onAssignDriver(order.id, e.target.value);
-                                }
-                              }}
-                              className="text-[10px] p-1.5 rounded-lg border border-[#E5E1D8] dark:border-[#D0C8C0] bg-[#FAF8F5] dark:bg-[#FFF5EB] text-[#2D241E] dark:text-[#2D241E] focus:outline-none"
-                            >
-                              <option value="" className="dark:bg-[#FFF5EB]">-- Chọn tài xế --</option>
-                              {drivers.length === 0 ? (
-                                <option disabled className="dark:bg-[#FFF5EB] text-[#8B7E74]">⏳ Đang tải danh sách tài xế...</option>
-                              ) : drivers.filter((d) => d.status === 'available').length === 0 ? (
-                                <option disabled className="dark:bg-[#FFF5EB] text-[#8B7E74]">Không có tài xế khả dụng</option>
-                              ) : (
-                                drivers
-                                  .filter((d) => d.status === 'available')
-                                  .map((d) => (
-                                    <option key={d.id} value={d.id} className="dark:bg-[#FFF5EB]">
-                                      {d.name} ({d.vehicle.split('-')[0]})
-                                    </option>
-                                  ))
-                              )}
-                            </select>
+                            <span className="text-[10px] text-[#8B7E74] italic">⏳ Chờ phân công tự động</span>
                           )}
                         </td>
                         <td className="p-3.5">
@@ -1655,63 +1620,21 @@ export function AdminDashboard({
                             )}
                             {order.status === 'preparing' && (
                               <button
-                                onClick={() => order.driverId ? onUpdateOrderStatus(order.id, 'shipping') : null}
-                                className={`${order.driverId ? 'bg-sky-600 hover:bg-sky-700 cursor-pointer' : 'bg-sky-600/40 cursor-not-allowed'} text-white font-bold px-2 py-1 rounded text-[10px] text-center`}
-                                title={!order.driverId ? 'Vui lòng chọn tài xế trước khi lên xe' : ''}
-                              >
-                                {order.driverId ? 'Xác Nhận Hoàn Tất Lên Xe' : '⚠️ Chọn tài xế trước'}
-                              </button>
-                            )}
-                            {order.status === 'picked_up' && (
-                              <button
                                 onClick={() => onUpdateOrderStatus(order.id, 'shipping')}
                                 className="bg-sky-600 hover:bg-sky-700 text-white font-bold px-2 py-1 rounded text-[10px] text-center cursor-pointer"
                               >
-                                Bắt Đầu Giao Hàng
+                                Đang Giao Hàng
                               </button>
                             )}
                             {order.status === 'shipping' && (
-                              <>
-                                {onUpdateOrderProgress && (() => {
-                                  const currentProgress = order.deliveryProgress || 0;
-                                  const milestoneStages: Record<number, string> = {
-                                    25: 'Xe đã lăn bánh ra đại lộ.',
-                                    50: 'Đang chạy bon bon qua nhịp Cầu Trường Tiền.',
-                                    75: 'Đã đi vào ngõ hẻm tìm số nhà.',
-                                    100: 'Đang bấm chuông trước hiên nhà khách.'
-                                  };
-                                  return (
-                                    <div className="w-full space-y-1">
-                                      <p className="text-[9px] text-[#8B7E74] font-bold text-center">🚚 Tiến trình: {currentProgress}%</p>
-                                      <div className="grid grid-cols-4 gap-0.5">
-                                        {[25, 50, 75, 100].map(m => (
-                                          <button
-                                            key={m}
-                                            disabled={m <= currentProgress}
-                                            onClick={() => onUpdateOrderProgress(order.id, m, milestoneStages[m])}
-                                            className={`font-bold px-1 py-1 rounded text-[9px] text-center ${
-                                              m <= currentProgress
-                                                ? 'bg-emerald-100 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-500 cursor-not-allowed'
-                                                : 'bg-[#E74C3C] hover:bg-[#E74C3C]/90 text-white cursor-pointer'
-                                            }`}
-                                            title={m <= currentProgress ? 'Đã qua mốc này' : `Cập nhật tiến trình lên ${m}%`}
-                                          >
-                                            {m}%
-                                          </button>
-                                        ))}
-                                      </div>
-                                      {currentProgress >= 100 && (
-                                        <p className="text-[9px] text-teal-700 dark:text-teal-400 italic text-center">📍 Đã đến nơi — chờ shipper xác nhận giao hàng</p>
-                                      )}
-                                    </div>
-                                  );
-                                })()}
-                              </>
+                              <button
+                                onClick={() => onUpdateOrderStatus(order.id, 'completed')}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2 py-1 rounded text-[10px] text-center cursor-pointer"
+                              >
+                                Hoàn Thành
+                              </button>
                             )}
-                            {order.status === 'delivered' && (
-                              <span className="text-[9px] text-teal-700 dark:text-teal-400 italic text-center">📦 Shipper đã giao — chờ khách xác nhận nhận hàng</span>
-                            )}
-                            {order.status !== 'completed' && order.status !== 'cancelled' && order.status !== 'delivered' && (
+                            {order.status !== 'completed' && order.status !== 'cancelled' && order.status !== 'pending' && (
                               <button
                                 onClick={() => setOrderIdToCancel(order.id)}
                                 className="text-red-600 dark:text-red-400 hover:text-white dark:hover:text-white hover:bg-red-600 dark:hover:bg-red-600 border border-red-200 dark:border-red-900/60 font-bold px-2 py-0.5 rounded text-[9px] text-center cursor-pointer"
@@ -1760,9 +1683,8 @@ export function AdminDashboard({
                       <span className={`inline-block font-bold px-2 py-0.5 rounded border ${getOrderStatusBadge(viewingOrderDetail.status)}`}>
                         {viewingOrderDetail.status === 'pending' ? 'Chờ xác nhận' :
                           viewingOrderDetail.status === 'preparing' ? 'Đang chế biến' :
-                            viewingOrderDetail.status === 'picked_up' ? 'Đã lấy hàng' :
-                              viewingOrderDetail.status === 'shipping' ? 'Đang giao hàng' :
-                                viewingOrderDetail.status === 'completed' ? 'Thành công' : 'Đã hủy'}
+                            viewingOrderDetail.status === 'shipping' ? 'Đang giao hàng' :
+                              viewingOrderDetail.status === 'completed' ? 'Hoàn thành' : 'Đã hủy'}
                       </span>
                     </p>
                   </div>

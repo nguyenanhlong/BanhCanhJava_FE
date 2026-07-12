@@ -52,7 +52,7 @@ export interface User {
   total_orders?: number;
 }
 
-export type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'picked_up' | 'shipping' | 'delivered' | 'completed' | 'cancelled';
+export type OrderStatus = 'pending' | 'preparing' | 'shipping' | 'completed' | 'cancelled';
 
 export interface OrderItem {
   productId?: number;
