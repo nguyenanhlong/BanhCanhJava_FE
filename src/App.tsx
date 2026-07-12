@@ -630,7 +630,10 @@ export default function App() {
 
     const updated = orders.map(o => {
       if (o.id === orderId) {
-        if (updatedOrder) return updatedOrder;
+        if (updatedOrder) {
+          // Backend trả về đơn đã cập nhật (bao gồm cả tài xế tự động nếu có)
+          return updatedOrder;
+        }
         const nextOrderState = { ...o, status };
         if (status === 'shipping') {
           nextOrderState.deliveryProgress = 10;
@@ -641,6 +644,16 @@ export default function App() {
           nextOrderState.deliveryProgress = 100;
           nextOrderState.deliveryStage = 'Món ăn đã được giao hoàn tất!';
         }
+        // Offline: tự động phân công tài xế rảnh khi chuyển sang chế biến
+        if (status === 'preparing' && !nextOrderState.driverId) {
+          const availableDrivers = drivers.filter(d => d.status === 'available');
+          if (availableDrivers.length > 0) {
+            const driver = availableDrivers[0];
+            nextOrderState.driverId = driver.id;
+            setDrivers(prev => prev.map(d => d.id === driver.id ? { ...d, status: 'busy' as const } : d));
+            showToast(`Tự động phân công tài xế ${driver.name} cho đơn hàng ${orderId}!`, 'info', 'Tự động phân công 🛵');
+          }
+        }
         return nextOrderState;
       }
       return o;
@@ -650,6 +663,11 @@ export default function App() {
     if (targetOrder && targetOrder.driverId && (status === 'completed' || status === 'cancelled')) {
       // Free the driver
       setDrivers(prev => prev.map(d => d.id === targetOrder.driverId ? { ...d, status: 'available' as const } : d));
+    }
+
+    // Backend tự động phân công tài xế: cập nhật trạng thái local
+    if (status === 'preparing' && updatedOrder?.driverId && updatedOrder.driverId !== targetOrder?.driverId) {
+      setDrivers(prev => prev.map(d => d.id === updatedOrder.driverId ? { ...d, status: 'busy' as const } : d));
     }
 
     setOrders(updated);
