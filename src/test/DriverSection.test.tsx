@@ -84,15 +84,15 @@ describe('DriverSection', () => {
   it('shows status update buttons in detail view', () => {
     render(<DriverSection {...baseProps} />);
     fireEvent.click(screen.getByText('#DH-001'));
-    expect(screen.getByText('Đã lấy hàng')).toBeInTheDocument();
+    expect(screen.getByText('Đã lấy hàng - Đang giao')).toBeInTheDocument();
     expect(screen.getByText('Cập nhật trạng thái')).toBeInTheDocument();
   });
 
   it('calls onUpdateOrderStatus when status button clicked', () => {
     render(<DriverSection {...baseProps} />);
     fireEvent.click(screen.getByText('#DH-001'));
-    fireEvent.click(screen.getByText('Đã lấy hàng'));
-    expect(onUpdateOrderStatus).toHaveBeenCalledWith('DH-001', 'picked_up');
+    fireEvent.click(screen.getByText('Đã lấy hàng - Đang giao'));
+    expect(onUpdateOrderStatus).toHaveBeenCalledWith('DH-001', 'shipping');
   });
 
   it('renders order items in detail view', () => {

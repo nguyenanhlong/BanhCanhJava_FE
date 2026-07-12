@@ -153,19 +153,11 @@ describe('AdminDashboard', () => {
       expect(screen.getByText(/Tại quán/)).toBeInTheDocument();
     });
 
-    it('shows driver assignment dropdown for non-completed/non-cancelled orders', () => {
+    it('shows auto-assign status text instead of driver dropdown', () => {
       render(<AdminDashboard {...baseProps} />);
       fireEvent.click(screen.getByText(/Đơn Hàng \(/));
-      const selects = screen.getAllByRole('combobox');
-      expect(selects.length).toBeGreaterThan(0);
-    });
-
-    it('calls onAssignDriver when driver is selected', () => {
-      render(<AdminDashboard {...baseProps} />);
-      fireEvent.click(screen.getByText(/Đơn Hàng \(/));
-      const selects = screen.getAllByRole('combobox');
-      fireEvent.change(selects[0], { target: { value: 'd1' } });
-      expect(baseProps.onAssignDriver).toHaveBeenCalledWith('1', 'd1');
+      expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+      expect(screen.getByText(/Chờ phân công tự động/)).toBeInTheDocument();
     });
 
     it('shows confirm order button for pending orders', () => {
