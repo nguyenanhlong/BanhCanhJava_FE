@@ -1634,7 +1634,7 @@ export function AdminDashboard({
                                 Hoàn Thành
                               </button>
                             )}
-                            {order.status !== 'completed' && order.status !== 'cancelled' && order.status !== 'pending' && (
+                            {order.status !== 'completed' && order.status !== 'cancelled' && (
                               <button
                                 onClick={() => setOrderIdToCancel(order.id)}
                                 className="text-red-600 dark:text-red-400 hover:text-white dark:hover:text-white hover:bg-red-600 dark:hover:bg-red-600 border border-red-200 dark:border-red-900/60 font-bold px-2 py-0.5 rounded text-[9px] text-center cursor-pointer"
