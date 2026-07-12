@@ -5,6 +5,10 @@ const BASE_URL = 'https://banhcanhjava-be.onrender.com/api';
 // === JWT token (Phase 3 auth) ===
 const TOKEN_KEY = 'banhcanh_token';
 
+// Shown when an admin-only backend call returns 401/403 — usually means the current session has
+// no valid admin JWT (e.g. logged in via the offline mock shortcut, or the token expired).
+export const ADMIN_AUTH_ERROR = 'Phiên đăng nhập không có quyền quản trị hợp lệ. Vui lòng đăng xuất và đăng nhập lại bằng tài khoản admin (khi đã kết nối máy chủ).';
+
 export function getAuthToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
@@ -210,6 +214,7 @@ export const ApiService = {
       method: 'PUT'
     });
     if (!res.ok) {
+      if (res.status === 401 || res.status === 403) throw new Error(ADMIN_AUTH_ERROR);
       let msg = 'Không thể cập nhật tiến trình giao hàng';
       try { const j = await res.json(); if (j.error) msg = j.error; } catch {}
       throw new Error(msg);
@@ -223,6 +228,7 @@ export const ApiService = {
       method: 'PUT'
     });
     if (!res.ok) {
+      if (res.status === 401 || res.status === 403) throw new Error(ADMIN_AUTH_ERROR);
       let msg = 'Không thể điều phối shipper nhận đơn';
       try { const j = await res.json(); if (j.error) msg = j.error; } catch {}
       throw new Error(msg);
